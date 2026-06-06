@@ -192,8 +192,14 @@ struct AlbumCoverView: View {
     let title: String
     let size: CGFloat
 
+    private func resolveURL(_ path: String) -> URL? {
+        if path.hasPrefix("http") { return URL(string: path) }
+        // Relative path served by backend (e.g. "/covers/...")
+        return URL(string: APIClient.shared.baseURL + path)
+    }
+
     var body: some View {
-        if let first = covers.first, let url = URL(string: first.url) {
+        if let first = covers.first, let url = resolveURL(first.url) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img):

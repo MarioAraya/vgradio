@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
@@ -39,8 +40,8 @@ type handler struct {
 	resolver mp3Resolver
 }
 
-// NewRouter returns the API router.
-func NewRouter(s storer, q queuer, r mp3Resolver) http.Handler {
+// NewRouter returns the API router. dataDir is the root for downloaded covers.
+func NewRouter(s storer, q queuer, r mp3Resolver, dataDir string) http.Handler {
 	h := &handler{store: s, queue: q, resolver: r}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /albums", h.postAlbum)
@@ -49,6 +50,9 @@ func NewRouter(s storer, q queuer, r mp3Resolver) http.Handler {
 	mux.HandleFunc("GET /jobs/{id}", h.getJob)
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
+	// Serve downloaded cover images.
+	coversDir := filepath.Join(dataDir)
+	mux.Handle("/covers/", http.StripPrefix("/covers/", http.FileServer(http.Dir(coversDir))))
 	return mux
 }
 

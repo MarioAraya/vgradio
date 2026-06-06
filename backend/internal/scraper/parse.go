@@ -43,15 +43,23 @@ func ParseAlbum(html []byte, sourceURL string) (*Album, error) {
 		return nil, ErrParse
 	}
 
-	// Alt titles: collect <p> siblings between h2 and #gameInfo (Japanese, romanized, etc.)
+	// Alt titles: <p> siblings after h2 that look like titles (no ":" = not a metadata label).
 	var altLines []string
-	doc.Find("h2").First().NextUntil("#gameInfo").Filter("p").Each(func(_ int, s *goquery.Selection) {
-		for _, line := range strings.Split(s.Text(), "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				altLines = append(altLines, line)
-			}
+	doc.Find("h2").First().NextAll().Filter("p").EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		// Stop when we hit the info block (contains known metadata labels).
+		text := strings.TrimSpace(s.Text())
+		if strings.Contains(text, "Platforms:") || strings.Contains(text, "Year:") {
+			return false // break
 		}
+		for _, line := range strings.Split(text, "\n") {
+			line = strings.TrimSpace(line)
+			// Skip empty, metadata labels (contain ":"), and stray separators.
+			if line == "" || strings.Contains(line, ":") || strings.HasPrefix(line, "|") {
+				continue
+			}
+			altLines = append(altLines, line)
+		}
+		return true
 	})
 	a.AltTitle = strings.Join(altLines, "\n")
 

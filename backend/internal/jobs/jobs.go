@@ -154,16 +154,16 @@ func (q *Queue) run(ctx context.Context, albumURL string) (string, error) {
 	}
 
 	// Download covers to dataDir/<albumID>/covers/.
+	// Store a relative API URL (/covers/...) so the client can fetch via HTTP.
 	coverDir := filepath.Join(q.dataDir, albumID, "covers")
 	for i, c := range album.Covers {
-		dest := filepath.Join(coverDir, fmt.Sprintf("cover_%d%s", i, ext(c.URL)))
+		filename := fmt.Sprintf("cover_%d%s", i, ext(c.URL))
+		dest := filepath.Join(coverDir, filename)
 		if dlErr := q.fetcher.Download(ctx, c.URL, dest); dlErr != nil {
-			// Non-fatal: log and continue without this cover.
 			_ = dlErr
 			continue
 		}
-		// Update cover URL to local path for the store.
-		album.Covers[i].URL = dest
+		album.Covers[i].URL = "/covers/" + albumID + "/" + filename
 	}
 
 	// Persist — MP3 URLs resolved lazily at stream time.
