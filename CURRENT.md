@@ -1,65 +1,64 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-06 (sesión 2)
+Última sesión: 2026-06-06 (sesión 5)
 
 > Estado de implementación para retomar entre sesiones. Pareja con `features.json`.
 > Specs: `SPEC.md`, `backend/SPEC.md`, `VGRadio/SPEC.md`, `docs/API.md`.
 
 ## En progreso
 
-### Backend Go — fetcher (siguiente capa TDD)
+### UX de tracks — hide + thumbup + covers persistidas
 
-Scraper + store terminados. Sigue `internal/fetcher`: descarga mp3/covers con throttle + context.
+Sesión 5 agregó varias features de UX al player client. Todas compilando, sin XCTest todavía.
 
-**Contexto recopilado (sitio origen = khinsider):**
-- mp3 directo **NO** está en la página de álbum. Cada track linkea a una **página de
-  canción** que tiene el mp3 en `<audio id="audio" src>` (estático, sin JS). → scrape 2 pasos.
-- Sin número de track en el HTML → `Track.Index` = posición (1..N).
-- hrefs vienen doble-encoded (`%2520` = espacio); se preservan tal cual, funcionan.
-- mp3 reales servidos desde `*.vgmtreasurechest.com`.
-- Fixture real: `kirby-planet-robobot-gamerip` = 181 tracks, 1 cover.
+**Decisiones tomadas:**
+- `CoverPrefsStore` es singleton (no `@Observable`) — no necesita reactividad, AlbumCoverView ya maneja su propio `@State`
+- `HiddenTracksStore` es `@Observable` — inyectado via `.environment()` para que los rows reaccionen al toggle
+- `PlayerService.hiddenTracks` es opcional (`HiddenTracksStore?`) — se setea en `.onAppear` del WindowGroup
+- El header del tracklist cambió ★ → 👍 / 👁 como labels de columna (emojis, discutible)
+- Drag-down gesture en `DetailTrackRow` con `minimumDistance: 12` y `translation.height > 20` para ocultar track
 
-**Decisiones tomadas (recién implementadas):**
-- Parser **puro** (`[]byte HTML → struct`), sin red/disco → 100% testeable con fixtures.
-- HTML parsing con **goquery** (`PuerkitoBio/goquery`); metadata por regex sobre labels.
-- `Track`: añadidos `PageURL` (página canción) y `SongID`; `MP3URL` se resuelve aparte.
-- Module path Go: `github.com/arayama/vgradio-app/backend`.
-- Cache backend confirmado: filesystem (audio) + SQLite (metadata).
-- Entrega: stream (Range) + descarga. Cliente SwiftUI macOS 14+.
+**Preguntas abiertas:**
+1. ¿Emojis 👍 👁 en header del tracklist se ven bien o cambiar a iconos SF?
+2. ¿Al reproducir Play en AlbumDetail, el primer track no-oculto debería ser el primero de la cola o saltar al siguiente no-oculto internamente?
 
-**Preguntas pendientes antes de continuar:**
-1. Persona 5 tiene metadata multi-plataforma / multi-disco — ¿`Platform` string único o `[]string`?
-   (hoy captura solo el primero; revisar al scrapear Persona 5 con fetcher listo).
-2. `fetcher`: ¿descarga mp3 a `data/audio/<albumID>/` o ruta configurable? (spec dice `data/`).
+## Completado esta sesión (sesión 5)
 
-## Completado esta sesión
+- [x] **Cover index persistido por álbum** — `CoverPrefsStore` guarda `[albumID: Int]` en UserDefaults. `AlbumCoverView` recibe `initialIndex`. Library y DetailView leen/escriben. Al hacer Play se restaura el cover guardado.
+- [x] **Volumen on hover** — `PlayerBarView.volumeSection`: slider aparece/desaparece animado (`.easeInOut 0.18s`) con `.onHover` en el HStack completo. Ícono siempre visible.
+- [x] **Ocultar tracks (swipe down)** — `HiddenTracksStore` persiste en UserDefaults. Gesture drag-down en fila. Botón `arrow.down.to.line` on hover. Track oculto: 45% opacidad, nombre tachado, ícono `eye.slash`. `PlayerService.next()/previous()` los salta automáticamente.
+- [x] **Thumbs up on hover** — `DetailTrackRow`: columna favorito muestra `hand.thumbsup` on hover, `hand.thumbsup.fill` si ya es favorito (reemplaza el ★ estático).
+- [x] **Play respeta ocultos** — botón Play en AlbumDetail arranca desde el primer track no-oculto.
+- [x] Build limpio: `swift build` → `Build complete!` (4.83s)
 
-- [x] SDD: specs maestro + backend + cliente + contrato API (`d7debc7`).
-- [x] Feature favoritos (★) en v1 single-user; playlists/share a fase 2 (`1b78b28`).
-- [x] Módulo Go + goquery; tipos dominio (Album/Track/Cover/Comment).
-- [x] **TDD scraper GREEN** (`8401840`): `ParseAlbum` + `ParseSongMP3`, 4 tests pasan
-      contra fixture real Kirby (181 tracks). `gofmt`/`go vet` limpios.
-- [x] `docs/seed-urls.md` con URLs semilla + nota de scraping 2 pasos.
-- [x] **TDD store GREEN** (`0e21795`): `AlbumID` (SHA-256[:8]), `SaveAlbum` (idempotente),
-      `Exists`, `Album` (round-trip completo), `ErrNotFound`. 5 tests pasan. SQLite WAL + FK.
-      `CURRENT.md` + `features.json` creados como mecanismo guardar/cargar estado.
+## Completado sesiones previas
+
+- [x] Backend v1 completo (scraper, store, fetcher, jobs, API, SSRF guard)
+- [x] Lazy MP3 resolution en `/stream` — resuelve URL on-demand, cachea, 302
+- [x] Servir covers locales: `GET /covers/<albumID>/<filename>`
+- [x] DesignSystem tokens reales Lovable (OKLCH→hex), `VGLayout`, `ThinProgressTrack`
+- [x] Space bar play/pause (`.onKeyPress(.space)` en `ContentView`)
+- [x] AddURLView: Esc dismiss, Import con URL default (DOOM 1997)
+- [x] AlbumDetailView: metadata completa (plataformas, catalog, alt titles, developer, publisher)
+- [x] Star álbum: `FavoritesStore.addAll/removeAll/isAlbumFavorited`
+- [x] AlbumCoverView: hover-nav con flechas ‹ › + dots indicator
+- [x] Carátula real en player bar
+- [x] Drone CI para backend Go
+- [x] Player bar rediseño estilo YT Music: HStack single row, progreso top edge, tiempo inline
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [x] **`internal/store`** DONE — ver arriba.
-- [ ] **`internal/fetcher`** (TDD): GET con throttle + context cancel, descarga mp3/covers a filesystem.
-- [ ] `internal/fetcher`: descarga mp3/covers con throttle + context (test de humo).
-- [ ] `internal/jobs`: cola async goroutines (pending/running/done/failed).
-- [ ] `internal/api`: handlers HTTP (`httptest`): POST /albums 202, GET /albums/:id, Range 206.
-- [ ] `cmd/server/main.go`: wiring + arranque.
-- [ ] Validación anti-SSRF de URL de entrada (boundary "always").
-- [ ] Cliente SwiftUI: arrancar tras backend mínimo usable.
+- [ ] **Commitear sesión 5** — `CoverPrefsStore.swift`, `HiddenTracksStore.swift` (nuevos), 6 archivos modificados
+- [ ] **Header tracklist** — decidir emojis 👍 👁 vs SF Symbols en columnas del tracklist
+- [ ] **XCTest cliente** — `LibraryStore`, `FavoritesStore`, `HiddenTracksStore`, `PlayerService`
+- [ ] **client-download** — UI descarga álbum offline (botón AlbumDetail + progreso)
+- [ ] **Activar CI** — `GITEA_TOKEN=xxx bash "../1_scripts/homelab deploy/create-gitea-repos.sh"` → push gitea → activar Drone
 
 ## Notas
 
-- albumID = hash estable de sourceURL (definido en spec, aún no implementado).
-- `Number of Files: 181` calza exacto con tracks parseados → buena señal del parser.
-- Fixtures en `backend/internal/scraper/testdata/{album,song}.html` (commiteados).
-- Comando bajar fixture: `curl -sL -A "Mozilla/5.0" <url> -o <archivo>`.
-- Tests: `cd backend && go test ./...`. Fmt: `gofmt -l .` (debe salir vacío).
-- `.gitignore` excluye `backend/data/` (cache runtime, no versionar).
+- Build Swift: `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build` (desde `VGRadio/`)
+- Error SourceKit "SDK not supported" es mismatch de toolchain, no afecta compilación
+- Backend: `cd backend && go run ./cmd/server`
+- `CoverPrefsStore.shared.index(for:)` retorna 0 si no hay preferencia guardada (seguro)
+- `PlayerService.hiddenTracks` se setea en `.onAppear` del WindowGroup — si se resetea el player antes del onAppear, hiddenTracks será nil (edge case improbable)
+- Xcode en SSD externa: `/Volumes/ExtDevDisk/Xcode.app`

@@ -73,9 +73,15 @@ private struct AlbumCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: VGSpace.sm) {
             ZStack(alignment: .bottomTrailing) {
-                AlbumLetterArt(title: album.title, size: 160)
+                AlbumCoverView(
+                    covers: album.covers,
+                    title: album.title,
+                    size: 160,
+                    initialIndex: CoverPrefsStore.shared.index(for: album.id),
+                    enableHoverControls: false
+                )
 
-                if isHovered {
+                if isHovered && album.covers.isEmpty {
                     Circle()
                         .fill(Color.vgAccent)
                         .frame(width: 40, height: 40)

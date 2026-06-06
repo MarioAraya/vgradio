@@ -6,6 +6,9 @@ import Observation
 final class PlayerService {
     private(set) var currentTrack: Track?
     private(set) var currentAlbum: AlbumSummary?
+    private(set) var currentCovers: [Cover] = []
+    var currentCoverIndex: Int = 0
+    var hiddenTracks: HiddenTracksStore?
     private(set) var isPlaying = false
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
@@ -23,10 +26,12 @@ final class PlayerService {
 
     // MARK: - Playback control
 
-    func play(track: Track, in album: AlbumSummary, queue tracks: [Track]) {
+    func play(track: Track, in album: AlbumSummary, queue tracks: [Track], covers: [Cover] = []) {
         self.queue = tracks
         self.queueIndex = tracks.firstIndex(where: { $0.id == track.id }) ?? 0
         self.currentAlbum = album
+        self.currentCovers = covers
+        self.currentCoverIndex = 0
         load(track: track)
     }
 
@@ -37,18 +42,20 @@ final class PlayerService {
     }
 
     func next() {
-        guard queueIndex + 1 < queue.count else { return }
-        queueIndex += 1
-        load(track: queue[queueIndex])
+        var idx = queueIndex + 1
+        while idx < queue.count && hiddenTracks?.isHidden(queue[idx].id) == true { idx += 1 }
+        guard idx < queue.count else { return }
+        queueIndex = idx
+        load(track: queue[idx])
     }
 
     func previous() {
-        if currentTime > 3 {
-            seek(to: 0); return
-        }
-        guard queueIndex > 0 else { return }
-        queueIndex -= 1
-        load(track: queue[queueIndex])
+        if currentTime > 3 { seek(to: 0); return }
+        var idx = queueIndex - 1
+        while idx >= 0 && hiddenTracks?.isHidden(queue[idx].id) == true { idx -= 1 }
+        guard idx >= 0 else { return }
+        queueIndex = idx
+        load(track: queue[idx])
     }
 
     func seek(to seconds: Double) {

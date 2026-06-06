@@ -6,6 +6,7 @@ struct AlbumDetailView: View {
 
     @Environment(PlayerService.self) var player
     @Environment(FavoritesStore.self) var favorites
+    @Environment(HiddenTracksStore.self) var hidden
     @State private var album: Album?
     @State private var isLoading = true
     @State private var hoveredTrackID: String?
@@ -37,7 +38,16 @@ struct AlbumDetailView: View {
     private func albumContent(_ album: Album) -> some View {
         // Hero header
         HStack(alignment: .top, spacing: 24) {
-            AlbumCoverView(covers: album.covers, title: album.title, size: VGLayout.albumCoverDetail)
+            AlbumCoverView(
+                covers: album.covers,
+                title: album.title,
+                size: VGLayout.albumCoverDetail,
+                initialIndex: CoverPrefsStore.shared.index(for: summary.id),
+                onIndexChange: {
+                    player.currentCoverIndex = $0
+                    CoverPrefsStore.shared.set($0, for: summary.id)
+                }
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(album.albumType.isEmpty ? "SOUNDTRACK" : album.albumType.uppercased())
@@ -85,8 +95,9 @@ struct AlbumDetailView: View {
                 // Actions
                 HStack(spacing: 10) {
                     Button {
-                        if let first = album.tracks.first {
-                            player.play(track: first, in: summary, queue: album.tracks)
+                        if let first = album.tracks.first(where: { !(hidden.isHidden($0.id)) }) ?? album.tracks.first {
+                            player.play(track: first, in: summary, queue: album.tracks, covers: album.covers)
+                            player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                         }
                     } label: {
                         HStack(spacing: 6) {
@@ -102,7 +113,24 @@ struct AlbumDetailView: View {
                     .buttonStyle(.plain)
 
                     CircleIconButton(icon: "arrow.down.circle")
-                    CircleIconButton(icon: "star")
+
+                    // Star: adds/removes all tracks for this album
+                    let allFav = favorites.isAlbumFavorited(summary.id)
+                    Button {
+                        if allFav {
+                            favorites.removeAll(albumID: summary.id)
+                        } else {
+                            favorites.addAll(album.tracks, album: summary)
+                        }
+                    } label: {
+                        Image(systemName: allFav ? "star.fill" : "star")
+                            .font(.system(size: 14))
+                            .foregroundStyle(allFav ? Color.vgStar : Color.vgTextSec)
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
 
                     Text("\(album.tracks.count) tracks")
                         .font(VGFont.body())
@@ -122,8 +150,8 @@ struct AlbumDetailView: View {
                 Text("#").frame(width: 40, alignment: .center)
                 Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
                 Text("DUR").frame(width: 60, alignment: .trailing)
-                Text("★").frame(width: 40, alignment: .center)
-                Color.clear.frame(width: 40)
+                Text("👍").frame(width: 40, alignment: .center)
+                Text("👁").frame(width: 40, alignment: .center)
             }
             .font(VGFont.label(10))
             .tracking(1.0)
@@ -142,7 +170,8 @@ struct AlbumDetailView: View {
                 )
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
                 .onTapGesture(count: 2) {
-                    player.play(track: track, in: summary, queue: album.tracks)
+                    player.play(track: track, in: summary, queue: album.tracks, covers: album.covers)
+                    player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                 }
             }
         }
@@ -191,33 +220,99 @@ struct AlbumCoverView: View {
     let covers: [Cover]
     let title: String
     let size: CGFloat
+    var initialIndex: Int = 0
+    var enableHoverControls = true
+    var onIndexChange: ((Int) -> Void)? = nil
 
-    private func resolveURL(_ path: String) -> URL? {
+    @State private var coverIndex = 0
+    @State private var isHovered = false
+
+    static func resolveURL(_ path: String) -> URL? {
         if path.hasPrefix("http") { return URL(string: path) }
-        // Relative path served by backend (e.g. "/covers/...")
         return URL(string: APIClient.shared.baseURL + path)
     }
 
     var body: some View {
-        if let first = covers.first, let url = resolveURL(first.url) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let img):
-                    img.resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: size, height: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .shadow(color: Color.vgAccent.opacity(0.15), radius: 20, y: 8)
-                default:
+        let safeIndex = covers.isEmpty ? -1 : min(coverIndex, covers.count - 1)
+        ZStack {
+            Group {
+                if safeIndex >= 0, let url = Self.resolveURL(covers[safeIndex].url) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: size, height: size)
+                        default:
+                            AlbumLetterArt(title: title, size: size)
+                        }
+                    }
+                } else {
                     AlbumLetterArt(title: title, size: size)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
             .frame(width: size, height: size)
-        } else {
-            AlbumLetterArt(title: title, size: size)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            if enableHoverControls && isHovered && covers.count > 1 {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.black.opacity(0.45))
+                    .frame(width: size, height: size)
+
+                HStack {
+                    Button {
+                        let newIdx = max(0, coverIndex - 1)
+                        withAnimation(.easeInOut(duration: 0.15)) { coverIndex = newIdx }
+                        onIndexChange?(newIdx)
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Color.black.opacity(0.55))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(coverIndex > 0 ? 1 : 0.3)
+
+                    Spacer()
+
+                    Button {
+                        let newIdx = min(covers.count - 1, coverIndex + 1)
+                        withAnimation(.easeInOut(duration: 0.15)) { coverIndex = newIdx }
+                        onIndexChange?(newIdx)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Color.black.opacity(0.55))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(coverIndex < covers.count - 1 ? 1 : 0.3)
+                }
+                .padding(.horizontal, 8)
+                .frame(width: size)
+
+                VStack {
+                    Spacer()
+                    HStack(spacing: 4) {
+                        ForEach(0..<covers.count, id: \.self) { i in
+                            Circle()
+                                .fill(i == coverIndex ? Color.white : Color.white.opacity(0.4))
+                                .frame(width: 5, height: 5)
+                        }
+                    }
+                    .padding(.bottom, 8)
+                }
+                .frame(width: size, height: size)
+            }
         }
+        .frame(width: size, height: size)
+        .shadow(color: Color.vgAccent.opacity(0.15), radius: 20, y: 8)
+        .onHover { isHovered = $0 }
+        .onAppear { coverIndex = min(initialIndex, max(0, covers.count - 1)) }
     }
 }
 
@@ -230,21 +325,29 @@ private struct DetailTrackRow: View {
     let isHovered: Bool
     let isPlaying: Bool
     @Environment(FavoritesStore.self) var favorites
+    @Environment(HiddenTracksStore.self) var hidden
+
+    private var isHidden: Bool { hidden.isHidden(track.id) }
+    private var isFav: Bool { favorites.isFavorite(track.id) }
 
     var body: some View {
         ZStack(alignment: .leading) {
             if isPlaying {
                 Color.vgAccentBg
                 Color.vgAccent.frame(width: 2)
-            } else if isHovered {
+            } else if isHovered && !isHidden {
                 Color.white.opacity(0.04)
             } else if isAltRow {
                 Color.white.opacity(0.015)
             }
 
             HStack(spacing: 0) {
+                // Index / play / hidden indicator
                 Group {
-                    if isPlaying {
+                    if isHidden {
+                        Image(systemName: "eye.slash")
+                            .foregroundStyle(Color.vgTextMuted).font(.system(size: 11))
+                    } else if isPlaying {
                         Image(systemName: "waveform")
                             .foregroundStyle(Color.vgAccent).font(.system(size: 12))
                     } else if isHovered {
@@ -259,38 +362,57 @@ private struct DetailTrackRow: View {
 
                 Text(track.name)
                     .font(VGFont.body(13))
-                    .foregroundStyle(isPlaying ? Color.vgAccent : Color.vgText)
+                    .foregroundStyle(isHidden ? Color.vgTextMuted : isPlaying ? Color.vgAccent : Color.vgText)
+                    .strikethrough(isHidden, color: Color.vgTextMuted)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(track.durationFormatted)
                     .font(VGFont.mono(12))
-                    .foregroundStyle(Color.vgTextSec)
+                    .foregroundStyle(isHidden ? Color.vgTextMuted.opacity(0.5) : Color.vgTextSec)
                     .frame(width: 60, alignment: .trailing)
                     .monospacedDigit()
 
+                // Thumbs up (favorite) — shown on hover or when already favorited
                 Button { favorites.toggle(track, album: album) } label: {
-                    Image(systemName: favorites.isFavorite(track.id) ? "star.fill" : "star")
-                        .font(.system(size: 12))
-                        .foregroundStyle(favorites.isFavorite(track.id) ? Color.vgStar : Color.vgTextMuted)
-                        .scaleEffect(favorites.isFavorite(track.id) ? 1.15 : 1)
-                        .animation(.spring(response: 0.2), value: favorites.isFavorite(track.id))
+                    Group {
+                        if isHovered || isFav {
+                            Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                .font(.system(size: 12))
+                                .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
+                                .scaleEffect(isFav ? 1.1 : 1)
+                        } else {
+                            Color.clear
+                        }
+                    }
+                    .animation(.spring(response: 0.2), value: isFav)
                 }
                 .buttonStyle(.plain)
                 .frame(width: 40, alignment: .center)
 
-                Button {} label: {
-                    Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 13))
-                        .foregroundStyle(isHovered ? Color.vgTextSec : Color.clear)
+                // Hide toggle (swipe-down button) — always visible as subtle indicator when hidden, shown on hover
+                Button { hidden.toggle(track.id) } label: {
+                    Image(systemName: isHidden ? "eye.slash.fill" : "arrow.down.to.line")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isHidden ? Color.vgAccent.opacity(0.7) : isHovered ? Color.vgTextSec : Color.clear)
                 }
                 .buttonStyle(.plain)
                 .frame(width: 40, alignment: .center)
+                .help(isHidden ? "Mostrar en reproducción automática" : "Ocultar de reproducción automática")
             }
             .padding(.horizontal, 12)
+            .opacity(isHidden ? 0.45 : 1)
         }
         .frame(height: VGLayout.trackRowHeight)
         .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 12)
+                .onEnded { v in
+                    if v.translation.height > 20 && abs(v.translation.width) < 40 {
+                        hidden.toggle(track.id)
+                    }
+                }
+        )
     }
 }
 
