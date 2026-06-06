@@ -67,13 +67,15 @@ private struct FavoriteGroupView: View {
             // Album header
             HStack(spacing: VGSpace.md) {
                 AlbumLetterArt(title: group.albumTitle, size: 48)
-                VStack(alignment: .leading, spacing: 2) {
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                VStack(alignment: .leading, spacing: 3) {
                     Text(group.albumTitle)
-                        .font(VGFont.heading())
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.vgText)
                     Text("\(group.platform)  ·  \(group.year)")
-                        .font(VGFont.caption())
+                        .font(VGFont.mono(11))
                         .foregroundStyle(Color.vgTextSec)
+                        .monospacedDigit()
                 }
                 Spacer()
             }

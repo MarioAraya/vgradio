@@ -7,97 +7,120 @@ struct PlayerBarView: View {
     @State private var isRepeat = false
 
     var body: some View {
-        @Bindable var playerB = player
+        ZStack {
+            // Glass bar: backdrop blur via .ultraThinMaterial layer + tinted overlay
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.7)
+            Color.vgSidebar.opacity(0.6)
 
-        HStack(spacing: 0) {
-            // Left: art + track info
-            HStack(spacing: VGSpace.md) {
-                Group {
-                    if let album = player.currentAlbum {
-                        AlbumLetterArt(title: album.title, size: 40)
-                    } else {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.vgSurface)
-                            .frame(width: 40, height: 40)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(player.currentTrack?.name ?? "Nothing playing")
-                        .font(VGFont.body(13))
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.vgText)
-                        .lineLimit(1)
-                    Text(player.currentAlbum?.title ?? "Select an album")
-                        .font(VGFont.caption())
-                        .foregroundStyle(Color.vgTextSec)
-                        .lineLimit(1)
-                }
-
-                // Favorite toggle for current track
-                if let track = player.currentTrack, let album = player.currentAlbum {
-                    Button {
-                        let t = Track(id: track.id, index: track.index, name: track.name,
-                                      durationSec: track.durationSec, sizeBytes: track.sizeBytes,
-                                      streamUrl: track.streamUrl, downloadUrl: track.downloadUrl)
-                        favorites.toggle(t, album: album)
-                    } label: {
-                        Image(systemName: favorites.isFavorite(track.id) ? "heart.fill" : "heart")
-                            .foregroundStyle(favorites.isFavorite(track.id) ? Color.vgAccent : Color.vgTextMuted)
-                    }
-                    .buttonStyle(.plain)
-                }
+            HStack(spacing: 0) {
+                leftColumn
+                centerColumn
+                rightColumn
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Center: transport + scrubber
-            VStack(spacing: VGSpace.sm) {
-                HStack(spacing: VGSpace.lg) {
-                    TransportButton(icon: "shuffle", active: isShuffle) { isShuffle.toggle() }
-                    TransportButton(icon: "backward.fill") { player.previous() }
-                    PlayPauseButton(isPlaying: player.isPlaying) { player.togglePlay() }
-                    TransportButton(icon: "forward.fill") { player.next() }
-                    TransportButton(icon: "repeat", active: isRepeat) { isRepeat.toggle() }
-                }
-
-                HStack(spacing: VGSpace.sm) {
-                    Text(formatTime(player.currentTime))
-                        .font(VGFont.mono(11))
-                        .foregroundStyle(Color.vgTextMuted)
-                        .frame(width: 36, alignment: .trailing)
-
-                    Slider(
-                        value: Binding(
-                            get: { player.duration > 0 ? player.currentTime / player.duration : 0 },
-                            set: { player.seek(to: $0 * player.duration) }
-                        )
-                    )
-                    .tint(Color.vgAccent)
-                    .frame(width: 260)
-
-                    Text(formatTime(player.duration))
-                        .font(VGFont.mono(11))
-                        .foregroundStyle(Color.vgTextMuted)
-                        .frame(width: 36, alignment: .leading)
-                }
-            }
-            .frame(maxWidth: .infinity)
-
-            // Right: volume
-            HStack(spacing: VGSpace.sm) {
-                Image(systemName: "speaker.wave.2")
-                    .foregroundStyle(Color.vgTextMuted)
-                    .font(.system(size: 12))
-                Slider(value: .constant(0.8))
-                    .tint(Color.vgAccent)
-                    .frame(width: 90)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, VGSpace.xl)
-        .padding(.vertical, VGSpace.md)
-        .background(Color.vgSidebar)
-        .frame(height: 80)
+        .frame(height: VGLayout.playerBarHeight)
+        .overlay(alignment: .top) {
+            Divider().overlay(Color.vgSeparator)
+        }
+    }
+
+    // MARK: Left — art + info (fixed 280pt)
+
+    private var leftColumn: some View {
+        HStack(spacing: 10) {
+            // Album art 44×44
+            Group {
+                if let album = player.currentAlbum {
+                    AlbumLetterArt(title: album.title, size: VGLayout.albumCoverPlayer)
+                } else {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.vgSurface)
+                        .frame(width: VGLayout.albumCoverPlayer, height: VGLayout.albumCoverPlayer)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(player.currentTrack?.name ?? "Nothing playing")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.vgText)
+                    .lineLimit(1)
+                Text(player.currentAlbum?.title ?? "—")
+                    .font(VGFont.caption(11))
+                    .foregroundStyle(Color.vgTextSec)
+                    .lineLimit(1)
+            }
+
+            if let track = player.currentTrack, let album = player.currentAlbum {
+                Button {
+                    let t = Track(id: track.id, index: track.index, name: track.name,
+                                  durationSec: track.durationSec, sizeBytes: track.sizeBytes,
+                                  streamUrl: track.streamUrl, downloadUrl: track.downloadUrl)
+                    favorites.toggle(t, album: album)
+                } label: {
+                    Image(systemName: favorites.isFavorite(track.id) ? "star.fill" : "star")
+                        .font(.system(size: 12))
+                        .foregroundStyle(favorites.isFavorite(track.id) ? Color.vgStar : Color.vgTextMuted)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+        }
+        .frame(width: 280, alignment: .leading)
+    }
+
+    // MARK: Center — transport + scrubber
+
+    private var centerColumn: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 20) {
+                TransportButton(icon: "shuffle", size: 14, active: isShuffle) { isShuffle.toggle() }
+                TransportButton(icon: "backward.fill", size: 16) { player.previous() }
+                PlayPauseButton(isPlaying: player.isPlaying) { player.togglePlay() }
+                TransportButton(icon: "forward.fill", size: 16) { player.next() }
+                TransportButton(icon: "repeat", size: 14, active: isRepeat) { isRepeat.toggle() }
+            }
+
+            HStack(spacing: 6) {
+                Text(formatTime(player.currentTime))
+                    .font(VGFont.mono(10))
+                    .foregroundStyle(Color.vgTextMuted)
+                    .frame(width: 36, alignment: .trailing)
+                    .monospacedDigit()
+
+                ThinProgressTrack(
+                    fraction: player.duration > 0 ? player.currentTime / player.duration : 0
+                ) { frac in
+                    player.seek(to: frac * player.duration)
+                }
+
+                Text(formatTime(player.duration))
+                    .font(VGFont.mono(10))
+                    .foregroundStyle(Color.vgTextMuted)
+                    .frame(width: 36, alignment: .leading)
+                    .monospacedDigit()
+            }
+            .frame(width: 340)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Right — volume (fixed 160pt)
+
+    private var rightColumn: some View {
+        HStack(spacing: 6) {
+            Spacer()
+            Image(systemName: "speaker.wave.1")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.vgTextMuted)
+            ThinProgressTrack(fraction: 0.8) { _ in }
+                .frame(width: 96)
+        }
+        .frame(width: 160, alignment: .trailing)
     }
 
     private func formatTime(_ secs: Double) -> String {
@@ -107,17 +130,18 @@ struct PlayerBarView: View {
     }
 }
 
-// MARK: - Subviews
+// MARK: - Transport controls
 
 private struct TransportButton: View {
     let icon: String
+    var size: CGFloat = 14
     var active = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(.system(size: size))
                 .foregroundStyle(active ? Color.vgAccent : Color.vgTextSec)
         }
         .buttonStyle(.plain)
@@ -131,9 +155,9 @@ private struct PlayPauseButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 18))
+                .font(.system(size: 14))
                 .foregroundStyle(Color.vgBg)
-                .frame(width: 40, height: 40)
+                .frame(width: VGLayout.playBtnSize, height: VGLayout.playBtnSize)
                 .background(Color.white)
                 .clipShape(Circle())
         }

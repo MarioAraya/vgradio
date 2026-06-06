@@ -1,6 +1,7 @@
 import AVFoundation
 import Observation
 
+@MainActor
 @Observable
 final class PlayerService {
     private(set) var currentTrack: Track?
@@ -72,14 +73,14 @@ final class PlayerService {
     private func observeTime() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] t in
-            self?.currentTime = t.seconds
+            Task { @MainActor [weak self] in self?.currentTime = t.seconds }
         }
     }
 
     private func observeEnd() {
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
         NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player?.currentItem, queue: .main) { [weak self] _ in
-            self?.next()
+            Task { @MainActor [weak self] in self?.next() }
         }
     }
 

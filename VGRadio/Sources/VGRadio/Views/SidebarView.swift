@@ -7,33 +7,29 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Search bar
-            Button {
-                // ⌘K search handled by SearchOverlay
-            } label: {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(Color.vgTextMuted)
-                    Text("Search")
-                        .foregroundStyle(Color.vgTextMuted)
-                    Spacer()
-                    Text("⌘K")
-                        .font(VGFont.caption())
-                        .foregroundStyle(Color.vgTextMuted)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.vgSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
-                .padding(.horizontal, VGSpace.md)
-                .padding(.vertical, VGSpace.sm)
-                .background(Color.vgSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            // Search bar — h-7 = 28px, text 12px
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.vgTextMuted)
+                Text("Search")
+                    .font(VGFont.caption(12))
+                    .foregroundStyle(Color.vgTextMuted)
+                Spacer()
+                Text("⌘K")
+                    .font(VGFont.label(10))
+                    .foregroundStyle(Color.vgTextMuted)
             }
-            .buttonStyle(.plain)
-            .padding(VGSpace.md)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(Color.white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.05)))
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
 
-            // MY MUSIC section
+            // MY MUSIC
             SidebarSection(title: "My Music") {
                 SidebarRow(icon: "music.note.list", label: "Library",         item: .library,       selection: $selection)
                 SidebarRow(icon: "globe",           label: "Browse",          item: .browse,        selection: $selection)
@@ -42,34 +38,38 @@ struct SidebarView: View {
             }
 
             SidebarSection(title: "Quick Actions") {
-                Button {
-                    showAddURL = true
-                } label: {
-                    HStack(spacing: VGSpace.sm) {
+                // Add URL styled the same as nav rows
+                Button { showAddURL = true } label: {
+                    HStack(spacing: 8) {
                         Image(systemName: "plus.circle")
+                            .font(.system(size: 13))
                             .foregroundStyle(Color.vgAccent)
+                            .frame(width: 16)
                         Text("Add URL")
-                            .font(VGFont.body())
+                            .font(VGFont.caption(13))
                             .foregroundStyle(Color.vgText)
+                        Spacer()
                     }
-                    .padding(.horizontal, VGSpace.md)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
                 }
                 .buttonStyle(.plain)
+                .padding(.horizontal, 4)
             }
 
             Spacer()
 
-            // Footer
             Divider().overlay(Color.vgSeparator)
             HStack {
                 Text("v0.1.0 · \(library.albums.count) albums")
-                    .font(VGFont.caption())
+                    .font(VGFont.label(10))
                     .foregroundStyle(Color.vgTextMuted)
                 Spacer()
             }
-            .padding(VGSpace.md)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
+        .frame(width: VGLayout.sidebarWidth)
         .background(Color.vgSidebar)
     }
 }
@@ -81,13 +81,14 @@ private struct SidebarSection<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             Text(title.uppercased())
-                .font(VGFont.caption(10))
+                .font(VGFont.label(10))
+                .tracking(1.2)
                 .foregroundStyle(Color.vgTextMuted)
-                .padding(.horizontal, VGSpace.md)
-                .padding(.top, VGSpace.md)
-                .padding(.bottom, VGSpace.xs)
+                .padding(.horizontal, 12)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
             content()
         }
     }
@@ -103,21 +104,34 @@ private struct SidebarRow: View {
 
     var body: some View {
         Button { selection = item } label: {
-            HStack(spacing: VGSpace.sm) {
-                Image(systemName: isSelected ? icon + ".fill" : icon)
-                    .frame(width: 16)
-                    .foregroundStyle(isSelected ? .white : Color.vgTextSec)
-                Text(label)
-                    .font(VGFont.body())
-                    .foregroundStyle(isSelected ? .white : Color.vgTextSec)
-                Spacer()
+            ZStack(alignment: .leading) {
+                // Active indicator: 2px left line
+                if isSelected {
+                    Color.vgAccent
+                        .frame(width: 2)
+                        .clipShape(RoundedRectangle(cornerRadius: 1))
+                        .padding(.vertical, 6)
+                        .frame(maxHeight: .infinity, alignment: .leading)
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.system(size: 13))
+                        .frame(width: 16)
+                        .foregroundStyle(isSelected ? Color.vgAccent : Color.vgTextSec)
+                    Text(label)
+                        .font(VGFont.caption(13))
+                        .foregroundStyle(isSelected ? Color.vgAccent : Color.vgTextSec)
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.leading, 2) // make room for indicator line
             }
-            .padding(.horizontal, VGSpace.md)
-            .padding(.vertical, 7)
-            .background(isSelected ? Color.vgAccent : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .padding(.horizontal, VGSpace.sm)
+            .frame(height: 28)
+            .background(isSelected ? Color.vgAccentSoft : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, 4)
     }
 }
