@@ -1,0 +1,49 @@
+{
+  "project": "VGRadio",
+  "updated": "2026-06-06",
+  "phases": {
+    "v1": {
+      "label": "MVP",
+      "features": [
+        { "id": "scraper-album", "title": "Scraper: album page -> metadata/covers/tracks", "status": "done", "evidence": "8401840, parse_test.go (4 tests)" },
+        { "id": "scraper-song", "title": "Scraper: song page -> direct mp3 (2-step)", "status": "done", "evidence": "8401840, TestParseSongMP3" },
+        { "id": "store", "title": "Cache: SQLite metadata + filesystem audio (idempotente)", "status": "todo", "evidence": null },
+        { "id": "fetcher", "title": "Descarga mp3/covers con throttle + context", "status": "todo", "evidence": null },
+        { "id": "jobs", "title": "Cola async scrape (goroutines, estados)", "status": "todo", "evidence": null },
+        { "id": "api", "title": "HTTP API: POST /albums, GET /albums/:id, stream Range, download", "status": "todo", "evidence": null },
+        { "id": "server", "title": "cmd/server wiring + arranque", "status": "todo", "evidence": null },
+        { "id": "ssrf-guard", "title": "Validacion anti-SSRF de URL de entrada", "status": "todo", "evidence": null },
+        { "id": "client-library", "title": "Cliente: biblioteca de albumes", "status": "todo", "evidence": null },
+        { "id": "client-addurl", "title": "Cliente: agregar album por URL + polling", "status": "todo", "evidence": null },
+        { "id": "client-player", "title": "Cliente: player AVFoundation (play/pause/seek/next/prev)", "status": "todo", "evidence": null },
+        { "id": "client-download", "title": "Cliente: descarga album para offline", "status": "todo", "evidence": null },
+        { "id": "favorites", "title": "Favoritos (★) por track, perfil local single-user", "status": "spec", "evidence": "1b78b28 (spec only)" }
+      ]
+    },
+    "v1_5": {
+      "label": "Catalogo navegable",
+      "features": [
+        { "id": "catalog-scrape", "title": "Scraper paginas indice -> CatalogEntry", "status": "spec", "evidence": "backend/SPEC.md" },
+        { "id": "catalog-api", "title": "API /catalog (q/platform/letter/type), /catalog/sync, /catalog/platforms", "status": "spec", "evidence": "docs/API.md" },
+        { "id": "catalog-browse", "title": "Cliente: Browse + buscador Spotlight (⌘K) + filtros", "status": "spec", "evidence": "VGRadio/SPEC.md" }
+      ]
+    },
+    "v2": {
+      "label": "Multi-user / P2P / pago",
+      "features": [
+        { "id": "auth", "title": "Cuentas / auth multi-usuario", "status": "spec", "evidence": "SPEC.md roadmap" },
+        { "id": "playlists", "title": "Playlists propias (CRUD)", "status": "spec", "evidence": "SPEC.md roadmap" },
+        { "id": "playlists-share", "title": "Compartir + clonar playlists de otros", "status": "spec", "evidence": "SPEC.md roadmap" },
+        { "id": "favorites-backend", "title": "Migrar favoritos de cliente a backend", "status": "spec", "evidence": "SPEC.md roadmap" },
+        { "id": "p2p", "title": "P2P / seeding entre clientes (tipo torrent)", "status": "spec", "evidence": "SPEC.md roadmap" },
+        { "id": "payment", "title": "Pago/suscripcion (opt-out hosting)", "status": "spec", "evidence": "SPEC.md roadmap" }
+      ]
+    }
+  },
+  "legend": {
+    "spec": "documentado en spec, sin codigo",
+    "todo": "siguiente a implementar",
+    "in_progress": "en construccion",
+    "done": "implementado + tests pasando"
+  }
+}
