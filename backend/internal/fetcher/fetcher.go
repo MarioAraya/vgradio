@@ -50,6 +50,11 @@ func New(opts Options) *Fetcher {
 	}
 }
 
+// Get fetches url and returns the raw response body.
+func (f *Fetcher) Get(ctx context.Context, url string) ([]byte, error) {
+	return f.get(ctx, url)
+}
+
 // SongMP3 fetches the per-song page at pageURL and returns the direct .mp3 URL.
 func (f *Fetcher) SongMP3(ctx context.Context, pageURL string) (string, error) {
 	body, err := f.get(ctx, pageURL)
