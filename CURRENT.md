@@ -1,15 +1,15 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-06
+Última sesión: 2026-06-06 (sesión 2)
 
 > Estado de implementación para retomar entre sesiones. Pareja con `features.json`.
 > Specs: `SPEC.md`, `backend/SPEC.md`, `VGRadio/SPEC.md`, `docs/API.md`.
 
 ## En progreso
 
-### Backend Go — scraper (TDD)
+### Backend Go — fetcher (siguiente capa TDD)
 
-Construyendo el backend scraper API por capas con TDD. Scraper terminado; sigue `store`.
+Scraper + store terminados. Sigue `internal/fetcher`: descarga mp3/covers con throttle + context.
 
 **Contexto recopilado (sitio origen = khinsider):**
 - mp3 directo **NO** está en la página de álbum. Cada track linkea a una **página de
@@ -28,9 +28,9 @@ Construyendo el backend scraper API por capas con TDD. Scraper terminado; sigue 
 - Entrega: stream (Range) + descarga. Cliente SwiftUI macOS 14+.
 
 **Preguntas pendientes antes de continuar:**
-1. ¿Siguiente capa: `store` (cache + idempotencia) o `fetcher`/`api`? (recomendado: `store`).
-2. Persona 5 tiene metadata multi-plataforma / multi-disco — ¿`Platform` string único o `[]string`?
-   (hoy captura solo el primero; revisar al scrapear Persona 5).
+1. Persona 5 tiene metadata multi-plataforma / multi-disco — ¿`Platform` string único o `[]string`?
+   (hoy captura solo el primero; revisar al scrapear Persona 5 con fetcher listo).
+2. `fetcher`: ¿descarga mp3 a `data/audio/<albumID>/` o ruta configurable? (spec dice `data/`).
 
 ## Completado esta sesión
 
@@ -40,11 +40,14 @@ Construyendo el backend scraper API por capas con TDD. Scraper terminado; sigue 
 - [x] **TDD scraper GREEN** (`8401840`): `ParseAlbum` + `ParseSongMP3`, 4 tests pasan
       contra fixture real Kirby (181 tracks). `gofmt`/`go vet` limpios.
 - [x] `docs/seed-urls.md` con URLs semilla + nota de scraping 2 pasos.
+- [x] **TDD store GREEN** (`0e21795`): `AlbumID` (SHA-256[:8]), `SaveAlbum` (idempotente),
+      `Exists`, `Album` (round-trip completo), `ErrNotFound`. 5 tests pasan. SQLite WAL + FK.
+      `CURRENT.md` + `features.json` creados como mecanismo guardar/cargar estado.
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **`internal/store`** (TDD): SQLite (albums/tracks/covers/comments/jobs) + filesystem.
-      Tests: guardar/releer Album idéntico; `Exists(albumID)` true; idempotencia (no re-scrape).
+- [x] **`internal/store`** DONE — ver arriba.
+- [ ] **`internal/fetcher`** (TDD): GET con throttle + context cancel, descarga mp3/covers a filesystem.
 - [ ] `internal/fetcher`: descarga mp3/covers con throttle + context (test de humo).
 - [ ] `internal/jobs`: cola async goroutines (pending/running/done/failed).
 - [ ] `internal/api`: handlers HTTP (`httptest`): POST /albums 202, GET /albums/:id, Range 206.
