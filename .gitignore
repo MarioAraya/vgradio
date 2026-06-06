@@ -1,0 +1,19 @@
+# Go backend
+/backend/bin/
+/backend/data/          # cache: SQLite + audio scrapeado (no versionar)
+*.test
+*.out
+
+# Swift / Xcode
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Env / secrets
+.env
+*.local
