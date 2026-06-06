@@ -6,6 +6,7 @@ enum SidebarItem: String, Hashable {
 
 struct ContentView: View {
     @Environment(LibraryStore.self) var library
+    @Environment(PlayerService.self) var player
     @State private var selection: SidebarItem = .library
     @State private var showAddURL = false
     @State private var showSearch = false
@@ -14,7 +15,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             NavigationSplitView {
                 SidebarView(selection: $selection, showAddURL: $showAddURL)
-                    .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 280)
+                    .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 220)
             } detail: {
                 ZStack {
                     Color.vgBg.ignoresSafeArea()
@@ -41,6 +42,7 @@ struct ContentView: View {
             }
         }
         .onAppear { Task { await library.load() } }
-        .keyboardShortcut("k", modifiers: .command)  // ⌘K → search handled via button
+        .onKeyPress(.space) { player.togglePlay(); return .handled }
+        .keyboardShortcut("k", modifiers: .command)
     }
 }

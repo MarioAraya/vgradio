@@ -112,13 +112,24 @@ struct PlayerBarView: View {
     // MARK: Right — volume (fixed 160pt)
 
     private var rightColumn: some View {
-        HStack(spacing: 6) {
+        @Bindable var playerB = player
+        return HStack(spacing: 6) {
             Spacer()
-            Image(systemName: "speaker.wave.1")
-                .font(.system(size: 11))
-                .foregroundStyle(Color.vgTextMuted)
-            ThinProgressTrack(fraction: 0.8) { _ in }
-                .frame(width: 96)
+            Button {
+                player.isMuted.toggle()
+            } label: {
+                Image(systemName: player.isMuted || player.volume == 0
+                      ? "speaker.slash.fill"
+                      : player.volume < 0.4 ? "speaker.wave.1" : "speaker.wave.2")
+                    .font(.system(size: 11))
+                    .foregroundStyle(player.isMuted ? Color.vgAccent : Color.vgTextMuted)
+            }
+            .buttonStyle(.plain)
+
+            ThinProgressTrack(fraction: player.isMuted ? 0 : player.volume) { frac in
+                player.volume = frac
+            }
+            .frame(width: 88)
         }
         .frame(width: 160, alignment: .trailing)
     }

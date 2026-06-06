@@ -9,6 +9,12 @@ final class PlayerService {
     private(set) var isPlaying = false
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
+    var volume: Double = 0.8 {
+        didSet { player?.volume = Float(volume); if volume > 0 { isMuted = false } }
+    }
+    var isMuted: Bool = false {
+        didSet { player?.isMuted = isMuted }
+    }
 
     private var player: AVPlayer?
     private var queue: [Track] = []
@@ -58,6 +64,7 @@ final class PlayerService {
         let item = AVPlayerItem(url: url)
         if player == nil {
             player = AVPlayer(playerItem: item)
+            player?.volume = Float(volume)
         } else {
             player?.replaceCurrentItem(with: item)
         }

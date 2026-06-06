@@ -51,8 +51,19 @@ func NewRouter(s storer, q queuer, r mp3Resolver, dataDir string) http.Handler {
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
 	// Serve downloaded cover images.
-	coversDir := filepath.Join(dataDir)
-	mux.Handle("/covers/", http.StripPrefix("/covers/", http.FileServer(http.Dir(coversDir))))
+	// URL pattern: /covers/<albumID>/<filename>
+	// File on disk:  <dataDir>/<albumID>/covers/<filename>
+	mux.HandleFunc("/covers/", func(w http.ResponseWriter, r *http.Request) {
+		// strip leading /covers/
+		rel := strings.TrimPrefix(r.URL.Path, "/covers/")
+		parts := strings.SplitN(rel, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			http.NotFound(w, r)
+			return
+		}
+		albumID, filename := parts[0], filepath.Base(parts[1])
+		http.ServeFile(w, r, filepath.Join(dataDir, albumID, "covers", filename))
+	})
 	return mux
 }
 

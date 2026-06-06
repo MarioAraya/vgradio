@@ -3,7 +3,8 @@ import SwiftUI
 struct AddURLView: View {
     @Binding var isPresented: Bool
     @Environment(LibraryStore.self) var library
-    @State private var urlText = ""
+    @Environment(\.dismiss) private var dismiss
+    @State private var urlText = "https://downloads.khinsider.com/game-soundtracks/album/doom-music-1997"
     @State private var phase: Phase = .idle
     @State private var fakeProgress: Double = 0
     private let progressTimer = Timer.publish(every: 0.08, on: .main, in: .common).autoconnect()
@@ -116,6 +117,7 @@ struct AddURLView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.vgSeparator))
         .frame(width: 460)
+        .onKeyPress(.escape) { dismiss(); return .handled }
         .onReceive(progressTimer) { _ in
             guard isLoading else { return }
             // Fake progress: fast to 70%, then slow, never reaches 100%
