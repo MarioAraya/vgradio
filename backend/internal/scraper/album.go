@@ -33,6 +33,7 @@ type Cover struct {
 // links to a per-song page (PageURL). The direct MP3 is resolved in a second step
 // (ParseSongMP3) and stored in MP3URL — empty until resolved.
 type Track struct {
+	ID          string // DB-assigned identifier (set by store, empty from scraper)
 	Index       int
 	Name        string
 	DurationSec int

@@ -218,7 +218,7 @@ func (s *Store) Album(ctx context.Context, albumID string) (*scraper.Album, erro
 
 func (s *Store) loadTracks(ctx context.Context, albumID string, a *scraper.Album) error {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT idx, name, duration_sec, size_bytes, page_url, song_id, mp3_url
+		SELECT id, idx, name, duration_sec, size_bytes, page_url, song_id, mp3_url
 		FROM tracks WHERE album_id = ? ORDER BY idx`, albumID)
 	if err != nil {
 		return err
@@ -226,13 +226,71 @@ func (s *Store) loadTracks(ctx context.Context, albumID string, a *scraper.Album
 	defer rows.Close()
 	for rows.Next() {
 		var tr scraper.Track
-		if err := rows.Scan(&tr.Index, &tr.Name, &tr.DurationSec, &tr.SizeBytes,
+		var dbID int64
+		if err := rows.Scan(&dbID, &tr.Index, &tr.Name, &tr.DurationSec, &tr.SizeBytes,
 			&tr.PageURL, &tr.SongID, &tr.MP3URL); err != nil {
 			return err
 		}
+		tr.ID = fmt.Sprintf("%d", dbID)
 		a.Tracks = append(a.Tracks, tr)
 	}
 	return rows.Err()
+}
+
+// AlbumSummary is a lightweight album record for list responses.
+type AlbumSummary struct {
+	ID         string
+	Title      string
+	Platform   string
+	Year       int
+	AlbumType  string
+	TrackCount int
+}
+
+// Albums returns all cached album summaries.
+func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT a.id, a.title, a.platform, a.year, a.album_type, COUNT(t.id)
+		FROM albums a LEFT JOIN tracks t ON t.album_id = a.id
+		GROUP BY a.id ORDER BY a.title`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AlbumSummary
+	for rows.Next() {
+		var s AlbumSummary
+		if err := rows.Scan(&s.ID, &s.Title, &s.Platform, &s.Year, &s.AlbumType, &s.TrackCount); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// Track loads a single track by its DB id.
+func (s *Store) Track(ctx context.Context, trackID string) (*scraper.Track, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, idx, name, duration_sec, size_bytes, page_url, song_id, mp3_url
+		FROM tracks WHERE id = ?`, trackID)
+	var tr scraper.Track
+	var dbID int64
+	err := row.Scan(&dbID, &tr.Index, &tr.Name, &tr.DurationSec, &tr.SizeBytes,
+		&tr.PageURL, &tr.SongID, &tr.MP3URL)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	tr.ID = fmt.Sprintf("%d", dbID)
+	return &tr, nil
+}
+
+// SetTrackMP3URL caches the resolved direct mp3 URL for a track.
+func (s *Store) SetTrackMP3URL(ctx context.Context, trackID, mp3URL string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE tracks SET mp3_url = ? WHERE id = ?`, mp3URL, trackID)
+	return err
 }
 
 func (s *Store) loadCovers(ctx context.Context, albumID string, a *scraper.Album) error {
