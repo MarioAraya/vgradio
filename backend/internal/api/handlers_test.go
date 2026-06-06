@@ -24,7 +24,7 @@ func setup(t *testing.T) (http.Handler, *store.Store, *jobs.Queue) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go q.Start(ctx)
-	return api.NewRouter(s, q), s, q
+	return api.NewRouter(s, q, f), s, q
 }
 
 func TestPostAlbums_MissingURL(t *testing.T) {

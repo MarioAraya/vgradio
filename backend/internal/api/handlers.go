@@ -25,17 +25,23 @@ type storer interface {
 	Albums(ctx context.Context) ([]store.AlbumSummary, error)
 	Album(ctx context.Context, albumID string) (*scraper.Album, error)
 	Track(ctx context.Context, trackID string) (*scraper.Track, error)
+	SetTrackMP3URL(ctx context.Context, trackID, mp3URL string) error
 	Exists(ctx context.Context, albumID string) (bool, error)
 }
 
+type mp3Resolver interface {
+	SongMP3(ctx context.Context, pageURL string) (string, error)
+}
+
 type handler struct {
-	store storer
-	queue queuer
+	store    storer
+	queue    queuer
+	resolver mp3Resolver
 }
 
 // NewRouter returns the API router.
-func NewRouter(s storer, q queuer) http.Handler {
-	h := &handler{store: s, queue: q}
+func NewRouter(s storer, q queuer, r mp3Resolver) http.Handler {
+	h := &handler{store: s, queue: q, resolver: r}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /albums", h.postAlbum)
 	mux.HandleFunc("GET /albums", h.getAlbums)
@@ -188,10 +194,11 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// GET /tracks/{id}/stream — resolves mp3URL and redirects (302) to it.
-// Client (AVFoundation) follows the redirect and handles Range requests natively.
+// GET /tracks/{id}/stream — resolves mp3URL on demand and redirects (302).
+// AVFoundation follows the redirect and handles Range requests natively.
 func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
-	tr, err := h.store.Track(r.Context(), r.PathValue("id"))
+	trackID := r.PathValue("id")
+	tr, err := h.store.Track(r.Context(), trackID)
 	if errors.Is(err, store.ErrNotFound) {
 		jsonError(w, "track not found", http.StatusNotFound)
 		return
@@ -200,16 +207,29 @@ func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "store error", http.StatusInternalServerError)
 		return
 	}
+
+	// Lazy MP3 resolution: fetch the per-song page and cache the direct URL.
 	if tr.MP3URL == "" {
-		jsonError(w, "mp3 not resolved yet", http.StatusServiceUnavailable)
-		return
+		if tr.PageURL == "" {
+			jsonError(w, "track has no page URL", http.StatusServiceUnavailable)
+			return
+		}
+		mp3URL, err := h.resolver.SongMP3(r.Context(), tr.PageURL)
+		if err != nil {
+			jsonError(w, "failed to resolve mp3: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), trackID, mp3URL)
+		tr.MP3URL = mp3URL
 	}
+
 	http.Redirect(w, r, tr.MP3URL, http.StatusFound)
 }
 
 // GET /tracks/{id}/download — same as stream but with Content-Disposition.
 func (h *handler) downloadTrack(w http.ResponseWriter, r *http.Request) {
-	tr, err := h.store.Track(r.Context(), r.PathValue("id"))
+	trackID := r.PathValue("id")
+	tr, err := h.store.Track(r.Context(), trackID)
 	if errors.Is(err, store.ErrNotFound) {
 		jsonError(w, "track not found", http.StatusNotFound)
 		return
@@ -219,8 +239,17 @@ func (h *handler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tr.MP3URL == "" {
-		jsonError(w, "mp3 not resolved yet", http.StatusServiceUnavailable)
-		return
+		if tr.PageURL == "" {
+			jsonError(w, "track has no page URL", http.StatusServiceUnavailable)
+			return
+		}
+		mp3URL, err := h.resolver.SongMP3(r.Context(), tr.PageURL)
+		if err != nil {
+			jsonError(w, "failed to resolve mp3: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), trackID, mp3URL)
+		tr.MP3URL = mp3URL
 	}
 	w.Header().Set("Content-Disposition", `attachment; filename="`+tr.Name+`.mp3"`)
 	http.Redirect(w, r, tr.MP3URL, http.StatusFound)

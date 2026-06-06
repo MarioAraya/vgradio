@@ -52,7 +52,7 @@ func main() {
 	// HTTP server.
 	srv := &http.Server{
 		Addr:         cfg.addr,
-		Handler:      api.NewRouter(s, q),
+		Handler:      api.NewRouter(s, q, f),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
