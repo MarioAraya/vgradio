@@ -97,7 +97,9 @@ private struct AlbumCard: View {
                 .lineLimit(2)
 
             HStack(spacing: 4) {
-                PlatformPill(platform: album.platform)
+                // Show first platform only in compact card
+                let firstPlatform = album.platform.split(separator: ",").first.map(String.init) ?? album.platform
+                PlatformPill(platform: firstPlatform.trimmingCharacters(in: .whitespaces))
                 Text("·").foregroundStyle(Color.vgTextMuted)
                 Text(String(album.year)).font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
             }

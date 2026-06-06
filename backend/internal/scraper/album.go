@@ -6,18 +6,19 @@ import "time"
 
 // Album is a scraped music album with its metadata, covers, tracks and comments.
 type Album struct {
-	SourceURL   string
-	Title       string
-	AltTitle    string // e.g. Japanese title
-	Platform    string // GC, SNES, ...
-	Year        int
-	Developer   string
-	Publisher   string
-	AlbumType   string // Gamerip, Soundtrack, ...
-	Description string
-	Covers      []Cover
-	Tracks      []Track
-	Comments    []Comment
+	SourceURL     string
+	Title         string
+	AltTitle      string // newline-separated alternate titles (Japanese, romanized, etc.)
+	Platform      string // comma-separated: "PS3, PS4, Switch, Windows, Xbox One"
+	Year          int
+	Developer     string
+	Publisher     string // comma-separated when multiple
+	CatalogNumber string // e.g. "LNCM-1175~7"
+	AlbumType     string // Gamerip, Soundtrack, ...
+	Description   string
+	Covers        []Cover
+	Tracks        []Track
+	Comments      []Comment
 }
 
 // Cover is an album artwork image.

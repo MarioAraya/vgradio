@@ -13,7 +13,6 @@ struct AlbumDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Back
                 Button { onBack() } label: {
                     Label("Library", systemImage: "chevron.left")
                         .font(VGFont.caption(12))
@@ -36,49 +35,55 @@ struct AlbumDetailView: View {
 
     @ViewBuilder
     private func albumContent(_ album: Album) -> some View {
-        // Hero header — px-8 py-6
+        // Hero header
         HStack(alignment: .top, spacing: 24) {
-            AlbumLetterArt(title: album.title, size: VGLayout.albumCoverDetail)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .shadow(color: Color.vgAccent.opacity(0.2), radius: 24, y: 8)
+            AlbumCoverView(covers: album.covers, title: album.title, size: VGLayout.albumCoverDetail)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(album.albumType.isEmpty ? "SOUNDTRACK" : album.albumType.uppercased())
                     .font(VGFont.label(10))
                     .tracking(1.4)
                     .foregroundStyle(Color.vgTextMuted)
 
                 Text(album.title)
-                    .font(VGFont.display(34))
+                    .font(VGFont.display(30))
                     .foregroundStyle(Color.vgText)
                     .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                if !album.altTitle.isEmpty {
-                    Text(album.altTitle)
-                        .font(VGFont.body())
-                        .foregroundStyle(Color.vgTextSec)
+                // Alt titles (Japanese, etc.)
+                let altLines = album.altTitle.split(separator: "\n").map(String.init)
+                if !altLines.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(altLines, id: \.self) { line in
+                            Text(line)
+                                .font(VGFont.body(12))
+                                .foregroundStyle(Color.vgTextSec)
+                        }
+                    }
                 }
 
-                HStack(spacing: 8) {
-                    PlatformPill(platform: album.platform)
+                // Platform pills + year
+                HStack(spacing: 6) {
+                    let platforms = album.platform.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                    ForEach(platforms.prefix(4), id: \.self) { p in
+                        PlatformPill(platform: p)
+                    }
                     if album.year > 0 {
                         Text("·").foregroundStyle(Color.vgTextMuted)
                         Text(String(album.year))
                             .font(VGFont.body())
                             .foregroundStyle(Color.vgTextSec)
                     }
-                    if !album.developer.isEmpty {
-                        Text("·").foregroundStyle(Color.vgTextMuted)
-                        Text(album.developer)
-                            .font(VGFont.body())
-                            .foregroundStyle(Color.vgTextSec)
-                    }
                 }
 
-                Spacer(minLength: 16)
+                // Publisher · Developer · Catalog
+                metaRow(album)
 
+                Spacer(minLength: 12)
+
+                // Actions
                 HStack(spacing: 10) {
-                    // Primary play button — rounded-full
                     Button {
                         if let first = album.tracks.first {
                             player.play(track: first, in: summary, queue: album.tracks)
@@ -96,10 +101,8 @@ struct AlbumDetailView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Action icon buttons — size-9 rounded-full bg-white/5
                     CircleIconButton(icon: "arrow.down.circle")
                     CircleIconButton(icon: "star")
-                    CircleIconButton(icon: "square.and.arrow.up")
 
                     Text("\(album.tracks.count) tracks")
                         .font(VGFont.body())
@@ -112,18 +115,14 @@ struct AlbumDetailView: View {
         .padding(.top, 24)
         .padding(.bottom, 32)
 
-        // Tracklist container — rounded border card/40
+        // Tracklist
         VStack(spacing: 0) {
-            // Column headers
+            // Header
             HStack(spacing: 0) {
-                Text("#")
-                    .frame(width: 40, alignment: .center)
-                Text("TITLE")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("DUR")
-                    .frame(width: 60, alignment: .trailing)
-                Text("★")
-                    .frame(width: 40, alignment: .center)
+                Text("#").frame(width: 40, alignment: .center)
+                Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
+                Text("DUR").frame(width: 60, alignment: .trailing)
+                Text("★").frame(width: 40, alignment: .center)
                 Color.clear.frame(width: 40)
             }
             .font(VGFont.label(10))
@@ -154,10 +153,65 @@ struct AlbumDetailView: View {
         .padding(.bottom, 32)
     }
 
+    @ViewBuilder
+    private func metaRow(_ album: Album) -> some View {
+        let items: [(String, String)] = [
+            ("person.fill",    album.developer),
+            ("building.fill",  album.publisher),
+            ("barcode",        album.catalogNumber),
+        ].filter { !$0.1.isEmpty }
+
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(items, id: \.0) { icon, value in
+                    HStack(spacing: 5) {
+                        Image(systemName: icon)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.vgTextMuted)
+                            .frame(width: 14)
+                        Text(value)
+                            .font(VGFont.caption(12))
+                            .foregroundStyle(Color.vgTextSec)
+                    }
+                }
+            }
+        }
+    }
+
     private func load() async {
         isLoading = true
         album = try? await APIClient.shared.album(summary.id)
         isLoading = false
+    }
+}
+
+// MARK: - Cover image (real or letter fallback)
+
+struct AlbumCoverView: View {
+    let covers: [Cover]
+    let title: String
+    let size: CGFloat
+
+    var body: some View {
+        if let first = covers.first, let url = URL(string: first.url) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: size, height: size)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .shadow(color: Color.vgAccent.opacity(0.15), radius: 20, y: 8)
+                default:
+                    AlbumLetterArt(title: title, size: size)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+            .frame(width: size, height: size)
+        } else {
+            AlbumLetterArt(title: title, size: size)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
     }
 }
 
@@ -173,32 +227,26 @@ private struct DetailTrackRow: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // Playing: accent bg + 2px left border
             if isPlaying {
                 Color.vgAccentBg
                 Color.vgAccent.frame(width: 2)
-            } else if isAltRow && !isHovered {
-                Color.white.opacity(0.015)
-            }
-            if isHovered && !isPlaying {
+            } else if isHovered {
                 Color.white.opacity(0.04)
+            } else if isAltRow {
+                Color.white.opacity(0.015)
             }
 
             HStack(spacing: 0) {
-                // Index / waveform / play icon
                 Group {
                     if isPlaying {
                         Image(systemName: "waveform")
-                            .foregroundStyle(Color.vgAccent)
-                            .font(.system(size: 12))
+                            .foregroundStyle(Color.vgAccent).font(.system(size: 12))
                     } else if isHovered {
                         Image(systemName: "play.fill")
-                            .foregroundStyle(Color.vgText)
-                            .font(.system(size: 11))
+                            .foregroundStyle(Color.vgText).font(.system(size: 11))
                     } else {
                         Text(String(format: "%02d", track.index))
-                            .font(VGFont.mono(12))
-                            .foregroundStyle(Color.vgTextMuted)
+                            .font(VGFont.mono(12)).foregroundStyle(Color.vgTextMuted)
                     }
                 }
                 .frame(width: 40, alignment: .center)
@@ -215,10 +263,7 @@ private struct DetailTrackRow: View {
                     .frame(width: 60, alignment: .trailing)
                     .monospacedDigit()
 
-                // Star
-                Button {
-                    favorites.toggle(track, album: album)
-                } label: {
+                Button { favorites.toggle(track, album: album) } label: {
                     Image(systemName: favorites.isFavorite(track.id) ? "star.fill" : "star")
                         .font(.system(size: 12))
                         .foregroundStyle(favorites.isFavorite(track.id) ? Color.vgStar : Color.vgTextMuted)
@@ -228,7 +273,6 @@ private struct DetailTrackRow: View {
                 .buttonStyle(.plain)
                 .frame(width: 40, alignment: .center)
 
-                // Download (hover only, always shown for layout)
                 Button {} label: {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 13))

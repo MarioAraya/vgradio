@@ -5,11 +5,12 @@ import Foundation
 struct Album: Codable, Identifiable, Hashable {
     let id: String
     var title: String
-    var altTitle: String
-    var platform: String
+    var altTitle: String        // newline-separated alternate titles
+    var platform: String        // comma-separated: "PS3, PS4, Switch"
     var year: Int
     var developer: String
     var publisher: String
+    var catalogNumber: String
     var albumType: String
     var description: String
     var sourceUrl: String

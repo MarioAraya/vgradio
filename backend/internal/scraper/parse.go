@@ -16,11 +16,13 @@ var ErrParse = errors.New("scraper: unexpected HTML structure")
 
 // Metadata is read from the album info block via labelled fields.
 var (
-	reYear      = regexp.MustCompile(`(?is)Year:\s*<b>(\d+)</b>`)
-	rePlatform  = regexp.MustCompile(`(?is)Platforms?:\s*<[ab][^>]*>(.*?)</`)
-	reDeveloper = regexp.MustCompile(`(?is)Developed by:\s*<a[^>]*>(.*?)</a>`)
-	rePublisher = regexp.MustCompile(`(?is)Published by:\s*<a[^>]*>(.*?)</a>`)
-	reAlbumType = regexp.MustCompile(`(?is)Album type:\s*<b>(?:<a[^>]*>)?(.*?)</`)
+	reYear        = regexp.MustCompile(`(?is)Year:\s*<b>(\d+)</b>`)
+	rePlatformLn  = regexp.MustCompile(`(?is)Platforms?:\s*(.*?)(?:<br|</p|</div)`)
+	reDeveloperLn = regexp.MustCompile(`(?is)Developed by:\s*(.*?)(?:<br|</p|</div)`)
+	rePublisherLn = regexp.MustCompile(`(?is)Published by:\s*(.*?)(?:<br|</p|</div)`)
+	reAlbumType   = regexp.MustCompile(`(?is)Album type:\s*<b>(?:<a[^>]*>)?(.*?)</`)
+	reCatalogNum  = regexp.MustCompile(`(?is)Catalog Number:\s*<b>(.*?)</b>`)
+	reStripHTML   = regexp.MustCompile(`<[^>]+>`)
 )
 
 // ParseAlbum parses an album page's HTML into an Album.
@@ -41,10 +43,24 @@ func ParseAlbum(html []byte, sourceURL string) (*Album, error) {
 		return nil, ErrParse
 	}
 
-	a.Platform = firstSubmatch(rePlatform, html)
-	a.Developer = firstSubmatch(reDeveloper, html)
-	a.Publisher = firstSubmatch(rePublisher, html)
-	a.AlbumType = firstSubmatch(reAlbumType, html)
+	// Alt titles: collect <p> siblings between h2 and #gameInfo (Japanese, romanized, etc.)
+	var altLines []string
+	doc.Find("h2").First().NextUntil("#gameInfo").Filter("p").Each(func(_ int, s *goquery.Selection) {
+		for _, line := range strings.Split(s.Text(), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				altLines = append(altLines, line)
+			}
+		}
+	})
+	a.AltTitle = strings.Join(altLines, "\n")
+
+	// Multi-value fields: grab full line then strip HTML tags.
+	a.Platform      = cleanLine(rePlatformLn, html)
+	a.Developer     = cleanLine(reDeveloperLn, html)
+	a.Publisher     = cleanLine(rePublisherLn, html)
+	a.CatalogNumber = firstSubmatch(reCatalogNum, html)
+	a.AlbumType     = firstSubmatch(reAlbumType, html)
 	if y := firstSubmatch(reYear, html); y != "" {
 		a.Year, _ = strconv.Atoi(y)
 	}
@@ -120,6 +136,22 @@ func firstSubmatch(re *regexp.Regexp, html []byte) string {
 		return ""
 	}
 	return strings.TrimSpace(string(m[1]))
+}
+
+// cleanLine grabs the full content of a labelled line (may contain multiple <a> tags)
+// and strips all HTML tags, normalising whitespace and commas.
+func cleanLine(re *regexp.Regexp, html []byte) string {
+	raw := firstSubmatch(re, html)
+	if raw == "" {
+		return ""
+	}
+	clean := reStripHTML.ReplaceAllString(raw, "")
+	// Collapse whitespace around commas and trim.
+	parts := strings.Split(clean, ",")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+	return strings.Join(parts, ", ")
 }
 
 func absURL(base *url.URL, href string) string {

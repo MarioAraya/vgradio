@@ -178,19 +178,20 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, map[string]any{
-		"id":          r.PathValue("id"),
-		"sourceUrl":   a.SourceURL,
-		"title":       a.Title,
-		"altTitle":    a.AltTitle,
-		"platform":    a.Platform,
-		"year":        a.Year,
-		"developer":   a.Developer,
-		"publisher":   a.Publisher,
-		"albumType":   a.AlbumType,
-		"description": a.Description,
-		"covers":      covers,
-		"tracks":      tracks,
-		"comments":    comments,
+		"id":            r.PathValue("id"),
+		"sourceUrl":     a.SourceURL,
+		"title":         a.Title,
+		"altTitle":      a.AltTitle,
+		"platform":      a.Platform,
+		"year":          a.Year,
+		"developer":     a.Developer,
+		"publisher":     a.Publisher,
+		"catalogNumber": a.CatalogNumber,
+		"albumType":     a.AlbumType,
+		"description":   a.Description,
+		"covers":        covers,
+		"tracks":        tracks,
+		"comments":      comments,
 	}, http.StatusOK)
 }
 

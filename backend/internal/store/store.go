@@ -57,22 +57,26 @@ func NewTestStore(t *testing.T) *Store {
 }
 
 func (s *Store) migrate() error {
+	// Idempotent column additions for existing databases (ignore error if column exists).
+	s.db.Exec(`ALTER TABLE albums ADD COLUMN catalog_number TEXT NOT NULL DEFAULT ''`) //nolint:errcheck
+
 	_, err := s.db.Exec(`
 		PRAGMA journal_mode=WAL;
 		PRAGMA foreign_keys=ON;
 
 		CREATE TABLE IF NOT EXISTS albums (
-			id          TEXT PRIMARY KEY,
-			source_url  TEXT NOT NULL UNIQUE,
-			title       TEXT NOT NULL,
-			alt_title   TEXT NOT NULL DEFAULT '',
-			platform    TEXT NOT NULL DEFAULT '',
-			year        INTEGER NOT NULL DEFAULT 0,
-			developer   TEXT NOT NULL DEFAULT '',
-			publisher   TEXT NOT NULL DEFAULT '',
-			album_type  TEXT NOT NULL DEFAULT '',
-			description TEXT NOT NULL DEFAULT '',
-			scraped_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+			id             TEXT PRIMARY KEY,
+			source_url     TEXT NOT NULL UNIQUE,
+			title          TEXT NOT NULL,
+			alt_title      TEXT NOT NULL DEFAULT '',
+			platform       TEXT NOT NULL DEFAULT '',
+			year           INTEGER NOT NULL DEFAULT 0,
+			developer      TEXT NOT NULL DEFAULT '',
+			publisher      TEXT NOT NULL DEFAULT '',
+			catalog_number TEXT NOT NULL DEFAULT '',
+			album_type     TEXT NOT NULL DEFAULT '',
+			description    TEXT NOT NULL DEFAULT '',
+			scraped_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		);
 
 		CREATE TABLE IF NOT EXISTS tracks (
@@ -135,10 +139,10 @@ func (s *Store) SaveAlbum(ctx context.Context, a *scraper.Album) (string, error)
 
 	res, err := tx.ExecContext(ctx, `
 		INSERT OR IGNORE INTO albums
-			(id, source_url, title, alt_title, platform, year, developer, publisher, album_type, description)
-		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			(id, source_url, title, alt_title, platform, year, developer, publisher, catalog_number, album_type, description)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		id, a.SourceURL, a.Title, a.AltTitle, a.Platform, a.Year,
-		a.Developer, a.Publisher, a.AlbumType, a.Description,
+		a.Developer, a.Publisher, a.CatalogNumber, a.AlbumType, a.Description,
 	)
 	if err != nil {
 		return "", fmt.Errorf("insert album: %w", err)
@@ -191,12 +195,12 @@ func insertChildren(ctx context.Context, tx *sql.Tx, albumID string, a *scraper.
 // Album loads a full album by its ID. Returns ErrNotFound if absent.
 func (s *Store) Album(ctx context.Context, albumID string) (*scraper.Album, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT source_url, title, alt_title, platform, year, developer, publisher, album_type, description
+		SELECT source_url, title, alt_title, platform, year, developer, publisher, catalog_number, album_type, description
 		FROM albums WHERE id = ?`, albumID)
 
 	a := &scraper.Album{}
 	err := row.Scan(&a.SourceURL, &a.Title, &a.AltTitle, &a.Platform, &a.Year,
-		&a.Developer, &a.Publisher, &a.AlbumType, &a.Description)
+		&a.Developer, &a.Publisher, &a.CatalogNumber, &a.AlbumType, &a.Description)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
