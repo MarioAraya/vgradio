@@ -32,16 +32,19 @@ donde el usuario:
 
 ### Roadmap
 - **v1 (MVP):** agregar álbum pegando URL → scrape → reproducir.
+  **Favoritos** (★) por track, guardados en el perfil (local, single-user).
 - **Fase 1.5 — Catálogo navegable:** índice ligero pre-scrapeado de álbumes
   (título, consola/plataforma, tipo, año, thumb, sourceURL). El usuario navega/busca
   sin pegar URL y elige una entrada → dispara el scrape completo on-demand. Búsqueda
   estilo **Spotlight** (general) + filtros por consola y por letra inicial.
-- **Fase 2:** P2P / seeding entre clientes (tipo torrent); pago/suscripción para
-  opt-out de hosting.
+- **Fase 2:** cuentas/auth multi-usuario; **playlists** propias (CRUD) y
+  **compartir + clonar** playlists de otros; favoritos migran del cliente al backend;
+  P2P / seeding entre clientes (tipo torrent); pago/suscripción para opt-out de hosting.
 
 ### Fuera de alcance v1
 - Catálogo navegable (fase 1.5).
-- P2P, pago, FLAC (solo MP3 en v1), multi-usuario / auth.
+- Playlists, compartir/clonar, multi-usuario / auth (fase 2).
+- P2P, pago, FLAC (solo MP3 en v1).
 
 ---
 

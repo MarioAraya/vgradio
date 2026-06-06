@@ -13,6 +13,8 @@ App SwiftUI (macOS 14+) que:
 2. Muestra **biblioteca** de álbumes cacheados (carátula, título, metadata).
 3. **Reproduce** tracks vía AVFoundation (stream o local), con cola play/pause/seek/next/prev.
 4. Permite **descargar** un álbum para escucha offline.
+5. **Favoritos (★):** marcar/desmarcar tracks; se guardan en el perfil (local) y se ven
+   en una vista "Favoritos".
 
 ---
 
@@ -35,8 +37,9 @@ App SwiftUI (macOS 14+) que:
 
 1. **Library** — grid/lista de álbumes (ya scrapeados) + botón "Add URL".
 2. **Add URL sheet** — input URL → POST al backend → polling de estado (pending/running/done).
-3. **Album detail** — metadata, carátula, tracklist, descripción, comentarios.
-4. **Player bar** — persistente abajo: transport + scrubber + track actual.
+3. **Album detail** — metadata, carátula, tracklist (cada track con ★ toggle), descripción, comentarios.
+4. **Player bar** — persistente abajo: transport + scrubber + track actual + ★ del track actual.
+5. **Favorites** — lista de tracks marcados ★ (desde el perfil local); reproducibles como cola.
 
 ### Fase 1.5 — Catálogo navegable
 5. **Catalog / Browse** — lista del catálogo pre-scrapeado (`GET /catalog`) con:
@@ -60,11 +63,13 @@ VGRadio/
     │   ├── APIClient.swift     # async/await, mapea docs/API.md
     │   └── PlayerService.swift # AVQueuePlayer wrapper
     ├── Stores/
-    │   └── LibraryStore.swift  # @Observable, estado biblioteca
+    │   ├── LibraryStore.swift  # @Observable, estado biblioteca
+    │   └── FavoritesStore.swift# @Observable, ★ por trackId, persistencia local
     └── Views/
         ├── LibraryView.swift
         ├── AddURLView.swift
         ├── AlbumDetailView.swift
+        ├── FavoritesView.swift
         └── PlayerBarView.swift
 ```
 
@@ -77,6 +82,10 @@ VGRadio/
 - **PlayerService**: envuelve `AVQueuePlayer`. API: `play(track, in: album)`, `pause()`,
   `next()`, `previous()`, `seek(to:)`, publica `currentTime`, `isPlaying`, `currentTrack`.
 - **LibraryStore** `@Observable`: lista de álbumes, álbum seleccionado, refresco tras add.
+- **FavoritesStore** `@Observable`: set de `trackId` favoritos. `toggle(trackId)`,
+  `isFavorite(trackId)`, `favorites()`. Persistencia **local** (SQLite/`UserDefaults`).
+  Fase 2: migra a backend con cuentas. Guarda `trackId` + snapshot mínimo (nombre, albumId)
+  para mostrar la vista Favoritos sin depender de tener el álbum cargado.
 
 ---
 
@@ -108,6 +117,7 @@ Config backend base URL por `UserDefaults` / settings (default `http://localhost
 | Models decode | JSON de ejemplo (de `docs/API.md`) → structs sin error |
 | APIClient | con `URLProtocol` mock: parsea respuestas, maneja error/timeout |
 | PlayerService | lógica de cola: next/prev avanza índice, wrap, estado |
+| FavoritesStore | toggle marca/desmarca; isFavorite refleja estado; persiste y recarga |
 
 UI/snapshot tests aplazados post-v1.
 
