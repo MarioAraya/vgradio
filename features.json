@@ -9,7 +9,7 @@
         { "id": "scraper-song", "title": "Scraper: song page -> direct mp3 (2-step)", "status": "done", "evidence": "8401840, TestParseSongMP3" },
         { "id": "store", "title": "Cache: SQLite metadata + filesystem audio (idempotente)", "status": "done", "evidence": "0e21795, store_test.go (5 tests)" },
         { "id": "fetcher", "title": "Descarga mp3/covers con throttle + context", "status": "done", "evidence": "4d7354b, fetcher_test.go (5 tests)" },
-        { "id": "jobs", "title": "Cola async scrape (goroutines, estados)", "status": "todo", "evidence": null },
+        { "id": "jobs", "title": "Cola async scrape (goroutines, estados)", "status": "done", "evidence": "284da2f, jobs_test.go (4 tests)" },
         { "id": "api", "title": "HTTP API: POST /albums, GET /albums/:id, stream Range, download", "status": "todo", "evidence": null },
         { "id": "server", "title": "cmd/server wiring + arranque", "status": "todo", "evidence": null },
         { "id": "ssrf-guard", "title": "Validacion anti-SSRF de URL de entrada", "status": "todo", "evidence": null },
