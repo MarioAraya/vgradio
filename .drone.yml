@@ -1,0 +1,29 @@
+kind: pipeline
+type: docker
+name: backend
+
+# Solo corre cuando cambia algo en backend/ o este archivo
+trigger:
+  branch:
+    - main
+    - develop
+
+steps:
+  - name: test
+    image: golang:1.22-alpine
+    environment:
+      CGO_ENABLED: "0"
+    commands:
+      - cd backend
+      - go mod download
+      - go build ./...
+      - go test -v -count=1 ./...
+
+  - name: vet
+    image: golang:1.22-alpine
+    commands:
+      - cd backend
+      - go vet ./...
+    when:
+      status:
+        - success
