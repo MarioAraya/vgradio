@@ -42,7 +42,7 @@ struct Track: Codable, Identifiable, Hashable {
     var sizeBytes: Int
     var streamUrl: String
     var downloadUrl: String
-    var downloaded: Bool
+    var downloaded: Bool = false
 
     var durationFormatted: String {
         let m = durationSec / 60, s = durationSec % 60
