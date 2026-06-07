@@ -33,8 +33,20 @@ struct ContentView: View {
             PlayerBarView()
         }
         .background(Color.vgBg)
-        .sheet(isPresented: $showAddURL) {
-            AddURLView(isPresented: $showAddURL)
+        .overlay {
+            if showAddURL {
+                ZStack {
+                    Color.black.opacity(0.55)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { showAddURL = false }
+                    AddURLView(isPresented: $showAddURL)
+                }
+                .onAppear {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .onKeyPress(.escape) { showAddURL = false; return .handled }
+            }
         }
         .overlay {
             if showSearch {

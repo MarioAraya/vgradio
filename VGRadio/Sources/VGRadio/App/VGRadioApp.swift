@@ -6,6 +6,7 @@ struct VGRadioApp: App {
     @State private var favorites = FavoritesStore()
     @State private var player = PlayerService()
     @State private var hidden = HiddenTracksStore()
+    @State private var wishlist = WishlistStore()
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,7 @@ struct VGRadioApp: App {
                 .environment(favorites)
                 .environment(player)
                 .environment(hidden)
+                .environment(wishlist)
                 .frame(minWidth: 900, minHeight: 600)
                 .onAppear { player.hiddenTracks = hidden }
         }
