@@ -29,6 +29,9 @@ struct AlbumSummary: Codable, Identifiable, Hashable {
     var year: Int
     var albumType: String
     var trackCount: Int
+    var coverUrls: [String]
+
+    var covers: [Cover] { coverUrls.map { Cover(url: $0, width: 0, height: 0) } }
 }
 
 struct Track: Codable, Identifiable, Hashable {
@@ -39,6 +42,7 @@ struct Track: Codable, Identifiable, Hashable {
     var sizeBytes: Int
     var streamUrl: String
     var downloadUrl: String
+    var downloaded: Bool
 
     var durationFormatted: String {
         let m = durationSec / 60, s = durationSec % 60

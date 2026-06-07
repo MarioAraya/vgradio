@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -26,23 +28,27 @@ type storer interface {
 	Albums(ctx context.Context) ([]store.AlbumSummary, error)
 	Album(ctx context.Context, albumID string) (*scraper.Album, error)
 	Track(ctx context.Context, trackID string) (*scraper.Track, error)
+	TrackAlbumID(ctx context.Context, trackID string) (string, error)
 	SetTrackMP3URL(ctx context.Context, trackID, mp3URL string) error
+	SetTrackLocalPath(ctx context.Context, trackID, localPath string) error
 	Exists(ctx context.Context, albumID string) (bool, error)
 }
 
-type mp3Resolver interface {
+type trackFetcher interface {
 	SongMP3(ctx context.Context, pageURL string) (string, error)
+	Download(ctx context.Context, url, destPath string) error
 }
 
 type handler struct {
-	store    storer
-	queue    queuer
-	resolver mp3Resolver
+	store   storer
+	queue   queuer
+	fetcher trackFetcher
+	dataDir string
 }
 
-// NewRouter returns the API router. dataDir is the root for downloaded covers.
-func NewRouter(s storer, q queuer, r mp3Resolver, dataDir string) http.Handler {
-	h := &handler{store: s, queue: q, resolver: r}
+// NewRouter returns the API router. dataDir is the root for downloaded files.
+func NewRouter(s storer, q queuer, f trackFetcher, dataDir string) http.Handler {
+	h := &handler{store: s, queue: q, fetcher: f, dataDir: dataDir}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /albums", h.postAlbum)
 	mux.HandleFunc("GET /albums", h.getAlbums)
@@ -50,6 +56,7 @@ func NewRouter(s storer, q queuer, r mp3Resolver, dataDir string) http.Handler {
 	mux.HandleFunc("GET /jobs/{id}", h.getJob)
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
+	mux.HandleFunc("POST /tracks/{id}/fetch", h.fetchTrackLocal)
 	// Serve downloaded cover images.
 	// URL pattern: /covers/<albumID>/<filename>
 	// File on disk:  <dataDir>/<albumID>/covers/<filename>
@@ -125,16 +132,21 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 		albums = []store.AlbumSummary{}
 	}
 	type item struct {
-		ID         string `json:"id"`
-		Title      string `json:"title"`
-		Platform   string `json:"platform"`
-		Year       int    `json:"year"`
-		AlbumType  string `json:"albumType"`
-		TrackCount int    `json:"trackCount"`
+		ID         string   `json:"id"`
+		Title      string   `json:"title"`
+		Platform   string   `json:"platform"`
+		Year       int      `json:"year"`
+		AlbumType  string   `json:"albumType"`
+		TrackCount int      `json:"trackCount"`
+		CoverURLs  []string `json:"coverUrls"`
 	}
 	out := make([]item, len(albums))
 	for i, a := range albums {
-		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount}
+		urls := a.CoverURLs
+		if urls == nil {
+			urls = []string{}
+		}
+		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, urls}
 	}
 	jsonOK(w, out, http.StatusOK)
 }
@@ -164,6 +176,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		SizeBytes   int64  `json:"sizeBytes"`
 		StreamURL   string `json:"streamUrl"`
 		DownloadURL string `json:"downloadUrl"`
+		Downloaded  bool   `json:"downloaded"`
 	}
 	type comment struct {
 		Author   string `json:"author"`
@@ -181,6 +194,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 			SizeBytes:   t.SizeBytes,
 			StreamURL:   "/tracks/" + t.ID + "/stream",
 			DownloadURL: "/tracks/" + t.ID + "/download",
+			Downloaded:  t.LocalPath != "",
 		}
 	}
 	covers := make([]cover, len(a.Covers))
@@ -210,8 +224,8 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// GET /tracks/{id}/stream — resolves mp3URL on demand and redirects (302).
-// AVFoundation follows the redirect and handles Range requests natively.
+// GET /tracks/{id}/stream — serves the locally-downloaded MP3 file.
+// Returns 409 if the track has not been fetched locally yet.
 func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 	trackID := r.PathValue("id")
 	tr, err := h.store.Track(r.Context(), trackID)
@@ -223,14 +237,43 @@ func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "store error", http.StatusInternalServerError)
 		return
 	}
+	if tr.LocalPath == "" {
+		jsonError(w, "track not downloaded", http.StatusConflict)
+		return
+	}
+	w.Header().Set("Content-Type", "audio/mpeg")
+	http.ServeFile(w, r, tr.LocalPath)
+}
 
-	// Lazy MP3 resolution: fetch the per-song page and cache the direct URL.
+// POST /tracks/{id}/fetch — resolves the MP3 URL and downloads the file locally.
+// Synchronous: returns when the file is on disk.
+func (h *handler) fetchTrackLocal(w http.ResponseWriter, r *http.Request) {
+	trackID := r.PathValue("id")
+	tr, err := h.store.Track(r.Context(), trackID)
+	if errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "track not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+
+	// Already downloaded.
+	if tr.LocalPath != "" {
+		if _, err := os.Stat(tr.LocalPath); err == nil {
+			jsonOK(w, map[string]string{"status": "done", "localPath": tr.LocalPath}, http.StatusOK)
+			return
+		}
+	}
+
+	// Resolve mp3URL if needed.
 	if tr.MP3URL == "" {
 		if tr.PageURL == "" {
 			jsonError(w, "track has no page URL", http.StatusServiceUnavailable)
 			return
 		}
-		mp3URL, err := h.resolver.SongMP3(r.Context(), tr.PageURL)
+		mp3URL, err := h.fetcher.SongMP3(r.Context(), tr.PageURL)
 		if err != nil {
 			jsonError(w, "failed to resolve mp3: "+err.Error(), http.StatusBadGateway)
 			return
@@ -239,10 +282,27 @@ func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		tr.MP3URL = mp3URL
 	}
 
-	http.Redirect(w, r, tr.MP3URL, http.StatusFound)
+	// Determine destination path.
+	albumID, err := h.store.TrackAlbumID(r.Context(), trackID)
+	if err != nil {
+		jsonError(w, "album not found for track", http.StatusInternalServerError)
+		return
+	}
+	destPath := filepath.Join(h.dataDir, albumID, "tracks", fmt.Sprintf("%s.mp3", trackID))
+
+	if err := h.fetcher.Download(r.Context(), tr.MP3URL, destPath); err != nil {
+		jsonError(w, "download failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	if err := h.store.SetTrackLocalPath(r.Context(), trackID, destPath); err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+
+	jsonOK(w, map[string]string{"status": "done", "localPath": destPath}, http.StatusOK)
 }
 
-// GET /tracks/{id}/download — same as stream but with Content-Disposition.
+// GET /tracks/{id}/download — serves local file with Content-Disposition for browser save.
 func (h *handler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 	trackID := r.PathValue("id")
 	tr, err := h.store.Track(r.Context(), trackID)
@@ -254,21 +314,13 @@ func (h *handler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "store error", http.StatusInternalServerError)
 		return
 	}
-	if tr.MP3URL == "" {
-		if tr.PageURL == "" {
-			jsonError(w, "track has no page URL", http.StatusServiceUnavailable)
-			return
-		}
-		mp3URL, err := h.resolver.SongMP3(r.Context(), tr.PageURL)
-		if err != nil {
-			jsonError(w, "failed to resolve mp3: "+err.Error(), http.StatusBadGateway)
-			return
-		}
-		_ = h.store.SetTrackMP3URL(r.Context(), trackID, mp3URL)
-		tr.MP3URL = mp3URL
+	if tr.LocalPath == "" {
+		jsonError(w, "track not downloaded", http.StatusConflict)
+		return
 	}
 	w.Header().Set("Content-Disposition", `attachment; filename="`+tr.Name+`.mp3"`)
-	http.Redirect(w, r, tr.MP3URL, http.StatusFound)
+	w.Header().Set("Content-Type", "audio/mpeg")
+	http.ServeFile(w, r, tr.LocalPath)
 }
 
 // --- SSRF guard ---

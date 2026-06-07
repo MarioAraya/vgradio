@@ -42,6 +42,7 @@ type Track struct {
 	PageURL     string // per-song detail page on the origin site
 	SongID      string // origin-site song id (from playlistAddTo)
 	MP3URL      string // direct .mp3, resolved lazily via ParseSongMP3
+	LocalPath   string // absolute path to locally-downloaded MP3, empty if not downloaded
 }
 
 // Comment is a user comment from the album page.

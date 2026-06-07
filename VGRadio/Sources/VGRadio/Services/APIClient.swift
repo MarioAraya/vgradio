@@ -55,6 +55,18 @@ final class APIClient {
         return try JSONDecoder().decode(ScrapeJob.self, from: data)
     }
 
+    // MARK: - Track fetch (download to server local disk)
+
+    func fetchTrack(_ trackID: String) async throws {
+        var req = URLRequest(url: try url("/tracks/\(trackID)/fetch"))
+        req.httpMethod = "POST"
+        req.timeoutInterval = 180  // large MP3s can take a while
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw VGError.jobFailed("fetch failed (\(http.statusCode))")
+        }
+    }
+
     // MARK: - Stream URL
 
     func streamURL(for track: Track) -> URL? {

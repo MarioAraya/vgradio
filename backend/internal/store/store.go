@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,7 +59,8 @@ func NewTestStore(t *testing.T) *Store {
 
 func (s *Store) migrate() error {
 	// Idempotent column additions for existing databases (ignore error if column exists).
-	s.db.Exec(`ALTER TABLE albums ADD COLUMN catalog_number TEXT NOT NULL DEFAULT ''`) //nolint:errcheck
+	s.db.Exec(`ALTER TABLE albums ADD COLUMN catalog_number TEXT NOT NULL DEFAULT ''`)  //nolint:errcheck
+	s.db.Exec(`ALTER TABLE tracks ADD COLUMN local_path TEXT NOT NULL DEFAULT ''`)      //nolint:errcheck
 
 	_, err := s.db.Exec(`
 		PRAGMA journal_mode=WAL;
@@ -222,7 +224,7 @@ func (s *Store) Album(ctx context.Context, albumID string) (*scraper.Album, erro
 
 func (s *Store) loadTracks(ctx context.Context, albumID string, a *scraper.Album) error {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, idx, name, duration_sec, size_bytes, page_url, song_id, mp3_url
+		SELECT id, idx, name, duration_sec, size_bytes, page_url, song_id, mp3_url, local_path
 		FROM tracks WHERE album_id = ? ORDER BY idx`, albumID)
 	if err != nil {
 		return err
@@ -232,13 +234,29 @@ func (s *Store) loadTracks(ctx context.Context, albumID string, a *scraper.Album
 		var tr scraper.Track
 		var dbID int64
 		if err := rows.Scan(&dbID, &tr.Index, &tr.Name, &tr.DurationSec, &tr.SizeBytes,
-			&tr.PageURL, &tr.SongID, &tr.MP3URL); err != nil {
+			&tr.PageURL, &tr.SongID, &tr.MP3URL, &tr.LocalPath); err != nil {
 			return err
 		}
 		tr.ID = fmt.Sprintf("%d", dbID)
 		a.Tracks = append(a.Tracks, tr)
 	}
 	return rows.Err()
+}
+
+// TrackAlbumID returns the album_id for the given track.
+func (s *Store) TrackAlbumID(ctx context.Context, trackID string) (string, error) {
+	var albumID string
+	err := s.db.QueryRowContext(ctx, `SELECT album_id FROM tracks WHERE id = ?`, trackID).Scan(&albumID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return albumID, err
+}
+
+// SetTrackLocalPath stores the absolute path to the downloaded MP3 for a track.
+func (s *Store) SetTrackLocalPath(ctx context.Context, trackID, localPath string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE tracks SET local_path = ? WHERE id = ?`, localPath, trackID)
+	return err
 }
 
 // AlbumSummary is a lightweight album record for list responses.
@@ -249,12 +267,14 @@ type AlbumSummary struct {
 	Year       int
 	AlbumType  string
 	TrackCount int
+	CoverURLs  []string // all cover URLs for this album, in insertion order
 }
 
-// Albums returns all cached album summaries.
+// Albums returns all cached album summaries including cover URLs.
 func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.id, a.title, a.platform, a.year, a.album_type, COUNT(t.id)
+		SELECT a.id, a.title, a.platform, a.year, a.album_type, COUNT(t.id),
+		       (SELECT GROUP_CONCAT(url, '|') FROM covers WHERE album_id = a.id)
 		FROM albums a LEFT JOIN tracks t ON t.album_id = a.id
 		GROUP BY a.id ORDER BY a.title`)
 	if err != nil {
@@ -263,11 +283,19 @@ func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
 	defer rows.Close()
 	var out []AlbumSummary
 	for rows.Next() {
-		var s AlbumSummary
-		if err := rows.Scan(&s.ID, &s.Title, &s.Platform, &s.Year, &s.AlbumType, &s.TrackCount); err != nil {
+		var sum AlbumSummary
+		var coverConcat sql.NullString
+		if err := rows.Scan(&sum.ID, &sum.Title, &sum.Platform, &sum.Year, &sum.AlbumType, &sum.TrackCount, &coverConcat); err != nil {
 			return nil, err
 		}
-		out = append(out, s)
+		if coverConcat.Valid && coverConcat.String != "" {
+			for _, u := range strings.Split(coverConcat.String, "|") {
+				if u != "" {
+					sum.CoverURLs = append(sum.CoverURLs, u)
+				}
+			}
+		}
+		out = append(out, sum)
 	}
 	return out, rows.Err()
 }

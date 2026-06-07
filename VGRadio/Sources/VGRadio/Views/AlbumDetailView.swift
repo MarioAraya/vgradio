@@ -10,6 +10,9 @@ struct AlbumDetailView: View {
     @State private var album: Album?
     @State private var isLoading = true
     @State private var hoveredTrackID: String?
+    @State private var showLightbox = false
+    @State private var downloadingTrackID: String?
+    @State private var downloadedIDs: Set<String> = []
 
     var body: some View {
         ScrollView {
@@ -32,6 +35,16 @@ struct AlbumDetailView: View {
         }
         .background(Color.vgBg)
         .task { await load() }
+        .overlay {
+            if showLightbox, let album {
+                CoverLightbox(
+                    covers: album.covers,
+                    title: album.title,
+                    initialIndex: CoverPrefsStore.shared.index(for: summary.id),
+                    onClose: { showLightbox = false }
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -46,7 +59,8 @@ struct AlbumDetailView: View {
                 onIndexChange: {
                     player.currentCoverIndex = $0
                     CoverPrefsStore.shared.set($0, for: summary.id)
-                }
+                },
+                onTap: { showLightbox = true }
             )
 
             VStack(alignment: .leading, spacing: 6) {
@@ -87,7 +101,6 @@ struct AlbumDetailView: View {
                     }
                 }
 
-                // Publisher · Developer · Catalog
                 metaRow(album)
 
                 Spacer(minLength: 12)
@@ -95,8 +108,9 @@ struct AlbumDetailView: View {
                 // Actions
                 HStack(spacing: 10) {
                     Button {
-                        if let first = album.tracks.first(where: { !(hidden.isHidden($0.id)) }) ?? album.tracks.first {
-                            player.play(track: first, in: summary, queue: album.tracks, covers: album.covers)
+                        let playable = album.tracks.filter { downloadedIDs.contains($0.id) && !hidden.isHidden($0.id) }
+                        if let first = playable.first ?? album.tracks.first(where: { downloadedIDs.contains($0.id) }) {
+                            player.play(track: first, in: summary, queue: playable, covers: album.covers)
                             player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                         }
                     } label: {
@@ -112,7 +126,12 @@ struct AlbumDetailView: View {
                     }
                     .buttonStyle(.plain)
 
-                    CircleIconButton(icon: "arrow.down.circle")
+                    if !album.covers.isEmpty {
+                        CircleIconButton(icon: "arrow.down.circle") {
+                            Task { await downloadCoversZip(album.covers, title: album.title) }
+                        }
+                        .help(album.covers.count > 1 ? "Download all covers as ZIP" : "Download cover")
+                    }
 
                     // Star: adds/removes all tracks for this album
                     let allFav = favorites.isAlbumFavorited(summary.id)
@@ -145,7 +164,6 @@ struct AlbumDetailView: View {
 
         // Tracklist
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 0) {
                 Text("#").frame(width: 40, alignment: .center)
                 Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
@@ -166,11 +184,16 @@ struct AlbumDetailView: View {
                     album: summary,
                     isAltRow: idx % 2 == 1,
                     isHovered: hoveredTrackID == track.id,
-                    isPlaying: player.currentTrack?.id == track.id
+                    isPlaying: player.currentTrack?.id == track.id,
+                    isDownloaded: downloadedIDs.contains(track.id),
+                    isDownloading: downloadingTrackID == track.id,
+                    onDownload: { downloadTrack(track) }
                 )
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
                 .onTapGesture(count: 2) {
-                    player.play(track: track, in: summary, queue: album.tracks, covers: album.covers)
+                    guard downloadedIDs.contains(track.id) else { return }
+                    let playable = album.tracks.filter { downloadedIDs.contains($0.id) }
+                    player.play(track: track, in: summary, queue: playable, covers: album.covers)
                     player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                 }
             }
@@ -209,8 +232,224 @@ struct AlbumDetailView: View {
 
     private func load() async {
         isLoading = true
-        album = try? await APIClient.shared.album(summary.id)
+        let a = try? await APIClient.shared.album(summary.id)
+        album = a
+        downloadedIDs = Set(a?.tracks.filter(\.downloaded).map(\.id) ?? [])
         isLoading = false
+    }
+
+    private func downloadTrack(_ track: Track) {
+        guard downloadingTrackID == nil else { return }
+        downloadingTrackID = track.id
+        Task {
+            try? await APIClient.shared.fetchTrack(track.id)
+            downloadedIDs.insert(track.id)
+            downloadingTrackID = nil
+        }
+    }
+
+    private func downloadCoversZip(_ covers: [Cover], title: String) async {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        var filePaths: [String] = []
+        for (i, cover) in covers.enumerated() {
+            guard let url = AlbumCoverView.resolveURL(cover.url) else { continue }
+            if let (data, _) = try? await URLSession.shared.data(from: url) {
+                let ext = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
+                let file = tempDir.appendingPathComponent(String(format: "cover-%02d.%@", i + 1, ext))
+                try? data.write(to: file)
+                filePaths.append(file.path)
+            }
+        }
+        guard !filePaths.isEmpty else { return }
+
+        let safeName = String(title.prefix(50)).replacingOccurrences(of: "/", with: "-")
+        let outURL: URL
+        if covers.count == 1, let ext = filePaths.first.map({ URL(fileURLWithPath: $0).pathExtension }) {
+            outURL = FileManager.default.temporaryDirectory.appendingPathComponent("cover.\(ext)")
+            try? FileManager.default.copyItem(atPath: filePaths[0], toPath: outURL.path)
+        } else {
+            outURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName)-covers.zip")
+            try? FileManager.default.removeItem(at: outURL)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+            process.arguments = ["-j", outURL.path] + filePaths
+            try? process.run()
+            process.waitUntilExit()
+        }
+
+        await MainActor.run {
+            _ = NSWorkspace.shared.selectFile(outURL.path, inFileViewerRootedAtPath: "")
+        }
+    }
+}
+
+// MARK: - Cover lightbox
+
+private struct CoverLightbox: View {
+    let covers: [Cover]
+    let title: String
+    let initialIndex: Int
+    let onClose: () -> Void
+
+    @State private var index = 0
+    @State private var isDownloading = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.88)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                if !covers.isEmpty {
+                    let safeIdx = min(index, covers.count - 1)
+                    if let url = AlbumCoverView.resolveURL(covers[safeIdx].url) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .shadow(color: .black.opacity(0.6), radius: 40)
+                            default:
+                                AlbumLetterArt(title: title, size: 480)
+                            }
+                        }
+                        .frame(maxWidth: 560, maxHeight: 560)
+                    }
+                }
+
+                if covers.count > 1 {
+                    HStack(spacing: 24) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) { index = max(0, index - 1) }
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(index > 0 ? 1 : 0.3)
+
+                        HStack(spacing: 6) {
+                            ForEach(0..<covers.count, id: \.self) { i in
+                                Circle()
+                                    .fill(i == index ? Color.white : Color.white.opacity(0.3))
+                                    .frame(width: 6, height: 6)
+                                    .onTapGesture { withAnimation { index = i } }
+                            }
+                        }
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) { index = min(covers.count - 1, index + 1) }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(index < covers.count - 1 ? 1 : 0.3)
+                    }
+                }
+
+                Button {
+                    guard !isDownloading else { return }
+                    Task { await downloadZip() }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isDownloading {
+                            ProgressView().progressViewStyle(.circular).scaleEffect(0.65)
+                            Text("Downloading…")
+                        } else {
+                            Image(systemName: "arrow.down.circle")
+                            Text(covers.count > 1 ? "Download all \(covers.count) covers as ZIP" : "Download cover")
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(isDownloading ? 0.07 : 0.14))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(48)
+
+            // Close button — top right
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .padding(20)
+        }
+        .onAppear { index = min(initialIndex, max(0, covers.count - 1)) }
+        .background {
+            Button("") { onClose() }
+                .keyboardShortcut(.escape, modifiers: [])
+                .hidden()
+        }
+    }
+
+    private func downloadZip() async {
+        isDownloading = true
+        defer { Task { @MainActor in isDownloading = false } }
+
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        var filePaths: [String] = []
+        for (i, cover) in covers.enumerated() {
+            guard let url = AlbumCoverView.resolveURL(cover.url) else { continue }
+            if let (data, _) = try? await URLSession.shared.data(from: url) {
+                let ext = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
+                let file = tempDir.appendingPathComponent(String(format: "cover-%02d.%@", i + 1, ext))
+                try? data.write(to: file)
+                filePaths.append(file.path)
+            }
+        }
+        guard !filePaths.isEmpty else { return }
+
+        let safeName = String(title.prefix(50)).replacingOccurrences(of: "/", with: "-")
+        let outURL: URL
+        if covers.count == 1 {
+            let ext = URL(fileURLWithPath: filePaths[0]).pathExtension
+            outURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName)-cover.\(ext)")
+            try? FileManager.default.removeItem(at: outURL)
+            try? FileManager.default.copyItem(atPath: filePaths[0], toPath: outURL.path)
+        } else {
+            outURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName)-covers.zip")
+            try? FileManager.default.removeItem(at: outURL)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+            process.arguments = ["-j", outURL.path] + filePaths
+            try? process.run()
+            process.waitUntilExit()
+        }
+
+        await MainActor.run {
+            NSWorkspace.shared.selectFile(outURL.path, inFileViewerRootedAtPath: "")
+        }
     }
 }
 
@@ -223,6 +462,7 @@ struct AlbumCoverView: View {
     var initialIndex: Int = 0
     var enableHoverControls = true
     var onIndexChange: ((Int) -> Void)? = nil
+    var onTap: (() -> Void)? = nil
 
     @State private var coverIndex = 0
     @State private var isHovered = false
@@ -253,6 +493,9 @@ struct AlbumCoverView: View {
             }
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture { onTap?() }
+            // allowsHitTesting(false) when no tap handler so parent gestures (library card) still fire
+            .allowsHitTesting(onTap != nil)
 
             if enableHoverControls && isHovered && covers.count > 1 {
                 RoundedRectangle(cornerRadius: 10)
@@ -324,6 +567,9 @@ private struct DetailTrackRow: View {
     let isAltRow: Bool
     let isHovered: Bool
     let isPlaying: Bool
+    let isDownloaded: Bool
+    let isDownloading: Bool
+    let onDownload: () -> Void
     @Environment(FavoritesStore.self) var favorites
     @Environment(HiddenTracksStore.self) var hidden
 
@@ -342,7 +588,7 @@ private struct DetailTrackRow: View {
             }
 
             HStack(spacing: 0) {
-                // Index / play / hidden indicator
+                // Index / state indicator
                 Group {
                     if isHidden {
                         Image(systemName: "eye.slash")
@@ -350,47 +596,71 @@ private struct DetailTrackRow: View {
                     } else if isPlaying {
                         Image(systemName: "waveform")
                             .foregroundStyle(Color.vgAccent).font(.system(size: 12))
-                    } else if isHovered {
+                    } else if isHovered && isDownloaded {
                         Image(systemName: "play.fill")
                             .foregroundStyle(Color.vgText).font(.system(size: 11))
                     } else {
                         Text(String(format: "%02d", track.index))
-                            .font(VGFont.mono(12)).foregroundStyle(Color.vgTextMuted)
+                            .font(VGFont.mono(12))
+                            .foregroundStyle(isDownloaded ? Color.vgTextMuted : Color.vgTextMuted.opacity(0.4))
                     }
                 }
                 .frame(width: 40, alignment: .center)
 
                 Text(track.name)
                     .font(VGFont.body(13))
-                    .foregroundStyle(isHidden ? Color.vgTextMuted : isPlaying ? Color.vgAccent : Color.vgText)
+                    .foregroundStyle(
+                        isHidden ? Color.vgTextMuted :
+                        isPlaying ? Color.vgAccent :
+                        isDownloaded ? Color.vgText : Color.vgTextSec.opacity(0.5)
+                    )
                     .strikethrough(isHidden, color: Color.vgTextMuted)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(track.durationFormatted)
                     .font(VGFont.mono(12))
-                    .foregroundStyle(isHidden ? Color.vgTextMuted.opacity(0.5) : Color.vgTextSec)
+                    .foregroundStyle(isDownloaded ? (isHidden ? Color.vgTextMuted.opacity(0.5) : Color.vgTextSec) : Color.vgTextMuted.opacity(0.3))
                     .frame(width: 60, alignment: .trailing)
                     .monospacedDigit()
 
-                // Thumbs up (favorite) — shown on hover or when already favorited
-                Button { favorites.toggle(track, album: album) } label: {
-                    Group {
-                        if isHovered || isFav {
-                            Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
-                                .font(.system(size: 12))
-                                .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
-                                .scaleEffect(isFav ? 1.1 : 1)
-                        } else {
-                            Color.clear
+                // Download button (when not downloaded) or thumbs up (when downloaded)
+                if !isDownloaded {
+                    Button(action: onDownload) {
+                        Group {
+                            if isDownloading {
+                                ProgressView().progressViewStyle(.circular).scaleEffect(0.5)
+                            } else if isHovered {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.vgAccent)
+                            } else {
+                                Color.clear
+                            }
                         }
                     }
-                    .animation(.spring(response: 0.2), value: isFav)
+                    .buttonStyle(.plain)
+                    .frame(width: 40, alignment: .center)
+                    .disabled(isDownloading)
+                    .help("Download track")
+                } else {
+                    Button { favorites.toggle(track, album: album) } label: {
+                        Group {
+                            if isHovered || isFav {
+                                Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
+                                    .scaleEffect(isFav ? 1.1 : 1)
+                            } else {
+                                Color.clear
+                            }
+                        }
+                        .animation(.spring(response: 0.2), value: isFav)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 40, alignment: .center)
                 }
-                .buttonStyle(.plain)
-                .frame(width: 40, alignment: .center)
 
-                // Hide toggle (swipe-down button) — always visible as subtle indicator when hidden, shown on hover
                 Button { hidden.toggle(track.id) } label: {
                     Image(systemName: isHidden ? "eye.slash.fill" : "arrow.down.to.line")
                         .font(.system(size: 12))
@@ -420,8 +690,10 @@ private struct DetailTrackRow: View {
 
 private struct CircleIconButton: View {
     let icon: String
+    var action: (() -> Void)? = nil
+
     var body: some View {
-        Button {} label: {
+        Button { action?() } label: {
             Image(systemName: icon)
                 .font(.system(size: 14))
                 .foregroundStyle(Color.vgTextSec)

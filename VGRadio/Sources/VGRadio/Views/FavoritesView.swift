@@ -141,10 +141,10 @@ private struct FavoriteTrackRow: View {
                     // (FavoritesStore.toggle needs a Track — use the stored data)
                     let dummy = Track(id: track.id, index: track.index ?? 0, name: track.name,
                                      durationSec: track.durationSec, sizeBytes: 0,
-                                     streamUrl: "", downloadUrl: "")
+                                     streamUrl: "", downloadUrl: "", downloaded: true)
                     let dummyAlbum = AlbumSummary(id: track.albumId, title: track.albumTitle,
                                                    platform: track.platform, year: track.year,
-                                                   albumType: "", trackCount: 0)
+                                                   albumType: "", trackCount: 0, coverUrls: [])
                     favorites.toggle(dummy, album: dummyAlbum)
                 }
         }
