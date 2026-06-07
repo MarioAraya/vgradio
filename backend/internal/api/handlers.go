@@ -224,8 +224,8 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// GET /tracks/{id}/stream — serves the locally-downloaded MP3 file.
-// Returns 409 if the track has not been fetched locally yet.
+// GET /tracks/{id}/stream — serves local file if downloaded, otherwise resolves
+// the mp3 URL lazily from khinsider and redirects (302).
 func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 	trackID := r.PathValue("id")
 	tr, err := h.store.Track(r.Context(), trackID)
@@ -237,12 +237,32 @@ func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "store error", http.StatusInternalServerError)
 		return
 	}
-	if tr.LocalPath == "" {
-		jsonError(w, "track not downloaded", http.StatusConflict)
-		return
+
+	// Serve local file if already downloaded.
+	if tr.LocalPath != "" {
+		if _, statErr := os.Stat(tr.LocalPath); statErr == nil {
+			w.Header().Set("Content-Type", "audio/mpeg")
+			http.ServeFile(w, r, tr.LocalPath)
+			return
+		}
 	}
-	w.Header().Set("Content-Type", "audio/mpeg")
-	http.ServeFile(w, r, tr.LocalPath)
+
+	// Lazy MP3 resolution: fetch the per-song page and cache the direct URL.
+	if tr.MP3URL == "" {
+		if tr.PageURL == "" {
+			jsonError(w, "track has no page URL", http.StatusServiceUnavailable)
+			return
+		}
+		mp3URL, err := h.fetcher.SongMP3(r.Context(), tr.PageURL)
+		if err != nil {
+			jsonError(w, "failed to resolve mp3: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), trackID, mp3URL)
+		tr.MP3URL = mp3URL
+	}
+
+	http.Redirect(w, r, tr.MP3URL, http.StatusFound)
 }
 
 // POST /tracks/{id}/fetch — resolves the MP3 URL and downloads the file locally.

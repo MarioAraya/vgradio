@@ -4,6 +4,7 @@ struct SearchOverlay: View {
     @Binding var isShowing: Bool
     @Environment(LibraryStore.self) var library
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
 
     private var results: [AlbumSummary] {
         guard !query.isEmpty else { return [] }
@@ -28,6 +29,7 @@ struct SearchOverlay: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 18))
                         .foregroundStyle(Color.vgText)
+                        .focused($searchFocused)
                 }
                 .padding(VGSpace.md)
 
@@ -71,7 +73,12 @@ struct SearchOverlay: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .padding(.top, 120)
         }
-        .onKeyPress(.escape) { isShowing = false; return .handled }
+        .onAppear { searchFocused = true }
+        .background {
+            Button("") { isShowing = false }
+                .keyboardShortcut(.escape, modifiers: [])
+                .hidden()
+        }
     }
 }
 

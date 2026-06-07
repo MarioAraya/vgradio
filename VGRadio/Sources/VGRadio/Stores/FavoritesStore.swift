@@ -24,22 +24,44 @@ final class FavoritesStore {
                 albumTitle: album.title,
                 platform: album.platform,
                 year: album.year,
-                durationSec: track.durationSec
+                durationSec: track.durationSec,
+                coverUrls: album.coverUrls
             ))
         }
         save()
     }
 
+    func isAlbumFavorited(_ albumID: String) -> Bool {
+        favorites.contains(where: { $0.albumId == albumID })
+    }
+
+    func addAll(_ tracks: [Track], album: AlbumSummary) {
+        for track in tracks where !isFavorite(track.id) {
+            favorites.append(FavoriteTrack(
+                id: track.id, name: track.name, albumId: album.id,
+                albumTitle: album.title, platform: album.platform,
+                year: album.year, durationSec: track.durationSec,
+                coverUrls: album.coverUrls
+            ))
+        }
+        save()
+    }
+
+    func removeAll(albumID: String) {
+        favorites.removeAll(where: { $0.albumId == albumID })
+        save()
+    }
+
     /// Tracks grouped by album, preserving insertion order.
-    var grouped: [(albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])] {
+    var grouped: [(albumId: String, albumTitle: String, platform: String, year: Int, coverUrls: [String], tracks: [FavoriteTrack])] {
         var seen: [String: Int] = [:]
-        var groups: [(albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])] = []
+        var groups: [(albumId: String, albumTitle: String, platform: String, year: Int, coverUrls: [String], tracks: [FavoriteTrack])] = []
         for f in favorites {
             if let idx = seen[f.albumId] {
                 groups[idx].tracks.append(f)
             } else {
                 seen[f.albumId] = groups.count
-                groups.append((f.albumTitle, f.platform, f.year, [f]))
+                groups.append((f.albumId, f.albumTitle, f.platform, f.year, f.coverUrls, [f]))
             }
         }
         return groups

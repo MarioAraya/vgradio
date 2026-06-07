@@ -108,8 +108,8 @@ struct AlbumDetailView: View {
                 // Actions
                 HStack(spacing: 10) {
                     Button {
-                        let playable = album.tracks.filter { downloadedIDs.contains($0.id) && !hidden.isHidden($0.id) }
-                        if let first = playable.first ?? album.tracks.first(where: { downloadedIDs.contains($0.id) }) {
+                        let playable = album.tracks.filter { !hidden.isHidden($0.id) }
+                        if let first = playable.first ?? album.tracks.first {
                             player.play(track: first, in: summary, queue: playable, covers: album.covers)
                             player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                         }
@@ -191,8 +191,7 @@ struct AlbumDetailView: View {
                 )
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
                 .onTapGesture(count: 2) {
-                    guard downloadedIDs.contains(track.id) else { return }
-                    let playable = album.tracks.filter { downloadedIDs.contains($0.id) }
+                    let playable = album.tracks.filter { !hidden.isHidden($0.id) }
                     player.play(track: track, in: summary, queue: playable, covers: album.covers)
                     player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                 }
@@ -448,7 +447,7 @@ private struct CoverLightbox: View {
         }
 
         await MainActor.run {
-            NSWorkspace.shared.selectFile(outURL.path, inFileViewerRootedAtPath: "")
+            _ = NSWorkspace.shared.selectFile(outURL.path, inFileViewerRootedAtPath: "")
         }
     }
 }
@@ -596,7 +595,7 @@ private struct DetailTrackRow: View {
                     } else if isPlaying {
                         Image(systemName: "waveform")
                             .foregroundStyle(Color.vgAccent).font(.system(size: 12))
-                    } else if isHovered && isDownloaded {
+                    } else if isHovered {
                         Image(systemName: "play.fill")
                             .foregroundStyle(Color.vgText).font(.system(size: 11))
                     } else {
@@ -659,6 +658,7 @@ private struct DetailTrackRow: View {
                     }
                     .buttonStyle(.plain)
                     .frame(width: 40, alignment: .center)
+                    .help(isFav ? "Quitar de favoritos" : "Agregar a favoritos")
                 }
 
                 Button { hidden.toggle(track.id) } label: {
