@@ -30,6 +30,30 @@ final class FavoritesStore {
         save()
     }
 
+    func isAlbumFavorited(_ albumID: String) -> Bool {
+        favorites.contains(where: { $0.albumId == albumID })
+    }
+
+    func removeAll(albumID: String) {
+        favorites.removeAll(where: { $0.albumId == albumID })
+        save()
+    }
+
+    func addAll(_ tracks: [Track], album: AlbumSummary) {
+        for track in tracks where !isFavorite(track.id) {
+            favorites.append(FavoriteTrack(
+                id: track.id,
+                name: track.name,
+                albumId: album.id,
+                albumTitle: album.title,
+                platform: album.platform,
+                year: album.year,
+                durationSec: track.durationSec
+            ))
+        }
+        save()
+    }
+
     /// Tracks grouped by album, preserving insertion order.
     var grouped: [(albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])] {
         var seen: [String: Int] = [:]

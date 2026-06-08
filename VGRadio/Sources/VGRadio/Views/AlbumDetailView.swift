@@ -108,8 +108,8 @@ struct AlbumDetailView: View {
                 // Actions
                 HStack(spacing: 10) {
                     Button {
-                        let playable = album.tracks.filter { downloadedIDs.contains($0.id) && !hidden.isHidden($0.id) }
-                        if let first = playable.first ?? album.tracks.first(where: { downloadedIDs.contains($0.id) }) {
+                        let playable = album.tracks.filter { !hidden.isHidden($0.id) }
+                        if let first = playable.first {
                             player.play(track: first, in: summary, queue: playable, covers: album.covers)
                             player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                         }
@@ -191,8 +191,7 @@ struct AlbumDetailView: View {
                 )
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
                 .onTapGesture(count: 2) {
-                    guard downloadedIDs.contains(track.id) else { return }
-                    let playable = album.tracks.filter { downloadedIDs.contains($0.id) }
+                    let playable = album.tracks.filter { !hidden.isHidden($0.id) }
                     player.play(track: track, in: summary, queue: playable, covers: album.covers)
                     player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                 }
