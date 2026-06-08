@@ -62,6 +62,10 @@ final class PlayerService {
         load(track: queue[idx])
     }
 
+    func playNext(_ track: Track) {
+        queue.insert(track, at: min(queueIndex + 1, queue.count))
+    }
+
     func seek(to seconds: Double) {
         player?.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
         currentTime = seconds

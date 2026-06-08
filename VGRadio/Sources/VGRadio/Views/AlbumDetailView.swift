@@ -168,6 +168,7 @@ struct AlbumDetailView: View {
                 Text("#").frame(width: 40, alignment: .center)
                 Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
                 Text("DUR").frame(width: 60, alignment: .trailing)
+                Text("▶+").frame(width: 40, alignment: .center)
                 Text("👍").frame(width: 40, alignment: .center)
                 Text("👁").frame(width: 40, alignment: .center)
             }
@@ -571,6 +572,7 @@ private struct DetailTrackRow: View {
     let onDownload: () -> Void
     @Environment(FavoritesStore.self) var favorites
     @Environment(HiddenTracksStore.self) var hidden
+    @Environment(PlayerService.self) var player
 
     private var isHidden: Bool { hidden.isHidden(track.id) }
     private var isFav: Bool { favorites.isFavorite(track.id) }
@@ -622,6 +624,18 @@ private struct DetailTrackRow: View {
                     .foregroundStyle(isDownloaded ? (isHidden ? Color.vgTextMuted.opacity(0.5) : Color.vgTextSec) : Color.vgTextMuted.opacity(0.3))
                     .frame(width: 60, alignment: .trailing)
                     .monospacedDigit()
+
+                // Play next button
+                Button {
+                    player.playNext(track)
+                } label: {
+                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isHovered ? Color.vgTextSec : Color.clear)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 40, alignment: .center)
+                .help("Play next")
 
                 // Download button (when not downloaded) or thumbs up (when downloaded)
                 if !isDownloaded {

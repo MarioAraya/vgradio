@@ -8,13 +8,31 @@ struct FavoritesView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: VGSpace.lg) {
                 // Header
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Favorites")
-                        .font(VGFont.title())
-                        .foregroundStyle(Color.vgText)
-                    Text(subtitle)
-                        .font(VGFont.body())
-                        .foregroundStyle(Color.vgTextSec)
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Favorites")
+                            .font(VGFont.title())
+                            .foregroundStyle(Color.vgText)
+                        Text(subtitle)
+                            .font(VGFont.body())
+                            .foregroundStyle(Color.vgTextSec)
+                    }
+                    Spacer()
+                    if !favorites.favorites.isEmpty {
+                        Button { playAll() } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "play.fill").font(.system(size: 11))
+                                Text("Play all").font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundStyle(Color.vgBg)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 7)
+                            .background(Color.vgAccent)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Play all favorites")
+                    }
                 }
                 .padding(.top, VGSpace.xl)
                 .padding(.horizontal, VGSpace.xl)
@@ -31,6 +49,21 @@ struct FavoritesView: View {
             .padding(.bottom, VGSpace.xl)
         }
         .background(Color.vgBg)
+    }
+
+    private func playAll() {
+        let tracks = favorites.favorites.enumerated().map { i, f in
+            Track(id: f.id, index: i + 1, name: f.name,
+                  durationSec: f.durationSec, sizeBytes: 0,
+                  streamUrl: "/tracks/\(f.id)/stream",
+                  downloadUrl: "/tracks/\(f.id)/download",
+                  downloaded: true)
+        }
+        guard let first = tracks.first else { return }
+        let album = AlbumSummary(id: "favorites", title: "Favorites",
+                                 platform: "", year: 0, albumType: "",
+                                 trackCount: tracks.count, coverUrls: [])
+        player.play(track: first, in: album, queue: tracks)
     }
 
     private var subtitle: String {
