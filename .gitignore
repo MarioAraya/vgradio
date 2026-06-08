@@ -18,3 +18,4 @@ xcuserdata/
 .env
 *.local
 backend/data/*/covers/*
+backend/data/*/tracks/*.mp3
