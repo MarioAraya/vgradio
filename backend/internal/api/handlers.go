@@ -411,7 +411,7 @@ func validateURL(raw string) error {
 
 // POST /catalog/sync — starts a background catalog sync. 202 if started, 409 if already running.
 func (h *handler) postCatalogSync(w http.ResponseWriter, r *http.Request) {
-	if started := h.syncer.Start(r.Context()); !started {
+	if started := h.syncer.Start(context.Background()); !started {
 		jsonError(w, "sync already running", http.StatusConflict)
 		return
 	}

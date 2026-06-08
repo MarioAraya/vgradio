@@ -67,6 +67,40 @@ final class APIClient {
         }
     }
 
+    // MARK: - Catalog
+
+    func startCatalogSync() async throws {
+        var req = URLRequest(url: try url("/catalog/sync"))
+        req.httpMethod = "POST"
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 && http.statusCode != 409 {
+            throw VGError.jobFailed("sync failed (\(http.statusCode))")
+        }
+    }
+
+    func catalogSyncProgress() async throws -> CatalogSyncProgress {
+        let (data, _) = try await session.data(from: try url("/catalog/sync"))
+        return try JSONDecoder().decode(CatalogSyncProgress.self, from: data)
+    }
+
+    func catalog(q: String = "", platform: String = "", letter: String = "", offset: Int = 0, limit: Int = 50) async throws -> CatalogPage {
+        var comps = URLComponents(string: baseURL + "/catalog")!
+        comps.queryItems = [
+            .init(name: "q", value: q),
+            .init(name: "platform", value: platform),
+            .init(name: "letter", value: letter),
+            .init(name: "offset", value: String(offset)),
+            .init(name: "limit", value: String(limit)),
+        ].filter { !($0.value ?? "").isEmpty || $0.name == "offset" }
+        let (data, _) = try await session.data(from: comps.url!)
+        return try JSONDecoder().decode(CatalogPage.self, from: data)
+    }
+
+    func catalogConsoles() async throws -> [CatalogConsole] {
+        let (data, _) = try await session.data(from: try url("/catalog/consoles"))
+        return try JSONDecoder().decode([CatalogConsole].self, from: data)
+    }
+
     // MARK: - Stream URL
 
     func streamURL(for track: Track) -> URL? {

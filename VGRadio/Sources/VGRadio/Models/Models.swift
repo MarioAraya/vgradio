@@ -78,6 +78,39 @@ struct ScrapeJob: Codable {
     }
 }
 
+// MARK: - Catalog
+
+struct CatalogEntry: Decodable, Identifiable {
+    var title: String
+    var sourceUrl: String
+    var platform: String
+    var year: Int
+    var id: String { sourceUrl }
+}
+
+struct CatalogPage: Decodable {
+    var total: Int
+    var offset: Int
+    var limit: Int
+    var items: [CatalogEntry]
+}
+
+struct CatalogConsole: Decodable, Identifiable {
+    var id: String
+    var name: String
+    var url: String
+    var albumCount: Int
+}
+
+struct CatalogSyncProgress: Decodable {
+    var running: Bool
+    var total: Int
+    var done: Int
+    var errors: Int
+    var entries: Int
+    var consoles: Int
+}
+
 // MARK: - Favorites (local persistence)
 
 struct FavoriteTrack: Codable, Identifiable {
