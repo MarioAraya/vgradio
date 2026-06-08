@@ -12,8 +12,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/arayama/vgradio-app/backend/internal/catalog"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
 	"github.com/arayama/vgradio-app/backend/internal/scraper"
 	"github.com/arayama/vgradio-app/backend/internal/store"
@@ -32,6 +34,9 @@ type storer interface {
 	SetTrackMP3URL(ctx context.Context, trackID, mp3URL string) error
 	SetTrackLocalPath(ctx context.Context, trackID, localPath string) error
 	Exists(ctx context.Context, albumID string) (bool, error)
+	SearchCatalog(ctx context.Context, q, platform, letter string, offset, limit int) ([]scraper.CatalogEntry, error)
+	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
+	Consoles(ctx context.Context) ([]scraper.Console, error)
 }
 
 type trackFetcher interface {
@@ -39,16 +44,22 @@ type trackFetcher interface {
 	Download(ctx context.Context, url, destPath string) error
 }
 
+type catalogSyncer interface {
+	Start(ctx context.Context) bool
+	Progress() catalog.SyncProgress
+}
+
 type handler struct {
 	store   storer
 	queue   queuer
 	fetcher trackFetcher
+	syncer  catalogSyncer
 	dataDir string
 }
 
 // NewRouter returns the API router. dataDir is the root for downloaded files.
-func NewRouter(s storer, q queuer, f trackFetcher, dataDir string) http.Handler {
-	h := &handler{store: s, queue: q, fetcher: f, dataDir: dataDir}
+func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir string) http.Handler {
+	h := &handler{store: s, queue: q, fetcher: f, syncer: syn, dataDir: dataDir}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /albums", h.postAlbum)
 	mux.HandleFunc("GET /albums", h.getAlbums)
@@ -57,6 +68,10 @@ func NewRouter(s storer, q queuer, f trackFetcher, dataDir string) http.Handler 
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
 	mux.HandleFunc("POST /tracks/{id}/fetch", h.fetchTrackLocal)
+	mux.HandleFunc("POST /catalog/sync", h.postCatalogSync)
+	mux.HandleFunc("GET /catalog/sync", h.getCatalogSync)
+	mux.HandleFunc("GET /catalog", h.getCatalog)
+	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
 	// Serve downloaded cover images.
 	// URL pattern: /covers/<albumID>/<filename>
 	// File on disk:  <dataDir>/<albumID>/covers/<filename>
@@ -392,6 +407,81 @@ func validateURL(raw string) error {
 		}
 	}
 	return nil
+}
+
+// POST /catalog/sync — starts a background catalog sync. 202 if started, 409 if already running.
+func (h *handler) postCatalogSync(w http.ResponseWriter, r *http.Request) {
+	if started := h.syncer.Start(r.Context()); !started {
+		jsonError(w, "sync already running", http.StatusConflict)
+		return
+	}
+	jsonOK(w, map[string]string{"status": "started"}, http.StatusAccepted)
+}
+
+// GET /catalog/sync — returns sync progress.
+func (h *handler) getCatalogSync(w http.ResponseWriter, r *http.Request) {
+	jsonOK(w, h.syncer.Progress(), http.StatusOK)
+}
+
+// GET /catalog?q=&platform=&letter=&offset=&limit= — search/browse catalog entries.
+func (h *handler) getCatalog(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	search := q.Get("q")
+	platform := q.Get("platform")
+	letter := q.Get("letter")
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+
+	entries, err := h.store.SearchCatalog(r.Context(), search, platform, letter, offset, limit)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	total, err := h.store.CountCatalog(r.Context(), search, platform, letter)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+
+	type item struct {
+		Title     string `json:"title"`
+		SourceURL string `json:"sourceUrl"`
+		Platform  string `json:"platform"`
+		Year      int    `json:"year"`
+	}
+	items := make([]item, len(entries))
+	for i, e := range entries {
+		items[i] = item{e.Title, e.SourceURL, e.Platform, e.Year}
+	}
+	jsonOK(w, map[string]any{
+		"total":  total,
+		"offset": offset,
+		"limit":  limit,
+		"items":  items,
+	}, http.StatusOK)
+}
+
+// GET /catalog/consoles — returns all consoles ordered by album count.
+func (h *handler) getCatalogConsoles(w http.ResponseWriter, r *http.Request) {
+	consoles, err := h.store.Consoles(r.Context())
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	type item struct {
+		ID         string `json:"id"`
+		Name       string `json:"name"`
+		URL        string `json:"url"`
+		AlbumCount int    `json:"albumCount"`
+	}
+	items := make([]item, len(consoles))
+	for i, c := range consoles {
+		items[i] = item{c.Slug, c.Name, c.URL, c.AlbumCount}
+	}
+	jsonOK(w, items, http.StatusOK)
 }
 
 // --- helpers ---

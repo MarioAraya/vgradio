@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/arayama/vgradio-app/backend/internal/api"
+	"github.com/arayama/vgradio-app/backend/internal/catalog"
 	"github.com/arayama/vgradio-app/backend/internal/fetcher"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
 	"github.com/arayama/vgradio-app/backend/internal/scraper"
@@ -21,10 +23,11 @@ func setup(t *testing.T) (http.Handler, *store.Store, *jobs.Queue) {
 	s := store.NewTestStore(t)
 	f := fetcher.New(fetcher.Options{Delay: 0, MaxConcurrent: 2})
 	q := jobs.NewQueue(s, f, t.TempDir(), 2)
+	syn := catalog.New(s, f, slog.Default())
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go q.Start(ctx)
-	return api.NewRouter(s, q, f, t.TempDir()), s, q
+	return api.NewRouter(s, q, f, syn, t.TempDir()), s, q
 }
 
 func TestPostAlbums_MissingURL(t *testing.T) {

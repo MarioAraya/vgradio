@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/arayama/vgradio-app/backend/internal/api"
+	"github.com/arayama/vgradio-app/backend/internal/catalog"
 	"github.com/arayama/vgradio-app/backend/internal/fetcher"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
 	"github.com/arayama/vgradio-app/backend/internal/store"
@@ -43,6 +44,9 @@ func main() {
 	// Jobs queue.
 	q := jobs.NewQueue(s, f, cfg.dataDir, cfg.workers)
 
+	// Catalog syncer.
+	syn := catalog.New(s, f, log)
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -52,7 +56,7 @@ func main() {
 	// HTTP server.
 	srv := &http.Server{
 		Addr:         cfg.addr,
-		Handler:      api.NewRouter(s, q, f, cfg.dataDir),
+		Handler:      api.NewRouter(s, q, f, syn, cfg.dataDir),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

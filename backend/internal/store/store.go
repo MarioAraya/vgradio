@@ -62,6 +62,8 @@ func (s *Store) migrate() error {
 	s.db.Exec(`ALTER TABLE albums ADD COLUMN catalog_number TEXT NOT NULL DEFAULT ''`)  //nolint:errcheck
 	s.db.Exec(`ALTER TABLE tracks ADD COLUMN local_path TEXT NOT NULL DEFAULT ''`)      //nolint:errcheck
 
+	s.migrateCatalog()
+
 	_, err := s.db.Exec(`
 		PRAGMA journal_mode=WAL;
 		PRAGMA foreign_keys=ON;
@@ -90,7 +92,8 @@ func (s *Store) migrate() error {
 			size_bytes   INTEGER NOT NULL DEFAULT 0,
 			page_url     TEXT NOT NULL DEFAULT '',
 			song_id      TEXT NOT NULL DEFAULT '',
-			mp3_url      TEXT NOT NULL DEFAULT ''
+			mp3_url      TEXT NOT NULL DEFAULT '',
+			local_path   TEXT NOT NULL DEFAULT ''
 		);
 
 		CREATE TABLE IF NOT EXISTS covers (
