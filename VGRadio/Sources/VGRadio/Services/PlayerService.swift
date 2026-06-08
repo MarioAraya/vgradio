@@ -1,5 +1,4 @@
 import AVFoundation
-import MediaPlayer
 import Observation
 
 @MainActor
@@ -25,8 +24,6 @@ final class PlayerService {
     private var queueIndex = 0
     private var timeObserver: Any?
 
-    init() { setupRemoteCommands() }
-
     // MARK: - Playback control
 
     func play(track: Track, in album: AlbumSummary, queue tracks: [Track], covers: [Cover] = []) {
@@ -42,7 +39,6 @@ final class PlayerService {
         guard let player else { return }
         if isPlaying { player.pause() } else { player.play() }
         isPlaying = !isPlaying
-        updateNowPlayingInfo()
     }
 
     func next() {
@@ -65,7 +61,6 @@ final class PlayerService {
     func seek(to seconds: Double) {
         player?.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
         currentTime = seconds
-        updateNowPlayingInfo()
     }
 
     // MARK: - Private
@@ -87,16 +82,12 @@ final class PlayerService {
         isPlaying = true
         observeTime()
         observeEnd()
-        updateNowPlayingInfo()
     }
 
     private func observeTime() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] t in
-            Task { @MainActor [weak self] in
-                self?.currentTime = t.seconds
-                self?.updateNowPlayingElapsed()
-            }
+            Task { @MainActor [weak self] in self?.currentTime = t.seconds }
         }
     }
 
@@ -109,66 +100,5 @@ final class PlayerService {
 
     private func removeTimeObserver() {
         if let obs = timeObserver { player?.removeTimeObserver(obs); timeObserver = nil }
-    }
-
-    // MARK: - Media keys (MPRemoteCommandCenter)
-
-    private func setupRemoteCommands() {
-        let cc = MPRemoteCommandCenter.shared()
-
-        cc.playCommand.addTarget { [weak self] _ in
-            guard let self, !self.isPlaying else { return .commandFailed }
-            Task { @MainActor in self.togglePlay() }
-            return .success
-        }
-        cc.pauseCommand.addTarget { [weak self] _ in
-            guard let self, self.isPlaying else { return .commandFailed }
-            Task { @MainActor in self.togglePlay() }
-            return .success
-        }
-        cc.togglePlayPauseCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            Task { @MainActor in self.togglePlay() }
-            return .success
-        }
-        cc.nextTrackCommand.isEnabled = true
-        cc.nextTrackCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            Task { @MainActor in self.next() }
-            return .success
-        }
-        cc.previousTrackCommand.isEnabled = true
-        cc.previousTrackCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            Task { @MainActor in self.previous() }
-            return .success
-        }
-        cc.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let self, let e = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            Task { @MainActor in self.seek(to: e.positionTime) }
-            return .success
-        }
-    }
-
-    private func updateNowPlayingInfo() {
-        guard let track = currentTrack else {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-            return
-        }
-        var info: [String: Any] = [
-            MPMediaItemPropertyTitle: track.name,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPMediaItemPropertyPlaybackDuration: duration,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
-        ]
-        if let album = currentAlbum {
-            info[MPMediaItemPropertyAlbumTitle] = album.title
-        }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-    }
-
-    private func updateNowPlayingElapsed() {
-        guard MPNowPlayingInfoCenter.default().nowPlayingInfo != nil else { return }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
     }
 }

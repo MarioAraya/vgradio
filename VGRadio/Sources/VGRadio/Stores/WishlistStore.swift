@@ -46,12 +46,6 @@ final class WishlistStore {
         "https://downloads.khinsider.com/game-soundtracks/album/megaman-7-original-soundtrack",
         "https://downloads.khinsider.com/game-soundtracks/album/mario-kart-8-deluxe-original-sound-version-switch-wii-u-gamerip-2017",
         "https://downloads.khinsider.com/game-soundtracks/album/super-mario-kart-gamerip",
-        "https://downloads.khinsider.com/game-soundtracks/album/metroid-prime-and-fusion",
-        "https://downloads.khinsider.com/game-soundtracks/album/metroid-super-metroid",
-        "https://downloads.khinsider.com/game-soundtracks/album/silent-hill-2-original-soundtrack",
-        "https://downloads.khinsider.com/game-soundtracks/album/dracula-battle-perfect-selection",
-        "https://downloads.khinsider.com/game-soundtracks/album/metroid-prime-2-echoes-remastered",
-        "https://downloads.khinsider.com/game-soundtracks/album/best-selection-Ⅰ-ラスボスベスト-2020",
     ]
 
     init() {

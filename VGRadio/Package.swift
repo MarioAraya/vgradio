@@ -7,8 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "VGRadio",
-            path: "Sources/VGRadio",
-            linkerSettings: [.linkedFramework("MediaPlayer")]
+            path: "Sources/VGRadio"
         )
     ]
 )

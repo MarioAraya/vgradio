@@ -13,12 +13,11 @@
         { "id": "api", "title": "HTTP API: POST /albums, GET /albums/:id, stream Range, download", "status": "done", "evidence": "d63f18b, handlers_test.go (10 tests)" },
         { "id": "server", "title": "cmd/server wiring + arranque", "status": "done", "evidence": "4dee7f4, smoke tested live" },
         { "id": "ssrf-guard", "title": "Validacion anti-SSRF de URL de entrada", "status": "done", "evidence": "d63f18b, validateURL() 422 tests" },
-        { "id": "client-library", "title": "Cliente: biblioteca de albumes", "status": "in_progress", "evidence": "fa41cfd+5caa30b, LibraryView.swift — falta XCTest" },
-        { "id": "client-addurl", "title": "Cliente: agregar album por URL + polling", "status": "in_progress", "evidence": "fa41cfd+5caa30b, AddURLView.swift — falta XCTest" },
-        { "id": "client-player", "title": "Cliente: player AVFoundation (play/pause/seek/next/prev)", "status": "in_progress", "evidence": "fa41cfd+5caa30b+1eebe9b, PlayerService+PlayerBarView — falta XCTest" },
-        { "id": "player-bar-yt", "title": "Player bar rediseño estilo YT Music — HStack single row, progreso en top edge", "status": "todo", "evidence": null },
+        { "id": "client-library", "title": "Cliente: biblioteca de albumes", "status": "todo", "evidence": null },
+        { "id": "client-addurl", "title": "Cliente: agregar album por URL + polling", "status": "todo", "evidence": null },
+        { "id": "client-player", "title": "Cliente: player AVFoundation (play/pause/seek/next/prev)", "status": "todo", "evidence": null },
         { "id": "client-download", "title": "Cliente: descarga album para offline", "status": "todo", "evidence": null },
-        { "id": "favorites", "title": "Favoritos (★) por track, perfil local single-user", "status": "in_progress", "evidence": "fa41cfd+5caa30b, FavoritesStore+FavoritesView — falta XCTest" }
+        { "id": "favorites", "title": "Favoritos (★) por track, perfil local single-user", "status": "spec", "evidence": "1b78b28 (spec only)" }
       ]
     },
     "v1_5": {

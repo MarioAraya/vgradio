@@ -56,14 +56,5 @@ struct ContentView: View {
         .onAppear { Task { await library.load() } }
         .onKeyPress(.space) { player.togglePlay(); return .handled }
         .keyboardShortcut("k", modifiers: .command)
-        .background {
-            Group {
-                Button("") { selection = .library   }.keyboardShortcut("1", modifiers: .command)
-                Button("") { selection = .browse    }.keyboardShortcut("2", modifiers: .command)
-                Button("") { selection = .favorites }.keyboardShortcut("3", modifiers: .command)
-                Button("") { showAddURL = true      }.keyboardShortcut("4", modifiers: .command)
-            }
-            .hidden()
-        }
     }
 }
