@@ -2,6 +2,8 @@ import AVFoundation
 import MediaPlayer
 import Observation
 
+enum RepeatMode { case off, all, one }
+
 @MainActor
 @Observable
 final class PlayerService {
@@ -19,10 +21,13 @@ final class PlayerService {
     var isMuted: Bool = false {
         didSet { player?.isMuted = isMuted }
     }
+    var isShuffle = false
+    var repeatMode: RepeatMode = .off
+    var showQueue = false
 
     private var player: AVPlayer?
-    private var queue: [Track] = []
-    private var queueIndex = 0
+    private(set) var queue: [Track] = []
+    private(set) var queueIndex: Int = 0
     private var timeObserver: Any?
 
     init() { setupRemoteCommands() }
@@ -46,11 +51,31 @@ final class PlayerService {
     }
 
     func next() {
+        if repeatMode == .one {
+            seek(to: 0); player?.play(); isPlaying = true; return
+        }
+        if isShuffle {
+            let candidates = queue.indices.filter { $0 != queueIndex && hiddenTracks?.isHidden(queue[$0].id) != true }
+            guard let idx = candidates.randomElement() else { return }
+            queueIndex = idx; load(track: queue[idx]); return
+        }
         var idx = queueIndex + 1
         while idx < queue.count && hiddenTracks?.isHidden(queue[idx].id) == true { idx += 1 }
-        guard idx < queue.count else { return }
+        if idx >= queue.count {
+            guard repeatMode == .all else { return }
+            idx = 0
+            while idx < queue.count && hiddenTracks?.isHidden(queue[idx].id) == true { idx += 1 }
+            guard idx < queue.count else { return }
+        }
         queueIndex = idx
         load(track: queue[idx])
+    }
+
+    func removeFromQueue(at index: Int) {
+        guard index < queue.count else { return }
+        queue.remove(at: index)
+        if index < queueIndex { queueIndex -= 1 }
+        else if index == queueIndex { queueIndex = min(queueIndex, queue.count - 1) }
     }
 
     func previous() {

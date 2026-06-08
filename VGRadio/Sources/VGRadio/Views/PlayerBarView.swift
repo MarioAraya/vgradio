@@ -4,8 +4,6 @@ struct PlayerBarView: View {
     @Environment(PlayerService.self) var player
     @Environment(FavoritesStore.self) var favorites
     @Environment(LibraryStore.self) var library
-    @State private var isShuffle = false
-    @State private var isRepeat = false
     @State private var isVolumeHovered = false
 
     var body: some View {
@@ -26,8 +24,8 @@ struct PlayerBarView: View {
                     transportSection
                     coverAndInfoSection
                     Spacer(minLength: 8)
-                    actionsSection
                     volumeSection
+                    actionsSection
                     secondarySection
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -134,6 +132,15 @@ struct PlayerBarView: View {
 
     private var volumeSection: some View {
         HStack(spacing: isVolumeHovered ? 8 : 0) {
+            if isVolumeHovered {
+                ThinProgressTrack(fraction: player.isMuted ? 0 : player.volume) { frac in
+                    player.volume = frac
+                    if frac > 0 { player.isMuted = false }
+                }
+                .frame(width: 90)
+                .transition(.opacity)
+            }
+
             Button {
                 player.isMuted.toggle()
             } label: {
@@ -146,15 +153,6 @@ struct PlayerBarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            if isVolumeHovered {
-                ThinProgressTrack(fraction: player.isMuted ? 0 : player.volume) { frac in
-                    player.volume = frac
-                    if frac > 0 { player.isMuted = false }
-                }
-                .frame(width: 90)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
-            }
         }
         .animation(.easeInOut(duration: 0.18), value: isVolumeHovered)
         .onHover { isVolumeHovered = $0 }
@@ -165,8 +163,33 @@ struct PlayerBarView: View {
 
     private var secondarySection: some View {
         HStack(spacing: 0) {
-            YTTransportButton(icon: "repeat",  size: 16, active: isRepeat)  { isRepeat.toggle() }
-            YTTransportButton(icon: "shuffle", size: 16, active: isShuffle) { isShuffle.toggle() }
+            Button {
+                switch player.repeatMode {
+                case .off: player.repeatMode = .all
+                case .all: player.repeatMode = .one
+                case .one: player.repeatMode = .off
+                }
+            } label: {
+                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                    .font(.system(size: 16))
+                    .foregroundStyle(player.repeatMode == .off ? Color.vgTextSec : Color.vgAccent)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(player.repeatMode == .off ? "Repeat off" : player.repeatMode == .all ? "Repeat all" : "Repeat one")
+
+            YTTransportButton(icon: "shuffle", size: 16, active: player.isShuffle) { player.isShuffle.toggle() }
+
+            Button { player.showQueue.toggle() } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 15))
+                    .foregroundStyle(player.showQueue ? Color.vgAccent : Color.vgTextSec)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Queue")
         }
         .padding(.leading, 4)
     }

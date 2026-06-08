@@ -53,6 +53,15 @@ struct ContentView: View {
                 SearchOverlay(isShowing: $showSearch)
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if player.showQueue {
+                QueuePanel()
+                    .padding(.bottom, VGLayout.playerBarHeight + 8)
+                    .padding(.trailing, 12)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: player.showQueue)
         .onAppear { Task { await library.load() } }
         .onChange(of: library.pendingNavigation) { _, album in
             if album != nil { selection = .library }
