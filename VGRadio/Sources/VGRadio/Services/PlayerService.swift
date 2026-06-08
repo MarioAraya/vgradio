@@ -78,6 +78,11 @@ final class PlayerService {
         else if index == queueIndex { queueIndex = min(queueIndex, queue.count - 1) }
     }
 
+    func moveInQueue(from source: IndexSet, to destination: Int) {
+        queue.move(fromOffsets: source, toOffset: destination)
+        queueIndex = queue.firstIndex(where: { $0.id == currentTrack?.id }) ?? queueIndex
+    }
+
     func previous() {
         if currentTime > 3 { seek(to: 0); return }
         var idx = queueIndex - 1

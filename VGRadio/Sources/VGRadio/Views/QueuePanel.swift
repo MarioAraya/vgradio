@@ -37,21 +37,24 @@ struct QueuePanel: View {
                     .padding(.vertical, 40)
             } else {
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(player.queue.enumerated()), id: \.offset) { i, track in
-                                QueueRow(
-                                    track: track,
-                                    index: i,
-                                    isCurrent: i == player.queueIndex
-                                ) {
-                                    player.removeFromQueue(at: i)
-                                }
-                                .id(i)
-                                Divider().overlay(Color.vgSeparator).padding(.horizontal, 12)
+                    List {
+                        ForEach(player.queue.indices, id: \.self) { i in
+                            QueueRow(
+                                track: player.queue[i],
+                                index: i,
+                                isCurrent: i == player.queueIndex
+                            ) {
+                                player.removeFromQueue(at: i)
                             }
+                            .id(i)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                         }
+                        .onMove { player.moveInQueue(from: $0, to: $1) }
                     }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     .onAppear {
                         proxy.scrollTo(player.queueIndex, anchor: .center)
                     }
@@ -92,13 +95,11 @@ private struct QueueRow: View {
             }
             .frame(width: 24, alignment: .center)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(track.name)
-                    .font(VGFont.body(13))
-                    .foregroundStyle(isCurrent ? Color.vgAccent : Color.vgText)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(track.name)
+                .font(VGFont.body(13))
+                .foregroundStyle(isCurrent ? Color.vgAccent : Color.vgText)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(track.durationFormatted)
                 .font(VGFont.mono(11))
@@ -122,6 +123,7 @@ private struct QueueRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(height: 42)
         .background(isCurrent ? Color.vgAccentBg : isHovered ? Color.white.opacity(0.04) : Color.clear)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovered)

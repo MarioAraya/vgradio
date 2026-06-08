@@ -1,64 +1,50 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-06 (sesión 5)
+Última sesión: 2026-06-08 (sesión 6)
 
 > Estado de implementación para retomar entre sesiones. Pareja con `features.json`.
 > Specs: `SPEC.md`, `backend/SPEC.md`, `VGRadio/SPEC.md`, `docs/API.md`.
 
 ## En progreso
 
-### UX de tracks — hide + thumbup + covers persistidas
+### Queue drag reorder — 2 archivos sin commitear
 
-Sesión 5 agregó varias features de UX al player client. Todas compilando, sin XCTest todavía.
+`moveInQueue(from:to:)` en PlayerService y QueuePanel reescrito con `List + .onMove`.
+Build pasa. Falta commitear.
 
-**Decisiones tomadas:**
-- `CoverPrefsStore` es singleton (no `@Observable`) — no necesita reactividad, AlbumCoverView ya maneja su propio `@State`
-- `HiddenTracksStore` es `@Observable` — inyectado via `.environment()` para que los rows reaccionen al toggle
-- `PlayerService.hiddenTracks` es opcional (`HiddenTracksStore?`) — se setea en `.onAppear` del WindowGroup
-- El header del tracklist cambió ★ → 👍 / 👁 como labels de columna (emojis, discutible)
-- Drag-down gesture en `DetailTrackRow` con `minimumDistance: 12` y `translation.height > 20` para ocultar track
+## Completado esta sesión (sesión 6)
 
-**Preguntas abiertas:**
-1. ¿Emojis 👍 👁 en header del tracklist se ven bien o cambiar a iconos SF?
-2. ¿Al reproducir Play en AlbumDetail, el primer track no-oculto debería ser el primero de la cola o saltar al siguiente no-oculto internamente?
-
-## Completado esta sesión (sesión 5)
-
-- [x] **Cover index persistido por álbum** — `CoverPrefsStore` guarda `[albumID: Int]` en UserDefaults. `AlbumCoverView` recibe `initialIndex`. Library y DetailView leen/escriben. Al hacer Play se restaura el cover guardado.
-- [x] **Volumen on hover** — `PlayerBarView.volumeSection`: slider aparece/desaparece animado (`.easeInOut 0.18s`) con `.onHover` en el HStack completo. Ícono siempre visible.
-- [x] **Ocultar tracks (swipe down)** — `HiddenTracksStore` persiste en UserDefaults. Gesture drag-down en fila. Botón `arrow.down.to.line` on hover. Track oculto: 45% opacidad, nombre tachado, ícono `eye.slash`. `PlayerService.next()/previous()` los salta automáticamente.
-- [x] **Thumbs up on hover** — `DetailTrackRow`: columna favorito muestra `hand.thumbsup` on hover, `hand.thumbsup.fill` si ya es favorito (reemplaza el ★ estático).
-- [x] **Play respeta ocultos** — botón Play en AlbumDetail arranca desde el primer track no-oculto.
-- [x] Build limpio: `swift build` → `Build complete!` (4.83s)
-
-## Completado sesiones previas
-
-- [x] Backend v1 completo (scraper, store, fetcher, jobs, API, SSRF guard)
-- [x] Lazy MP3 resolution en `/stream` — resuelve URL on-demand, cachea, 302
-- [x] Servir covers locales: `GET /covers/<albumID>/<filename>`
-- [x] DesignSystem tokens reales Lovable (OKLCH→hex), `VGLayout`, `ThinProgressTrack`
-- [x] Space bar play/pause (`.onKeyPress(.space)` en `ContentView`)
-- [x] AddURLView: Esc dismiss, Import con URL default (DOOM 1997)
-- [x] AlbumDetailView: metadata completa (plataformas, catalog, alt titles, developer, publisher)
-- [x] Star álbum: `FavoritesStore.addAll/removeAll/isAlbumFavorited`
-- [x] AlbumCoverView: hover-nav con flechas ‹ › + dots indicator
-- [x] Carátula real en player bar
-- [x] Drone CI para backend Go
-- [x] Player bar rediseño estilo YT Music: HStack single row, progreso top edge, tiempo inline
+- [x] **Fix build roto** — `FavoritesStore` le faltaban `isAlbumFavorited`, `addAll`, `removeAll(albumID:)` (commit `17a698a`)
+- [x] **Streaming sin pre-descarga** — backend `streamTrack`: si no hay `LocalPath`, resuelve `MP3URL` vía scraper on-demand y redirige 302. Frontend quita guard `downloadedIDs` de play y doble-click (commit `17a698a`)
+- [x] **Media keys relanzados** — `MPRemoteCommandCenter` (play/pause/toggle/next/prev/seek), `NowPlayingInfo` updates, `MediaPlayer` framework en `Package.swift` (commit `340868d`)
+- [x] **Cmd+1–4 shortcuts** — Library/Browse/Favorites/AddURL via hidden buttons (commit `340868d`)
+- [x] **Navegar al álbum desde player bar** — click en cover o título navega a `AlbumDetailView` via `LibraryStore.pendingNavigation` (commit `340868d`)
+- [x] **Icono hide track** — `arrow.down.to.line`/`eye.slash` → `hand.thumbsdown`/`hand.thumbsdown.fill` (commit `340868d`)
+- [x] **Botón Play Next por track** — `PlayerService.playNext()` inserta en `queueIndex+1`. Columna `▶+` en tracklist, hover-only (commit `e739030`)
+- [x] **Play all en Favorites** — botón "Play all" en header reemplaza cola con todos los favoritos (commit `e739030`)
+- [x] **Queue Panel** — overlay 320×420 sobre player bar: scroll a track actual, remove por fila, waveform en current (commit `73fb1db`)
+- [x] **Repeat One** — `RepeatMode` enum (off/all/one), botón cicla con icon `repeat`/`repeat.1` (commit `73fb1db`)
+- [x] **Shuffle y Repeat conectados** a `PlayerService` (antes eran `@State` local sin efecto) (commit `73fb1db`)
+- [x] **Volumen antes que ★** — reorden secciones player bar (commit `73fb1db`)
+- [x] **Slider volumen solo fade** sin efecto slide (uncommitted)
+- [x] **Drag reorder en Queue** — `List + ForEach.onMove`, `PlayerService.moveInQueue(from:to:)` — uncommitted
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Commitear sesión 5** — `CoverPrefsStore.swift`, `HiddenTracksStore.swift` (nuevos), 6 archivos modificados
-- [ ] **Header tracklist** — decidir emojis 👍 👁 vs SF Symbols en columnas del tracklist
-- [ ] **XCTest cliente** — `LibraryStore`, `FavoritesStore`, `HiddenTracksStore`, `PlayerService`
-- [ ] **client-download** — UI descarga álbum offline (botón AlbumDetail + progreso)
-- [ ] **Activar CI** — `GITEA_TOKEN=xxx bash "../1_scripts/homelab deploy/create-gitea-repos.sh"` → push gitea → activar Drone
+- [ ] **Commitear** — `PlayerService.swift` + `QueuePanel.swift` (drag reorder + slider fix)
+- [ ] **Browse / Catálogo** — vista existe pero sin backend scraper de índice de khinsider
+- [ ] **Recently played** — `case recentlyPlayed` en sidebar enum, vista es stub vacío
+- [ ] **XCTest cliente** — cero tests en Swift client
+- [ ] **Download álbum completo** — solo descarga por track individual hoy
+- [ ] **features.json** — actualizar: client-library/addurl/player están done, no "todo"
 
 ## Notas
 
 - Build Swift: `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build` (desde `VGRadio/`)
-- Error SourceKit "SDK not supported" es mismatch de toolchain, no afecta compilación
 - Backend: `cd backend && go run ./cmd/server`
-- `CoverPrefsStore.shared.index(for:)` retorna 0 si no hay preferencia guardada (seguro)
-- `PlayerService.hiddenTracks` se setea en `.onAppear` del WindowGroup — si se resetea el player antes del onAppear, hiddenTracks será nil (edge case improbable)
 - Xcode en SSD externa: `/Volumes/ExtDevDisk/Xcode.app`
+- `LibraryStore.pendingNavigation` — canal PlayerBar → LibraryView: se setea, ContentView cambia tab a `.library`, LibraryView consume y limpia
+- `RepeatMode` enum definido en `PlayerService.swift` antes del `class`
+- Queue usa índices como ID en `ForEach` para soportar tracks duplicados (play-next puede duplicar un track)
+- Errores SourceKit "Cannot find VGFont in scope" en `QueuePanel.swift` son falsos positivos — build pasa
+- `features.json` desactualizado: client-library/addurl/player marcados "todo" pero están done
