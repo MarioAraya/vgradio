@@ -590,7 +590,7 @@ private struct DetailTrackRow: View {
                 // Index / state indicator
                 Group {
                     if isHidden {
-                        Image(systemName: "eye.slash")
+                        Image(systemName: "hand.thumbsdown.fill")
                             .foregroundStyle(Color.vgTextMuted).font(.system(size: 11))
                     } else if isPlaying {
                         Image(systemName: "waveform")
@@ -661,7 +661,7 @@ private struct DetailTrackRow: View {
                 }
 
                 Button { hidden.toggle(track.id) } label: {
-                    Image(systemName: isHidden ? "eye.slash.fill" : "arrow.down.to.line")
+                    Image(systemName: isHidden ? "hand.thumbsdown.fill" : "hand.thumbsdown")
                         .font(.system(size: 12))
                         .foregroundStyle(isHidden ? Color.vgAccent.opacity(0.7) : isHovered ? Color.vgTextSec : Color.clear)
                 }

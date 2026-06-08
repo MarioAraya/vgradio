@@ -3,6 +3,7 @@ import SwiftUI
 struct PlayerBarView: View {
     @Environment(PlayerService.self) var player
     @Environment(FavoritesStore.self) var favorites
+    @Environment(LibraryStore.self) var library
     @State private var isShuffle = false
     @State private var isRepeat = false
     @State private var isVolumeHovered = false
@@ -85,6 +86,8 @@ struct PlayerBarView: View {
                         .frame(width: size, height: size)
                 }
             }
+            .onTapGesture { navigateToCurrentAlbum() }
+            .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.currentTrack?.name ?? "Nothing playing")
@@ -97,8 +100,15 @@ struct PlayerBarView: View {
                     .lineLimit(1)
             }
             .frame(minWidth: 100, maxWidth: 280, alignment: .leading)
+            .onTapGesture { navigateToCurrentAlbum() }
+            .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
         }
         .padding(.leading, 16)
+    }
+
+    private func navigateToCurrentAlbum() {
+        guard let album = player.currentAlbum else { return }
+        library.pendingNavigation = album
     }
 
     // MARK: – Star current track

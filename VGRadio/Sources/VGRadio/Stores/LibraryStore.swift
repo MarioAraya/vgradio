@@ -5,6 +5,7 @@ final class LibraryStore {
     private(set) var albums: [AlbumSummary] = []
     private(set) var isLoading = false
     private(set) var error: String?
+    var pendingNavigation: AlbumSummary? = nil
 
     func load() async {
         isLoading = true

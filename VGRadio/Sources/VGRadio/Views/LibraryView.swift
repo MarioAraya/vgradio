@@ -12,10 +12,18 @@ struct LibraryView: View {
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: VGSpace.md)]
 
     var body: some View {
-        if let album = selected {
-            AlbumDetailView(summary: album, onBack: { selected = nil })
-        } else {
-            libraryGrid
+        Group {
+            if let album = selected {
+                AlbumDetailView(summary: album, onBack: { selected = nil })
+            } else {
+                libraryGrid
+            }
+        }
+        .onChange(of: library.pendingNavigation) { _, album in
+            if let album {
+                selected = album
+                library.pendingNavigation = nil
+            }
         }
     }
 
