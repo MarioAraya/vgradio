@@ -42,6 +42,7 @@ type storer interface {
 type trackFetcher interface {
 	SongMP3(ctx context.Context, pageURL string) (string, error)
 	Download(ctx context.Context, url, destPath string) error
+	SetCFClearance(v string)
 }
 
 type catalogSyncer interface {
@@ -72,6 +73,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /catalog/sync", h.getCatalogSync)
 	mux.HandleFunc("GET /catalog", h.getCatalog)
 	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
+	mux.HandleFunc("PUT /config/cf-clearance", h.putCFClearance)
 	// Serve downloaded cover images.
 	// URL pattern: /covers/<albumID>/<filename>
 	// File on disk:  <dataDir>/<albumID>/covers/<filename>
@@ -482,6 +484,19 @@ func (h *handler) getCatalogConsoles(w http.ResponseWriter, r *http.Request) {
 		items[i] = item{c.Slug, c.Name, c.URL, c.AlbumCount}
 	}
 	jsonOK(w, items, http.StatusOK)
+}
+
+// PUT /config/cf-clearance — sets the Cloudflare clearance cookie at runtime.
+func (h *handler) putCFClearance(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Value string `json:"value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Value == "" {
+		jsonError(w, "missing value", http.StatusBadRequest)
+		return
+	}
+	h.fetcher.SetCFClearance(body.Value)
+	jsonOK(w, map[string]string{"status": "ok"}, http.StatusOK)
 }
 
 // --- helpers ---

@@ -3,6 +3,7 @@ package fetcher
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,15 +23,19 @@ type Options struct {
 	MaxConcurrent int
 	// HTTPClient is optional; defaults to a client with a 30s timeout.
 	HTTPClient *http.Client
+	// CFClearance is the cf_clearance cookie value copied from a logged-in browser
+	// session. Required to bypass Cloudflare on browse/catalog pages.
+	CFClearance string
 }
 
 // Fetcher downloads pages and files with throttling and concurrency limiting.
 type Fetcher struct {
-	client *http.Client
-	delay  time.Duration
-	sem    chan struct{}
-	mu     sync.Mutex
-	lastAt time.Time
+	client      *http.Client
+	delay       time.Duration
+	sem         chan struct{}
+	mu          sync.Mutex
+	lastAt      time.Time
+	cfClearance string
 }
 
 // New creates a Fetcher from Options.
@@ -41,13 +46,24 @@ func New(opts Options) *Fetcher {
 	}
 	client := opts.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		// Force HTTP/1.1 — Cloudflare detects Go's HTTP/2 SETTINGS fingerprint and blocks it.
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
+		client = &http.Client{Timeout: 30 * time.Second, Transport: transport}
 	}
 	return &Fetcher{
-		client: client,
-		delay:  opts.Delay,
-		sem:    make(chan struct{}, mc),
+		client:      client,
+		delay:       opts.Delay,
+		sem:         make(chan struct{}, mc),
+		cfClearance: opts.CFClearance,
 	}
+}
+
+// SetCFClearance updates the Cloudflare clearance cookie at runtime.
+func (f *Fetcher) SetCFClearance(v string) {
+	f.mu.Lock()
+	f.cfClearance = v
+	f.mu.Unlock()
 }
 
 // Get fetches url and returns the raw response body.
@@ -114,7 +130,16 @@ func (f *Fetcher) get(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	f.mu.Lock()
+	cf := f.cfClearance
+	f.mu.Unlock()
+	if cf != "" {
+		req.Header.Set("Cookie", "cf_clearance="+cf)
+	}
 
 	f.mu.Lock()
 	f.lastAt = time.Now()

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -135,8 +136,21 @@ func (s *Syncer) run(ctx context.Context) {
 		"errors", s.progress.Errors)
 }
 
+// curlGet fetches a URL using the system curl binary, bypassing Go's TLS fingerprint
+// which Cloudflare detects and blocks on browse/catalog pages.
+func curlGet(ctx context.Context, url string) ([]byte, error) {
+	out, err := exec.CommandContext(ctx, "curl", "-sL", "--http1.1",
+		"-A", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+		"-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+		"-H", "Accept-Language: en-US,en;q=0.9",
+		"--max-time", "30",
+		url,
+	).Output()
+	return out, err
+}
+
 func (s *Syncer) syncBrowsePage(ctx context.Context, pageURL string) error {
-	html, err := s.fetcher.Get(ctx, pageURL)
+	html, err := curlGet(ctx, pageURL)
 	if err != nil {
 		return err
 	}
@@ -149,7 +163,7 @@ func (s *Syncer) syncBrowsePage(ctx context.Context, pageURL string) error {
 }
 
 func (s *Syncer) syncConsoleList(ctx context.Context) error {
-	html, err := s.fetcher.Get(ctx, consoleList)
+	html, err := curlGet(ctx, consoleList)
 	if err != nil {
 		return err
 	}
