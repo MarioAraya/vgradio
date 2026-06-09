@@ -39,6 +39,7 @@ func main() {
 	f := fetcher.New(fetcher.Options{
 		Delay:         time.Duration(cfg.scrapeDelayMS) * time.Millisecond,
 		MaxConcurrent: cfg.maxConcurrentDL,
+		CFClearance:   cfg.cfClearance,
 	})
 
 	// Jobs queue.
@@ -87,6 +88,7 @@ type config struct {
 	scrapeDelayMS   int
 	maxConcurrentDL int
 	workers         int
+	cfClearance     string
 }
 
 func loadConfig() config {
@@ -96,6 +98,7 @@ func loadConfig() config {
 		scrapeDelayMS:   envInt("VGRADIO_SCRAPE_DELAY_MS", 500),
 		maxConcurrentDL: envInt("VGRADIO_MAX_CONCURRENT_DL", 4),
 		workers:         envInt("VGRADIO_WORKERS", 4),
+		cfClearance:     envStr("VGRADIO_CF_CLEARANCE", ""),
 	}
 }
 
