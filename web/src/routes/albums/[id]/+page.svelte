@@ -113,6 +113,9 @@
           <a class="btn-sec" href={`${api.baseURL()}/albums/${id}/covers.zip`} download>
             ⬇ Covers
           </a>
+          {#if album.sourceUrl}
+            <a class="source-link" href={album.sourceUrl} target="_blank" rel="noopener noreferrer" title="Visit source">↗</a>
+          {/if}
         </div>
       </div>
     </div>
@@ -152,7 +155,7 @@
               👎
             </button>
             {#if track.downloaded}
-              <a class="act" href={api.downloadURL(track)} download>⬇</a>
+              <a class="act" href={api.downloadURL(track)} download target="_blank" rel="noopener noreferrer">⬇</a>
             {/if}
           </div>
         </div>
@@ -224,6 +227,15 @@
   }
   .btn-sec:hover { color: var(--text); }
   .btn-sec.fav { color: var(--accent); }
+  .source-link {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    font-size: 14px;
+    color: transparent;
+    border-radius: var(--r-sm);
+    transition: color 0.15s, background 0.15s;
+  }
+  .source-link:hover { color: var(--text-sec); background: var(--surface-hi); }
 
   .tracklist { margin-bottom: 24px; }
   .track-header {

@@ -3,29 +3,50 @@
   import { fmtTime } from '$lib/utils';
 
   let dragFrom: number | null = null;
+  let dropTarget: number | null = null; // insert-before index (queue.length = after last)
 
   function onDragStart(i: number) { dragFrom = i; }
-  function onDrop(i: number) {
-    if (dragFrom !== null && dragFrom !== i) player.moveInQueue(dragFrom, i);
-    dragFrom = null;
+
+  function onDragOver(e: DragEvent, i: number) {
+    e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    dropTarget = e.clientY < rect.top + rect.height / 2 ? i : i + 1;
   }
+
+  function onDragEnd() { dragFrom = null; dropTarget = null; }
+
+  function onDrop(e: DragEvent, i: number) {
+    e.preventDefault();
+    if (dragFrom !== null && dropTarget !== null) {
+      let target = dropTarget;
+      if (dragFrom < target) target--;
+      if (target !== dragFrom) player.moveInQueue(dragFrom, target);
+    }
+    dragFrom = null;
+    dropTarget = null;
+  }
+
+  $: q = $player.queue;
 </script>
 
 {#if $player.showQueue}
-  <div class="panel">
+  <div class="panel" on:dragend={onDragEnd}>
     <div class="header">
-      <span>Queue ({$player.queue.length})</span>
+      <span>Queue ({q.length})</span>
       <button on:click={() => player.toggleQueue()}>✕</button>
     </div>
     <div class="list">
-      {#each $player.queue as track, i (i)}
+      {#each q as track, i (i)}
         <div
           class="row"
           class:current={i === $player.queueIndex}
+          class:drop-above={dropTarget === i && dragFrom !== i && dragFrom !== i - 1}
+          class:drop-below={dropTarget === i + 1 && i === q.length - 1 && dragFrom !== i}
           draggable="true"
           on:dragstart={() => onDragStart(i)}
-          on:dragover|preventDefault
-          on:drop={() => onDrop(i)}
+          on:dragover={(e) => onDragOver(e, i)}
+          on:drop={(e) => onDrop(e, i)}
           role="listitem"
         >
           <span class="num">{i + 1}</span>
@@ -75,10 +96,14 @@
     align-items: center;
     gap: 6px;
     padding: 6px 10px;
-    border-bottom: 1px solid var(--border60);
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
+    transition: background 0.1s;
   }
   .row.current { background: var(--accent-bg); }
   .row:hover .rm { opacity: 1; }
+  .row.drop-above { border-top-color: var(--accent); }
+  .row.drop-below { border-bottom-color: var(--accent); }
   .num { font-size: 10px; color: var(--text-muted); width: 20px; text-align: right; flex-shrink: 0; }
   .play-row {
     flex: 1;
