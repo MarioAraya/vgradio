@@ -84,6 +84,7 @@ export interface FavoriteTrack {
   platform: string
   year: number
   durationSec: number
+  coverUrl?: string
 }
 
 export interface WishlistItem { url: string }

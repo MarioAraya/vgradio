@@ -24,7 +24,7 @@ export const favorites = {
     update(items => {
       const next = items.some(f => f.id === track.id)
         ? items.filter(f => f.id !== track.id)
-        : [...items, { id: track.id, name: track.name, albumId: album.id, albumTitle: album.title, platform: album.platform, year: album.year, durationSec: track.durationSec }];
+        : [...items, { id: track.id, name: track.name, albumId: album.id, albumTitle: album.title, platform: album.platform, year: album.year, durationSec: track.durationSec, coverUrl: album.coverUrls?.[0] ?? '' }];
       save(next); return next;
     });
   },
@@ -34,6 +34,7 @@ export const favorites = {
       const next = [...items, ...tracks.filter(t => !ids.has(t.id)).map(t => ({
         id: t.id, name: t.name, albumId: album.id, albumTitle: album.title,
         platform: album.platform, year: album.year, durationSec: t.durationSec,
+        coverUrl: album.coverUrls?.[0] ?? '',
       }))];
       save(next); return next;
     });
@@ -44,9 +45,9 @@ export const favorites = {
 };
 
 export const favoritesGrouped = derived(favorites, $fav => {
-  const map = new Map<string, { albumTitle: string; platform: string; year: number; tracks: FavoriteTrack[] }>();
+  const map = new Map<string, { albumTitle: string; platform: string; year: number; coverUrl: string; tracks: FavoriteTrack[] }>();
   for (const f of $fav) {
-    if (!map.has(f.albumId)) map.set(f.albumId, { albumTitle: f.albumTitle, platform: f.platform, year: f.year, tracks: [] });
+    if (!map.has(f.albumId)) map.set(f.albumId, { albumTitle: f.albumTitle, platform: f.platform, year: f.year, coverUrl: f.coverUrl ?? '', tracks: [] });
     map.get(f.albumId)!.tracks.push(f);
   }
   return [...map.values()];

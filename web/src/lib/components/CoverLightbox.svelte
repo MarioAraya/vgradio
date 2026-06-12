@@ -8,24 +8,27 @@
 
   const dispatch = createEventDispatcher<{ close: void; change: number }>();
 
-  // Derive orig URL: /covers/id/cover_0.jpg → /covers/id/cover_0_orig.jpg
   function origURL(url: string): string {
     return url.replace(/(cover_\d+)(\.[^.]+)$/, '$1_orig$2');
   }
 
-  // Per-cover fallback state
-  let fallback: boolean[] = [];
-  $: fallback = covers.map(() => false);
+  // Always show display version immediately; upgrade to orig in background
+  let displayedURL = '';
 
-  function resolvedURL(i: number): string {
-    const url = covers[i]?.url ?? '';
-    if (!url) return '';
-    const orig = origURL(url);
-    return fallback[i] ? api.coverURL(url) : api.coverURL(orig);
-  }
-
-  function onImgError(i: number) {
-    fallback = fallback.map((v, j) => j === i ? true : v);
+  $: {
+    const url = covers[index]?.url ?? '';
+    if (url) {
+      const display = api.coverURL(url);
+      displayedURL = display; // show display immediately — no blank flash
+      const orig = api.coverURL(origURL(url));
+      if (orig !== display) {
+        const probe = new Image();
+        probe.onload = () => { displayedURL = orig; };
+        probe.src = orig;
+      }
+    } else {
+      displayedURL = '';
+    }
   }
 
   function prev() {
@@ -72,10 +75,9 @@
 
       <div class="img-wrap">
         <img
-          src={resolvedURL(index)}
+          src={displayedURL}
           alt="Cover {index + 1}"
           class="cover-img"
-          on:error={() => onImgError(index)}
           draggable="false"
         />
       </div>

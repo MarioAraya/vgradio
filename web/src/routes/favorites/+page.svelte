@@ -4,6 +4,7 @@
   import { api } from '$lib/api';
   import type { Track, AlbumSummary } from '$lib/types';
   import { fmtTime } from '$lib/utils';
+  import CoverImage from '$lib/components/CoverImage.svelte';
 
   function toTrack(f: import('$lib/types').FavoriteTrack): Track {
     return { id: f.id, name: f.name, index: 0, durationSec: f.durationSec,
@@ -49,8 +50,13 @@
     {#each $favoritesGrouped as group}
       <div class="group">
         <div class="group-header">
-          <span class="group-title">{group.albumTitle}</span>
-          <span class="group-meta">{group.platform}{group.platform && group.year ? ' · ' : ''}{group.year}</span>
+          {#if group.coverUrl}
+            <CoverImage url={group.coverUrl} title={group.albumTitle} size={60} radius={5} />
+          {/if}
+          <div class="group-info">
+            <span class="group-title">{group.albumTitle}</span>
+            <span class="group-meta">{group.platform}{group.platform && group.year ? ' · ' : ''}{group.year}</span>
+          </div>
           <button class="rm-all" on:click={() => favorites.removeAll(group.tracks[0].albumId)}>Remove all</button>
         </div>
         {#each group.tracks as fav, i}
@@ -83,14 +89,15 @@
   .group { margin-bottom: 20px; }
   .group-header {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 6px 0;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
     border-bottom: 1px solid var(--separator);
     margin-bottom: 4px;
   }
-  .group-title { font-size: 14px; font-weight: 600; }
-  .group-meta { font-size: 12px; color: var(--text-muted); flex: 1; }
+  .group-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .group-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .group-meta { font-size: 12px; color: var(--text-muted); }
   .rm-all { font-size: 11px; color: var(--text-muted); }
   .rm-all:hover { color: var(--red); }
   .fav-row { display: flex; align-items: center; padding: 5px 8px; border-radius: var(--r-sm); }
