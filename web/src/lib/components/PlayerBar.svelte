@@ -39,7 +39,6 @@
     if (album) goto(`/albums/${album.id}`);
   }
 
-  $: repeatIcon = $player.repeatMode === 'one' ? '⟳¹' : '⟳';
   $: repeatActive = $player.repeatMode !== 'off';
   $: fraction = $player.duration > 0 ? $player.currentTime / $player.duration : 0;
   $: volFrac = $player.isMuted ? 0 : $player.volume;
@@ -110,10 +109,21 @@
     {/if}
 
     <!-- Repeat / Shuffle / Queue -->
-    <button class="icon-btn" class:active={repeatActive} on:click={() => player.cycleRepeat()} title="Repeat">
+    <button
+      class="icon-btn indicator-btn"
+      class:active={repeatActive}
+      class:repeat-off={!repeatActive}
+      on:click={() => player.cycleRepeat()}
+      title={$player.repeatMode === 'off' ? 'Repeat off' : $player.repeatMode === 'all' ? 'Repeat album' : 'Repeat track'}
+    >
       {$player.repeatMode === 'one' ? '🔂' : '🔁'}
     </button>
-    <button class="icon-btn" class:active={$player.isShuffle} on:click={() => player.toggleShuffle()} title="Shuffle">⇀</button>
+    <button
+      class="icon-btn indicator-btn"
+      class:active={$player.isShuffle}
+      on:click={() => player.toggleShuffle()}
+      title="Shuffle"
+    >🔀</button>
     <button class="icon-btn" class:active={$player.showQueue} on:click={() => player.toggleQueue()} title="Queue">≡</button>
   </div>
 </div>
@@ -216,6 +226,25 @@
   .icon-btn:hover { color: var(--text); }
   .icon-btn.active { color: var(--accent); }
   .star.active { color: var(--accent); }
+
+  /* Dot indicator below icon when active */
+  .indicator-btn { position: relative; flex-direction: column; gap: 0; }
+  .indicator-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .indicator-btn.active::after { opacity: 1; }
+
+  /* Dim when repeat/shuffle is off */
+  .repeat-off { opacity: 0.35; }
+  .repeat-off:hover { opacity: 1; }
   .volume-wrap {
     display: flex;
     align-items: center;
