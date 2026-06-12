@@ -202,7 +202,7 @@
   }
   .letter:hover { color: var(--text); background: rgba(255,255,255,0.04); }
   .letter.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-  .console-strip { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+  .console-strip { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 2px; max-height: calc(3 * (22px + 4px)); overflow: hidden; }
   .chip {
     font-size: 11px;
     padding: 3px 10px;

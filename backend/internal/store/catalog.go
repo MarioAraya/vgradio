@@ -170,10 +170,13 @@ func (s *Store) CountCatalog(ctx context.Context, q, platform, letter string) (i
 	return n, err
 }
 
-// Consoles returns all stored consoles ordered by album_count desc.
+// Consoles returns all stored consoles with live counts from catalog_entries.
 func (s *Store) Consoles(ctx context.Context) ([]scraper.Console, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, url, album_count FROM consoles ORDER BY album_count DESC`)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.id, c.name, c.url,
+		  (SELECT COUNT(*) FROM catalog_entries e WHERE e.platform LIKE '%' || c.name || '%') AS cnt
+		FROM consoles c
+		ORDER BY cnt DESC`)
 	if err != nil {
 		return nil, err
 	}

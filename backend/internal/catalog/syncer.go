@@ -80,7 +80,8 @@ func (s *Syncer) Start(ctx context.Context) bool {
 		s.mu.Unlock()
 		return false
 	}
-	total := len(browseLetters) + 1 // browse pages + console list
+	// total = A-Z/0-9 browse pages + console list + consoles (unknown until list scraped)
+	total := len(browseLetters) + 1
 	s.progress = SyncProgress{Running: true, Total: total, StartedAt: time.Now()}
 	s.mu.Unlock()
 
@@ -112,15 +113,33 @@ func (s *Syncer) run(ctx context.Context) {
 		s.mu.Lock(); s.progress.Done++; s.mu.Unlock()
 	}
 
-	// 2. Console list.
+	// 2. Console list — get console names + URLs.
 	if ctx.Err() != nil {
 		return
 	}
-	if err := s.syncConsoleList(ctx); err != nil {
+	var consoleList []scraper.Console
+	if err := s.syncConsoleList(ctx, &consoleList); err != nil {
 		s.log.Warn("catalog: console list failed", "err", err)
 		s.mu.Lock(); s.progress.Errors++; s.mu.Unlock()
 	}
 	s.mu.Lock(); s.progress.Done++; s.mu.Unlock()
+
+	// 3. Per-console pages — scrape each console to get accurate platform data.
+	if len(consoleList) > 0 {
+		s.mu.Lock()
+		s.progress.Total += len(consoleList)
+		s.mu.Unlock()
+		for _, c := range consoleList {
+			if ctx.Err() != nil {
+				return
+			}
+			if err := s.syncConsolePage(ctx, c); err != nil {
+				s.log.Warn("catalog: console page failed", "console", c.Name, "err", err)
+				s.mu.Lock(); s.progress.Errors++; s.mu.Unlock()
+			}
+			s.mu.Lock(); s.progress.Done++; s.mu.Unlock()
+		}
+	}
 
 	// Refresh counts.
 	total, _ := s.store.CountCatalog(context.Background(), "", "", "")
@@ -162,7 +181,7 @@ func (s *Syncer) syncBrowsePage(ctx context.Context, pageURL string) error {
 	return s.store.UpsertCatalogEntries(ctx, entries)
 }
 
-func (s *Syncer) syncConsoleList(ctx context.Context) error {
+func (s *Syncer) syncConsoleList(ctx context.Context, out *[]scraper.Console) error {
 	html, err := curlGet(ctx, consoleList)
 	if err != nil {
 		return err
@@ -172,5 +191,25 @@ func (s *Syncer) syncConsoleList(ctx context.Context) error {
 		return err
 	}
 	s.log.Info("catalog: console list scraped", "consoles", len(consoles))
+	if out != nil {
+		*out = consoles
+	}
 	return s.store.UpsertConsoles(ctx, consoles)
+}
+
+func (s *Syncer) syncConsolePage(ctx context.Context, c scraper.Console) error {
+	html, err := curlGet(ctx, c.URL)
+	if err != nil {
+		return err
+	}
+	entries, err := scraper.ParseConsoleAlbums(html, c.URL)
+	if err != nil {
+		return err
+	}
+	// Override platform with the canonical console name so filtering works exactly.
+	for i := range entries {
+		entries[i].Platform = c.Name
+	}
+	s.log.Info("catalog: console page scraped", "console", c.Name, "entries", len(entries))
+	return s.store.UpsertCatalogEntries(ctx, entries)
 }
