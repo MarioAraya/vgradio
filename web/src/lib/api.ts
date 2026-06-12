@@ -51,6 +51,7 @@ export const api = {
     post<void>('/history', { trackId, albumId }),
   history: (limit = 100) => get<HistoryEntry[]>(`/history?limit=${limit}`),
 
+  fetchTrack: (trackId: string) => post<{ status: string; localPath: string }>(`/tracks/${trackId}/fetch`),
   streamURL: (track: Track) => BASE() + track.streamUrl,
   downloadURL: (track: Track) => BASE() + track.downloadUrl,
   coverURL: (url: string) => url.startsWith('http') ? url : BASE() + url,

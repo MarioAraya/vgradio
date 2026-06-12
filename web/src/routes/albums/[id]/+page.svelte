@@ -11,6 +11,7 @@
   import CoverCarousel from '$lib/components/CoverCarousel.svelte';
   import CoverLightbox from '$lib/components/CoverLightbox.svelte';
   import { fmtTime } from '$lib/utils';
+  import { addToast } from '$lib/stores/toasts';
 
   let lightboxOpen = false;
   let lightboxIndex = 0;
@@ -19,6 +20,7 @@
   let loading = true;
   let error = '';
   let coverIdx = 0;
+  let fetching = new Set<string>(); // track IDs currently being fetched
 
   $: id = $page.params.id!;
 
@@ -65,6 +67,23 @@
     coverIdx = i;
     coverPrefs.set(id, i);
     player.setCoverIndex(id, i);
+  }
+
+  async function fetchTrack(trackId: string) {
+    fetching = new Set(fetching).add(trackId);
+    try {
+      await api.fetchTrack(trackId);
+      if (album) {
+        album = { ...album, tracks: album.tracks.map(t => t.id === trackId ? { ...t, downloaded: true } : t) };
+      }
+      addToast('Descargado', 'info');
+    } catch (e) {
+      addToast('Error al descargar: ' + (e instanceof Error ? e.message : String(e)), 'error');
+    } finally {
+      const next = new Set(fetching);
+      next.delete(trackId);
+      fetching = next;
+    }
   }
 
   $: isAlbumFav = album ? $favorites.some(f => f.albumId === album!.id) : false;
@@ -155,7 +174,11 @@
               👎
             </button>
             {#if track.downloaded}
-              <a class="act" href={api.downloadURL(track)} download target="_blank" rel="noopener noreferrer">⬇</a>
+              <a class="act" href={api.downloadURL(track)} download target="_blank" rel="noopener noreferrer" title="Guardar MP3">⬇</a>
+            {:else if fetching.has(track.id)}
+              <span class="act act-spin" title="Descargando…">⟳</span>
+            {:else}
+              <button class="act act-fetch" title="Descargar localmente" on:click={() => fetchTrack(track.id)}>⬇</button>
             {/if}
           </div>
         </div>
@@ -291,6 +314,10 @@
   .hide-btn { filter: grayscale(1); opacity: 0.35; }
   .hide-btn:hover { filter: none; opacity: 1; }
   .hide-btn.hide-active { filter: none; opacity: 1; }
+  .act-fetch { opacity: 0.25; }
+  .act-fetch:hover { opacity: 1; color: var(--accent); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .act-spin { animation: spin 0.9s linear infinite; opacity: 0.5; cursor: default; }
 
   .description {
     font-size: 13px;
