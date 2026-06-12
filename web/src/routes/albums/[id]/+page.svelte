@@ -8,8 +8,12 @@
   import { favorites } from '$lib/stores/favorites';
   import { hidden } from '$lib/stores/hidden';
   import { coverPrefs } from '$lib/stores/coverPrefs';
-  import CoverImage from '$lib/components/CoverImage.svelte';
+  import CoverCarousel from '$lib/components/CoverCarousel.svelte';
+  import CoverLightbox from '$lib/components/CoverLightbox.svelte';
   import { fmtTime } from '$lib/utils';
+
+  let lightboxOpen = false;
+  let lightboxIndex = 0;
 
   let album: Album | null = null;
   let loading = true;
@@ -74,16 +78,13 @@
     <div class="center"><span class="err">{error}</span></div>
   {:else if album}
     <div class="top">
-      <div class="covers">
-        <CoverImage url={album.covers[coverIdx]?.url ?? ''} title={album.title} size={220} radius={10} />
-        {#if album.covers.length > 1}
-          <div class="cover-dots">
-            {#each album.covers as _, i}
-              <button class="dot" class:active={i === coverIdx} on:click={() => setCover(i)}></button>
-            {/each}
-          </div>
-        {/if}
-      </div>
+      <CoverCarousel
+        covers={album.covers}
+        index={coverIdx}
+        size={220}
+        on:change={(e) => setCover(e.detail)}
+        on:open={(e) => { lightboxIndex = e.detail; lightboxOpen = true; }}
+      />
       <div class="meta">
         <h1 class="title">{album.title}</h1>
         {#if album.altTitle}<p class="alt">{album.altTitle}</p>{/if}
@@ -166,6 +167,14 @@
         {/each}
       </div>
     {/if}
+
+    <CoverLightbox
+      covers={album.covers}
+      bind:index={lightboxIndex}
+      open={lightboxOpen}
+      on:close={() => lightboxOpen = false}
+      on:change={(e) => { lightboxIndex = e.detail; setCover(e.detail); }}
+    />
   {/if}
 </div>
 
@@ -177,15 +186,6 @@
   .muted { color: var(--text-muted); }
   .err { color: var(--red); }
   .top { display: flex; gap: 28px; margin-bottom: 28px; align-items: flex-start; }
-  .covers { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
-  .cover-dots { display: flex; gap: 6px; justify-content: center; }
-  .dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    transition: background 0.15s;
-  }
-  .dot.active { background: var(--accent); }
   .meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .title { font-size: 22px; font-weight: 700; line-height: 1.2; }
   .alt { font-size: 13px; color: var(--text-sec); }

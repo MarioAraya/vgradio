@@ -1,50 +1,71 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-08 (sesión 6)
+Última sesión: 2026-06-12
 
-> Estado de implementación para retomar entre sesiones. Pareja con `features.json`.
-> Specs: `SPEC.md`, `backend/SPEC.md`, `VGRadio/SPEC.md`, `docs/API.md`.
+> Estado de implementación para retomar entre sesiones.
+> Specs: `docs/SPEC-WEB.md`, `backend/SPEC.md`, `docs/API.md`.
+
+---
 
 ## En progreso
 
-### Queue drag reorder — 2 archivos sin commitear
+### Cover carousel + lightbox — sin commitear
 
-`moveInQueue(from:to:)` en PlayerService y QueuePanel reescrito con `List + .onMove`.
-Build pasa. Falta commitear.
+3 archivos modificados/nuevos:
 
-## Completado esta sesión (sesión 6)
+- `web/src/lib/components/CoverCarousel.svelte` ← nuevo
+- `web/src/lib/components/CoverLightbox.svelte` ← nuevo
+- `web/src/routes/albums/[id]/+page.svelte` ← reemplaza bloque covers
 
-- [x] **Fix build roto** — `FavoritesStore` le faltaban `isAlbumFavorited`, `addAll`, `removeAll(albumID:)` (commit `17a698a`)
-- [x] **Streaming sin pre-descarga** — backend `streamTrack`: si no hay `LocalPath`, resuelve `MP3URL` vía scraper on-demand y redirige 302. Frontend quita guard `downloadedIDs` de play y doble-click (commit `17a698a`)
-- [x] **Media keys relanzados** — `MPRemoteCommandCenter` (play/pause/toggle/next/prev/seek), `NowPlayingInfo` updates, `MediaPlayer` framework en `Package.swift` (commit `340868d`)
-- [x] **Cmd+1–4 shortcuts** — Library/Browse/Favorites/AddURL via hidden buttons (commit `340868d`)
-- [x] **Navegar al álbum desde player bar** — click en cover o título navega a `AlbumDetailView` via `LibraryStore.pendingNavigation` (commit `340868d`)
-- [x] **Icono hide track** — `arrow.down.to.line`/`eye.slash` → `hand.thumbsdown`/`hand.thumbsdown.fill` (commit `340868d`)
-- [x] **Botón Play Next por track** — `PlayerService.playNext()` inserta en `queueIndex+1`. Columna `▶+` en tracklist, hover-only (commit `e739030`)
-- [x] **Play all en Favorites** — botón "Play all" en header reemplaza cola con todos los favoritos (commit `e739030`)
-- [x] **Queue Panel** — overlay 320×420 sobre player bar: scroll a track actual, remove por fila, waveform en current (commit `73fb1db`)
-- [x] **Repeat One** — `RepeatMode` enum (off/all/one), botón cicla con icon `repeat`/`repeat.1` (commit `73fb1db`)
-- [x] **Shuffle y Repeat conectados** a `PlayerService` (antes eran `@State` local sin efecto) (commit `73fb1db`)
-- [x] **Volumen antes que ★** — reorden secciones player bar (commit `73fb1db`)
-- [x] **Slider volumen solo fade** sin efecto slide (uncommitted)
-- [x] **Drag reorder en Queue** — `List + ForEach.onMove`, `PlayerService.moveInQueue(from:to:)` — uncommitted
+**Qué hace:**
+- `CoverCarousel`: wrapper 220px, swipe (pointer events, umbral 50px), botones `‹ ›` visibles solo on-hover, dots, click corto abre lightbox
+- `CoverLightbox`: overlay fullscreen, sirve `cover_N_orig.ext` (sin comprimir), fallback a display si 404, nav ←/→/Escape, swipe, dots, cierra al click fuera
 
-## Pendiente (próximos pasos inmediatos)
+**No requiere cambios en backend** — `/covers/<albumId>/cover_N_orig.jpg` ya existe desde el commit `84ca80f`.
 
-- [ ] **Commitear** — `PlayerService.swift` + `QueuePanel.swift` (drag reorder + slider fix)
-- [ ] **Browse / Catálogo** — vista existe pero sin backend scraper de índice de khinsider
-- [ ] **Recently played** — `case recentlyPlayed` en sidebar enum, vista es stub vacío
-- [ ] **XCTest cliente** — cero tests en Swift client
-- [ ] **Download álbum completo** — solo descarga por track individual hoy
-- [ ] **features.json** — actualizar: client-library/addurl/player están done, no "todo"
+**Pendiente:** commitear estos 3 archivos.
+
+---
+
+## Completado esta sesión (sesión web-2)
+
+- [x] **CoverCarousel.svelte** — swipe + hover arrows + click → lightbox
+- [x] **CoverLightbox.svelte** — fullscreen modal, orig images, carousel, keyboard, swipe
+- [x] **AlbumDetail actualizado** — reemplaza `<div class="covers">` + `CoverImage` por `CoverCarousel` + `CoverLightbox`
+- [x] **CSS huérfano limpiado** — `.covers`, `.cover-dots`, `.dot` eliminados de `+page.svelte`
+
+---
+
+## Completado sesiones previas (web-1)
+
+- [x] SvelteKit MVP completo con paridad de features al macOS client
+- [x] Audio singleton, queue, repeat, shuffle, scrubber, volume
+- [x] LAN access via `window.location.hostname` dinámico
+- [x] Cover resize en scrape (display ≤400px) + ZIP download originals
+- [x] `play_history` table con dedup, endpoints POST/GET `/history`
+- [x] Browse/catalog con search, filtros, infinite scroll, sync polling
+- [x] Favorites, wishlist, hidden, coverPrefs — localStorage
+- [x] CORS middleware en Go backend
+
+---
+
+## Pendiente (próximos pasos)
+
+- [ ] **Commitear** los 3 archivos de carousel/lightbox
+- [ ] **Probar en browser** — verificar swipe en mobile, hover arrows en desktop, lightbox orig images
+- [ ] **Recently played view** — sidebar link existe, vista pendiente
+- [ ] **Settings view** — backend URL configurable desde UI (hoy solo via localStorage manual)
+- [ ] **Tests** — cero tests en frontend web
+- [ ] **Deploy VPS** — backend + frontend en servidor (Hetzner u otro)
+
+---
 
 ## Notas
 
-- Build Swift: `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build` (desde `VGRadio/`)
-- Backend: `cd backend && go run ./cmd/server`
-- Xcode en SSD externa: `/Volumes/ExtDevDisk/Xcode.app`
-- `LibraryStore.pendingNavigation` — canal PlayerBar → LibraryView: se setea, ContentView cambia tab a `.library`, LibraryView consume y limpia
-- `RepeatMode` enum definido en `PlayerService.swift` antes del `class`
-- Queue usa índices como ID en `ForEach` para soportar tracks duplicados (play-next puede duplicar un track)
-- Errores SourceKit "Cannot find VGFont in scope" en `QueuePanel.swift` son falsos positivos — build pasa
-- `features.json` desactualizado: client-library/addurl/player marcados "todo" pero están done
+- Backend: `cd backend && go run ./cmd/server` (puerto 8080)
+- Web dev: `cd web && npm run dev` (puerto 5173)
+- LAN: frontend en `:5173` usa `window.location.hostname:8080` — funciona si se abre con IP del host, no localhost
+- F5 mata el audio — limitación del browser, no fixeable. Spotify web igual. Navegar por SPA (click) no interrumpe.
+- `cover_N_orig.ext` + `cover_N.ext` — backend guarda ambos en scrape. ZIP sirve orig. Display URL es el sin `_orig`.
+- Orig URL derivación: `url.replace(/(cover_\d+)(\.[^.]+)$/, '$1_orig$2')` — en `CoverLightbox.svelte`
+- Swift macOS client: rama `main`, build con Xcode en `/Volumes/ExtDevDisk/Xcode.app`
