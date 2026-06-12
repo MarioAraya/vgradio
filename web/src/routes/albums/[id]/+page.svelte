@@ -36,20 +36,28 @@
       albumType: a.albumType, trackCount: a.tracks.length, coverUrls: a.covers.map(c => c.url) };
   }
 
+  function visibleTracks() {
+    return album!.tracks.filter(t => !$hidden.has(t.id));
+  }
+
   function playTrack(idx: number) {
     if (!album) return;
     const sum = toSummary(album);
-    player.play(album.tracks[idx], sum, album.tracks, album.covers);
+    const track = album.tracks[idx];
+    const queue = visibleTracks();
+    player.play(track, sum, queue.length ? queue : [track], album.covers);
   }
 
   function playAll(shuffle = false) {
     if (!album) return;
     const sum = toSummary(album);
+    const visible = visibleTracks();
+    if (!visible.length) return;
     if (shuffle) {
-      const shuffled = [...album.tracks].sort(() => Math.random() - 0.5);
+      const shuffled = [...visible].sort(() => Math.random() - 0.5);
       player.play(shuffled[0], sum, shuffled, album.covers);
     } else {
-      player.play(album.tracks[0], sum, album.tracks, album.covers);
+      player.play(visible[0], sum, visible, album.covers);
     }
   }
 
@@ -139,9 +147,9 @@
               on:click={() => favorites.toggle(track, toSummary(album!))}>
               {isFav ? '★' : '☆'}
             </button>
-            <button class="act" class:act-active={isHid} title="Hide"
+            <button class="act hide-btn" class:hide-active={isHid} title={isHid ? 'Unhide' : 'Hide'}
               on:click={() => hidden.toggle(track.id)}>
-              {isHid ? '👁' : '👎'}
+              👎
             </button>
             {#if track.downloaded}
               <a class="act" href={api.downloadURL(track)} download>⬇</a>
@@ -257,6 +265,7 @@
   .acts { display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
   .track-row:hover .acts { opacity: 1; }
   .track-row.current .acts { opacity: 1; }
+  .track-row.hidden-track .acts { opacity: 1; }
   .act {
     font-size: 13px;
     width: 28px; height: 28px;
@@ -266,6 +275,10 @@
   }
   .act:hover { color: var(--text); background: rgba(255,255,255,0.06); }
   .act-active { color: var(--accent) !important; }
+
+  .hide-btn { filter: grayscale(1); opacity: 0.35; }
+  .hide-btn:hover { filter: none; opacity: 1; }
+  .hide-btn.hide-active { filter: none; opacity: 1; }
 
   .description {
     font-size: 13px;
