@@ -45,12 +45,22 @@ function getAudio(): HTMLAudioElement {
       update(s => ({ ...s, duration: audio!.duration || s.duration }));
     });
     audio.addEventListener('ended', () => next());
-    audio.addEventListener('play', () => update(s => ({ ...s, isPlaying: true })));
-    audio.addEventListener('pause', () => update(s => ({ ...s, isPlaying: false })));
+    audio.addEventListener('play', () => {
+      update(s => ({ ...s, isPlaying: true }));
+      updateMediaSessionState(true);
+    });
+    audio.addEventListener('pause', () => {
+      update(s => ({ ...s, isPlaying: false }));
+      updateMediaSessionState(false);
+    });
     audio.addEventListener('error', () => {
       addToast('Error al descargar la canción', 'error');
       next();
     });
+    if (!mediaSessionReady) {
+      setupMediaSession();
+      mediaSessionReady = true;
+    }
   }
   return audio;
 }
@@ -58,6 +68,50 @@ function getAudio(): HTMLAudioElement {
 function isHidden(track: Track): boolean {
   return get(hidden).has(track.id);
 }
+
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.setActionHandler('play', () => {
+    getAudio().play().catch(() => {});
+  });
+  navigator.mediaSession.setActionHandler('pause', () => {
+    getAudio().pause();
+  });
+  navigator.mediaSession.setActionHandler('nexttrack', () => next());
+  navigator.mediaSession.setActionHandler('previoustrack', () => playerPrev());
+  navigator.mediaSession.setActionHandler('seekto', (e) => {
+    if (e.seekTime != null) player.seek(e.seekTime);
+  });
+  navigator.mediaSession.setActionHandler('seekbackward', (e) => {
+    player.seek(Math.max(0, getAudio().currentTime - (e.seekOffset ?? 10)));
+  });
+  navigator.mediaSession.setActionHandler('seekforward', (e) => {
+    const a = getAudio();
+    player.seek(Math.min(a.duration || Infinity, a.currentTime + (e.seekOffset ?? 10)));
+  });
+}
+
+function updateMediaSessionMetadata(state: PlayerState) {
+  if (!('mediaSession' in navigator)) return;
+  const track = state.queue[state.queueIndex];
+  if (!track) return;
+  const cover = state.currentCovers[state.currentCoverIndex];
+  const artwork: MediaImage[] = cover
+    ? [{ src: api.coverURL(cover.url), sizes: '400x400', type: 'image/jpeg' }]
+    : [];
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: track.name,
+    album: state.currentAlbum?.title ?? '',
+    artwork,
+  });
+}
+
+function updateMediaSessionState(playing: boolean) {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+}
+
+let mediaSessionReady = false;
 
 function loadTrack(state: PlayerState): PlayerState {
   const track = state.queue[state.queueIndex];
@@ -68,6 +122,7 @@ function loadTrack(state: PlayerState): PlayerState {
   a.volume = state.isMuted ? 0 : state.volume;
   a.load();
   a.play().catch(() => {});
+  updateMediaSessionMetadata(state);
   if (state.currentAlbum) {
     api.recordPlay(track.id, state.currentAlbum.id).catch(() => {});
   }
