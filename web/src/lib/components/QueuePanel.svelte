@@ -3,7 +3,8 @@
   import { fmtTime } from '$lib/utils';
 
   let dragFrom: number | null = null;
-  let dropTarget: number | null = null; // insert-before index (queue.length = after last)
+  let dropTarget: number | null = null;
+  let collapsed = false;
 
   function onDragStart(i: number) { dragFrom = i; }
 
@@ -32,33 +33,35 @@
 
 {#if $player.showQueue}
   <div class="panel" on:dragend={onDragEnd}>
-    <div class="header">
+    <button class="header" on:click={() => collapsed = !collapsed}>
       <span>Queue ({q.length})</span>
-      <button on:click={() => player.toggleQueue()}>✕</button>
-    </div>
-    <div class="list">
-      {#each q as track, i (i)}
-        <div
-          class="row"
-          class:current={i === $player.queueIndex}
-          class:drop-above={dropTarget === i && dragFrom !== i && dragFrom !== i - 1}
-          class:drop-below={dropTarget === i + 1 && i === q.length - 1 && dragFrom !== i}
-          draggable="true"
-          on:dragstart={() => onDragStart(i)}
-          on:dragover={(e) => onDragOver(e, i)}
-          on:drop={(e) => onDrop(e, i)}
-          role="listitem"
-        >
-          <span class="num">{i + 1}</span>
-          <button class="play-row" on:click={() => {
-            const s = $player;
-            if (s.currentAlbum) player.play(track, s.currentAlbum, s.queue, s.currentCovers);
-          }}>{track.name}</button>
-          <span class="dur">{fmtTime(track.durationSec)}</span>
-          <button class="rm" on:click={() => player.removeFromQueue(i)}>✕</button>
-        </div>
-      {/each}
-    </div>
+      <span class="chevron">{collapsed ? '▸' : '▾'}</span>
+    </button>
+    {#if !collapsed}
+      <div class="list">
+        {#each q as track, i (i)}
+          <div
+            class="row"
+            class:current={i === $player.queueIndex}
+            class:drop-above={dropTarget === i && dragFrom !== i && dragFrom !== i - 1}
+            class:drop-below={dropTarget === i + 1 && i === q.length - 1 && dragFrom !== i}
+            draggable="true"
+            on:dragstart={() => onDragStart(i)}
+            on:dragover={(e) => onDragOver(e, i)}
+            on:drop={(e) => onDrop(e, i)}
+            role="listitem"
+          >
+            <span class="num">{i + 1}</span>
+            <button class="play-row" on:click={() => {
+              const s = $player;
+              if (s.currentAlbum) player.play(track, s.currentAlbum, s.queue, s.currentCovers);
+            }}>{track.name}</button>
+            <span class="dur">{fmtTime(track.durationSec)}</span>
+            <button class="rm" on:click={() => player.removeFromQueue(i)}>✕</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -86,7 +89,13 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--text-sec);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: color 0.1s;
   }
+  .header:hover { color: var(--text); }
+  .chevron { font-size: 12px; color: var(--text-muted); }
   .list {
     overflow-y: auto;
     flex: 1;
@@ -100,11 +109,15 @@
     border-bottom: 2px solid transparent;
     transition: background 0.1s;
   }
-  .row.current { background: var(--accent-bg); }
+  .row.current {
+    background: rgba(203, 168, 39, 0.18);
+    border-left: 2px solid var(--accent);
+  }
   .row:hover .rm { opacity: 1; }
   .row.drop-above { border-top-color: var(--accent); }
   .row.drop-below { border-bottom-color: var(--accent); }
   .num { font-size: 10px; color: var(--text-muted); width: 20px; text-align: right; flex-shrink: 0; }
+  .row.current .num { color: var(--accent); }
   .play-row {
     flex: 1;
     text-align: left;
@@ -114,6 +127,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .row.current .play-row { color: var(--accent); font-weight: 600; }
   .play-row:hover { color: var(--accent); }
   .dur { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
   .rm {

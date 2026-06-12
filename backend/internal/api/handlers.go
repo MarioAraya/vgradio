@@ -71,6 +71,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /albums/{id}", h.getAlbum)
 	mux.HandleFunc("GET /jobs/{id}", h.getJob)
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
+	mux.HandleFunc("GET /tracks/{id}/resolve", h.resolveTrackURL)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
 	mux.HandleFunc("POST /tracks/{id}/fetch", h.fetchTrackLocal)
 	mux.HandleFunc("POST /catalog/sync", h.postCatalogSync)
@@ -298,6 +299,36 @@ func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		tr.MP3URL = mp3URL
 	}
 	http.Redirect(w, r, tr.MP3URL, http.StatusFound)
+}
+
+// GET /tracks/{id}/resolve — returns the direct MP3 URL without redirecting.
+// ?force=1 re-scrapes even if a cached URL exists (use when cached URL is stale).
+func (h *handler) resolveTrackURL(w http.ResponseWriter, r *http.Request) {
+	trackID := r.PathValue("id")
+	force := r.URL.Query().Get("force") == "1"
+	tr, err := h.store.Track(r.Context(), trackID)
+	if errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "track not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	if force || tr.MP3URL == "" {
+		if tr.PageURL == "" {
+			jsonError(w, "track has no source URL", http.StatusServiceUnavailable)
+			return
+		}
+		mp3URL, resolveErr := h.fetcher.SongMP3(r.Context(), tr.PageURL)
+		if resolveErr != nil {
+			jsonError(w, "failed to resolve mp3: "+resolveErr.Error(), http.StatusBadGateway)
+			return
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), trackID, mp3URL)
+		tr.MP3URL = mp3URL
+	}
+	jsonOK(w, map[string]string{"url": tr.MP3URL}, http.StatusOK)
 }
 
 // POST /tracks/{id}/fetch — resolves the MP3 URL and downloads the file locally.

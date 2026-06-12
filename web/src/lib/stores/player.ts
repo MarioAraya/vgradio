@@ -53,7 +53,27 @@ function getAudio(): HTMLAudioElement {
       update(s => ({ ...s, isPlaying: false }));
       updateMediaSessionState(false);
     });
-    audio.addEventListener('error', () => {
+    audio.addEventListener('error', async () => {
+      const a = getAudio();
+      const s = get({ subscribe });
+      const track = s.queue[s.queueIndex];
+      if (!track) { addToast('Error al descargar la canción', 'error'); next(); return; }
+
+      if (a.src.includes('/stream')) {
+        // First failure: try cached direct URL from khinsider
+        try {
+          const { url } = await api.resolveTrackUrl(track.id, false);
+          if (url) { fallbackAttempted.add(track.id); a.src = url; a.play().catch(() => {}); return; }
+        } catch { /* fall through */ }
+      } else if (fallbackAttempted.has(track.id)) {
+        // Second failure: cached URL is stale — force re-scrape
+        fallbackAttempted.delete(track.id);
+        try {
+          const { url } = await api.resolveTrackUrl(track.id, true);
+          if (url) { a.src = url; a.play().catch(() => {}); return; }
+        } catch { /* fall through */ }
+      }
+
       addToast('Error al descargar la canción', 'error');
       next();
     });
@@ -112,10 +132,12 @@ function updateMediaSessionState(playing: boolean) {
 }
 
 let mediaSessionReady = false;
+const fallbackAttempted = new Set<string>(); // trackIds where direct-URL fallback was tried
 
 function loadTrack(state: PlayerState): PlayerState {
   const track = state.queue[state.queueIndex];
   if (!track) return state;
+  fallbackAttempted.delete(track.id);
   const a = getAudio();
   a.pause();
   a.src = api.streamURL(track);

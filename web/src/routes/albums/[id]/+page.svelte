@@ -70,16 +70,20 @@
   }
 
   async function fetchTrack(trackId: string) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 120_000);
     fetching = new Set(fetching).add(trackId);
     try {
-      await api.fetchTrack(trackId);
+      await api.fetchTrack(trackId, ctrl.signal);
       if (album) {
         album = { ...album, tracks: album.tracks.map(t => t.id === trackId ? { ...t, downloaded: true } : t) };
       }
       addToast('Descargado', 'info');
     } catch (e) {
-      addToast('Error al descargar: ' + (e instanceof Error ? e.message : String(e)), 'error');
+      const msg = (e as Error).name === 'AbortError' ? 'Timeout al descargar (>120s)' : 'Error: ' + (e instanceof Error ? e.message : String(e));
+      addToast(msg, 'error');
     } finally {
+      clearTimeout(timer);
       const next = new Set(fetching);
       next.delete(trackId);
       fetching = next;
@@ -282,7 +286,9 @@
     transition: background 0.1s;
   }
   .track-row:hover { background: rgba(255,255,255,0.04); }
-  .track-row.current { background: var(--accent-bg); }
+  .track-row.current { background: rgba(203, 168, 39, 0.12); }
+  .track-row.current .track-name { color: var(--accent); font-weight: 700; }
+  .track-row.current .col-num { color: var(--accent); }
   .track-row.hidden-track { opacity: 0.35; }
   .col-num { font-size: 12px; color: var(--text-muted); text-align: right; padding-right: 8px; }
   .wave { color: var(--accent); }

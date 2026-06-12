@@ -7,17 +7,18 @@ const BASE = () =>
   localStorage.getItem('vgradio.backendURL') ??
   `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8080`;
 
-async function get<T>(path: string): Promise<T> {
-  const r = await fetch(BASE() + path);
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const r = await fetch(BASE() + path, { signal });
   if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
   return r.json();
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
+async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const r = await fetch(BASE() + path, {
     method: 'POST',
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
   if (!r.ok && r.status !== 409) {
     const err = await r.json().catch(() => ({ error: r.statusText }));
@@ -30,7 +31,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 export const api = {
   baseURL: BASE,
   albums: () => get<AlbumSummary[]>('/albums'),
-  album: (id: string) => get<Album>(`/albums/${id}`),
+  album: (id: string, signal?: AbortSignal) => get<Album>(`/albums/${id}`, signal),
   addAlbum: (url: string) => post<ScrapeJob>('/albums', { url }),
   job: (id: string) => get<ScrapeJob>(`/jobs/${id}`),
 
@@ -51,7 +52,10 @@ export const api = {
     post<void>('/history', { trackId, albumId }),
   history: (limit = 100) => get<HistoryEntry[]>(`/history?limit=${limit}`),
 
-  fetchTrack: (trackId: string) => post<{ status: string; localPath: string }>(`/tracks/${trackId}/fetch`),
+  fetchTrack: (trackId: string, signal?: AbortSignal) =>
+    post<{ status: string; localPath: string }>(`/tracks/${trackId}/fetch`, undefined, signal),
+  resolveTrackUrl: (trackId: string, force = false) =>
+    get<{ url: string }>(`/tracks/${trackId}/resolve${force ? '?force=1' : ''}`),
   streamURL: (track: Track) => BASE() + track.streamUrl,
   downloadURL: (track: Track) => BASE() + track.downloadUrl,
   coverURL: (url: string) => url.startsWith('http') ? url : BASE() + url,
