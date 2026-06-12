@@ -145,6 +145,37 @@ Orden TDD v1: `scraper` → `store` → `api`. `fetcher`/`jobs` con tests de hum
 
 ---
 
+## 9. Recently Played (historia de reproducción)
+
+Dos endpoints nuevos. Persisten en SQLite tabla `play_history`.
+
+```
+POST /history
+  body: { "trackId": "...", "albumId": "..." }
+  → 204 No Content
+  Registra una reproducción. El cliente web llama esto cada vez que cambia el track.
+
+GET /history?limit=50
+  → 200 JSON: array de { trackId, trackName, albumId, albumTitle, platform, year, coverUrl, playedAt }
+  Devuelve las últimas N reproducciones ordenadas por playedAt DESC.
+  JOIN con tracks y albums para obtener metadata. Si track/album fue eliminado, omitir fila.
+```
+
+Tabla SQLite:
+```sql
+CREATE TABLE IF NOT EXISTS play_history (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  track_id  TEXT NOT NULL,
+  album_id  TEXT NOT NULL,
+  played_at DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_play_history_played_at ON play_history(played_at DESC);
+```
+
+Deduplicación: si el mismo `track_id` ya está en la fila más reciente de la tabla, no insertar duplicado (evita spam por pausa/reanudar).
+
+---
+
 ## 8. Boundaries
 
 - **Always:** throttle + respetar robots.txt; validar URL (bloquear IPs privadas → anti-SSRF); errores explícitos.

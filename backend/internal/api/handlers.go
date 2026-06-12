@@ -37,6 +37,8 @@ type storer interface {
 	SearchCatalog(ctx context.Context, q, platform, letter string, offset, limit int) ([]scraper.CatalogEntry, error)
 	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
 	Consoles(ctx context.Context) ([]scraper.Console, error)
+	RecordPlay(ctx context.Context, trackID, albumID string) error
+	RecentHistory(ctx context.Context, limit int) ([]store.HistoryEntry, error)
 }
 
 type trackFetcher interface {
@@ -74,6 +76,8 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /catalog", h.getCatalog)
 	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
 	mux.HandleFunc("PUT /config/cf-clearance", h.putCFClearance)
+	mux.HandleFunc("POST /history", h.postHistory)
+	mux.HandleFunc("GET /history", h.getHistory)
 	// Serve downloaded cover images.
 	// URL pattern: /covers/<albumID>/<filename>
 	// File on disk:  <dataDir>/<albumID>/covers/<filename>
@@ -88,7 +92,21 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 		albumID, filename := parts[0], filepath.Base(parts[1])
 		http.ServeFile(w, r, filepath.Join(dataDir, albumID, "covers", filename))
 	})
-	return mux
+	return cors(mux)
+}
+
+// cors wraps h with permissive CORS headers for local web client access.
+func cors(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // POST /albums
@@ -497,6 +515,34 @@ func (h *handler) putCFClearance(w http.ResponseWriter, r *http.Request) {
 	}
 	h.fetcher.SetCFClearance(body.Value)
 	jsonOK(w, map[string]string{"status": "ok"}, http.StatusOK)
+}
+
+// POST /history — records a track play event.
+func (h *handler) postHistory(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TrackID string `json:"trackId"`
+		AlbumID string `json:"albumId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TrackID == "" || body.AlbumID == "" {
+		jsonError(w, "trackId and albumId required", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.RecordPlay(r.Context(), body.TrackID, body.AlbumID); err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /history?limit=N — returns recent play history.
+func (h *handler) getHistory(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	entries, err := h.store.RecentHistory(r.Context(), limit)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, entries, http.StatusOK)
 }
 
 // --- helpers ---
