@@ -76,8 +76,7 @@
   async function importEntry(entry: CatalogEntry) {
     importing[entry.sourceUrl] = true;
     try {
-      const fullURL = 'https://downloads.khinsider.com' + entry.sourceUrl;
-      const job = await api.addAlbum(fullURL);
+      const job = await api.addAlbum(entry.sourceUrl);
       if (job.status === 'done') { imported[entry.sourceUrl] = true; return; }
       await pollJob(job.jobId, () => { imported[entry.sourceUrl] = true; });
     } catch {}
