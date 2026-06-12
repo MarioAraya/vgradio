@@ -45,6 +45,8 @@
       <button
         class="nav-btn left"
         on:click|stopPropagation={prev}
+        on:pointerdown|stopPropagation
+        on:pointerup|stopPropagation
         disabled={index === 0}
         tabindex="-1"
         aria-label="Previous cover"
@@ -52,6 +54,8 @@
       <button
         class="nav-btn right"
         on:click|stopPropagation={next}
+        on:pointerdown|stopPropagation
+        on:pointerup|stopPropagation
         disabled={index === covers.length - 1}
         tabindex="-1"
         aria-label="Next cover"

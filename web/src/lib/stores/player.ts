@@ -2,6 +2,7 @@ import { writable, get } from 'svelte/store';
 import type { Track, AlbumSummary, Cover } from '$lib/types';
 import { api } from '$lib/api';
 import { hidden } from './hidden';
+import { addToast } from './toasts';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -46,6 +47,10 @@ function getAudio(): HTMLAudioElement {
     audio.addEventListener('ended', () => next());
     audio.addEventListener('play', () => update(s => ({ ...s, isPlaying: true })));
     audio.addEventListener('pause', () => update(s => ({ ...s, isPlaying: false })));
+    audio.addEventListener('error', () => {
+      addToast('Error al descargar la canción', 'error');
+      next();
+    });
   }
   return audio;
 }

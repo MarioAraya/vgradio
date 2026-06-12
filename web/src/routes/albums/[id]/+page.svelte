@@ -20,7 +20,7 @@
   let error = '';
   let coverIdx = 0;
 
-  $: id = $page.params.id;
+  $: id = $page.params.id!;
 
   onMount(async () => {
     try {

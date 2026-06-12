@@ -4,6 +4,7 @@
   import PlayerBar from '$lib/components/PlayerBar.svelte';
   import QueuePanel from '$lib/components/QueuePanel.svelte';
   import AddURLModal from '$lib/components/AddURLModal.svelte';
+  import Toast from '$lib/components/Toast.svelte';
   import { player } from '$lib/stores/player';
   import { goto } from '$app/navigation';
 
@@ -32,6 +33,7 @@
   <PlayerBar />
   <QueuePanel />
   <AddURLModal bind:open={showAddURL} on:done={() => showAddURL = false} />
+  <Toast />
 </div>
 
 <style>
