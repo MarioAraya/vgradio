@@ -101,6 +101,9 @@
           <button class="btn-sec" class:fav={isAlbumFav} on:click={toggleAlbumFav}>
             {isAlbumFav ? '★ Unfavorite' : '☆ Favorite'}
           </button>
+          <a class="btn-sec" href={`${api.baseURL()}/albums/${id}/covers.zip`} download>
+            ⬇ Covers
+          </a>
         </div>
       </div>
     </div>

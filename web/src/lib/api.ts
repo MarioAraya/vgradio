@@ -3,7 +3,9 @@ import type {
   CatalogSyncProgress, HistoryEntry, ScrapeJob, Track
 } from './types';
 
-const BASE = () => localStorage.getItem('vgradio.backendURL') ?? 'http://localhost:8080';
+const BASE = () =>
+  localStorage.getItem('vgradio.backendURL') ??
+  `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8080`;
 
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(BASE() + path);
@@ -26,6 +28,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const api = {
+  baseURL: BASE,
   albums: () => get<AlbumSummary[]>('/albums'),
   album: (id: string) => get<Album>(`/albums/${id}`),
   addAlbum: (url: string) => post<ScrapeJob>('/albums', { url }),

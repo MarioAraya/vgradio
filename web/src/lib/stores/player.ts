@@ -26,7 +26,8 @@ const initial: PlayerState = {
   currentAlbum: null, currentCovers: [], currentCoverIndex: 0,
   isPlaying: false, currentTime: 0, duration: 0,
   volume: parseFloat(localStorage.getItem('vgradio.volume') ?? '0.8'),
-  isMuted: false, isShuffle: false, repeatMode: 'off', showQueue: false,
+  isMuted: false, isShuffle: false, repeatMode: 'off',
+  showQueue: localStorage.getItem('vgradio.showQueue') === 'true',
 };
 
 const { subscribe, update, set } = writable<PlayerState>(initial);
@@ -57,8 +58,10 @@ function loadTrack(state: PlayerState): PlayerState {
   const track = state.queue[state.queueIndex];
   if (!track) return state;
   const a = getAudio();
+  a.pause();
   a.src = api.streamURL(track);
   a.volume = state.isMuted ? 0 : state.volume;
+  a.load();
   a.play().catch(() => {});
   if (state.currentAlbum) {
     api.recordPlay(track.id, state.currentAlbum.id).catch(() => {});
@@ -142,7 +145,13 @@ export const player = {
     });
   },
 
-  toggleQueue() { update(s => ({ ...s, showQueue: !s.showQueue })); },
+  toggleQueue() {
+    update(s => {
+      const showQueue = !s.showQueue;
+      localStorage.setItem('vgradio.showQueue', String(showQueue));
+      return { ...s, showQueue };
+    });
+  },
   toggleShuffle() { update(s => ({ ...s, isShuffle: !s.isShuffle })); },
   cycleRepeat() {
     update(s => {
