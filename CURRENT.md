@@ -4,68 +4,80 @@
 
 > Estado de implementación para retomar entre sesiones.
 > Specs: `docs/SPEC-WEB.md`, `backend/SPEC.md`, `docs/API.md`.
+> Test inventory: `docs/TESTS.md`.
 
 ---
 
-## En progreso
+## Completado esta sesión
 
-### Cover carousel + lightbox — sin commitear
-
-3 archivos modificados/nuevos:
-
-- `web/src/lib/components/CoverCarousel.svelte` ← nuevo
-- `web/src/lib/components/CoverLightbox.svelte` ← nuevo
-- `web/src/routes/albums/[id]/+page.svelte` ← reemplaza bloque covers
-
-**Qué hace:**
-- `CoverCarousel`: wrapper 220px, swipe (pointer events, umbral 50px), botones `‹ ›` visibles solo on-hover, dots, click corto abre lightbox
-- `CoverLightbox`: overlay fullscreen, sirve `cover_N_orig.ext` (sin comprimir), fallback a display si 404, nav ←/→/Escape, swipe, dots, cierra al click fuera
-
-**No requiere cambios en backend** — `/covers/<albumId>/cover_N_orig.jpg` ya existe desde el commit `84ca80f`.
-
-**Pendiente:** commitear estos 3 archivos.
-
----
-
-## Completado esta sesión (sesión web-2)
-
-- [x] **CoverCarousel.svelte** — swipe + hover arrows + click → lightbox
-- [x] **CoverLightbox.svelte** — fullscreen modal, orig images, carousel, keyboard, swipe
-- [x] **AlbumDetail actualizado** — reemplaza `<div class="covers">` + `CoverImage` por `CoverCarousel` + `CoverLightbox`
-- [x] **CSS huérfano limpiado** — `.covers`, `.cover-dots`, `.dot` eliminados de `+page.svelte`
-
----
-
-## Completado sesiones previas (web-1)
-
-- [x] SvelteKit MVP completo con paridad de features al macOS client
-- [x] Audio singleton, queue, repeat, shuffle, scrubber, volume
-- [x] LAN access via `window.location.hostname` dinámico
-- [x] Cover resize en scrape (display ≤400px) + ZIP download originals
-- [x] `play_history` table con dedup, endpoints POST/GET `/history`
-- [x] Browse/catalog con search, filtros, infinite scroll, sync polling
-- [x] Favorites, wishlist, hidden, coverPrefs — localStorage
-- [x] CORS middleware en Go backend
+- [x] **Cover carousel + lightbox** (`4dee69e`) — swipe, hover arrows, click abre modal fullscreen con imágenes `_orig`
+- [x] **Lightbox first-open fix** (`566c289`) — muestra display inmediatamente, carga orig en background (sin blank flash)
+- [x] **Favorites album cover** (`566c289`) — thumbnail 60px en cada grupo de álbum
+- [x] **Nav arrows no abren lightbox** (`0528d3c`) — stopPropagation en pointer events
+- [x] **Error de stream → skip + toast** (`0528d3c`) — listener `error` en `<audio>`, salta al siguiente track y muestra toast rojo
+- [x] **Hide button outline-only** (`2c7faef`) — `👎` gris por defecto, amarillo en hover/activo
+- [x] **Hidden tracks excluidos del queue** (`2c7faef`) — `playAll()` y `playTrack()` filtran `$hidden`
+- [x] **Console chips wrap 3 filas** (`57b0aaf`) — `flex-wrap: wrap` en lugar de scroll horizontal
+- [x] **Console counts dinámicos** (`57b0aaf`) — subquery COUNT desde `catalog_entries` en lugar de `album_count` estático
+- [x] **Scrape por consola en sync** (`57b0aaf`) — syncer ahora scrapea cada página de consola y setea `platform=c.Name` exacto
+- [x] **Fix import button Browse** (`3bd5150`) — URL doble-prefijada corregida (`sourceUrl` ya es absoluta)
+- [x] **40 unit tests + 10 E2E** (`9631753`) — Vitest + Playwright, todos pasando. Sin backend requerido en E2E.
+- [x] **docs/TESTS.md** (`949d024`) — inventario completo de tests con tablas
 
 ---
 
 ## Pendiente (próximos pasos)
 
-- [ ] **Commitear** los 3 archivos de carousel/lightbox
-- [ ] **Probar en browser** — verificar swipe en mobile, hover arrows en desktop, lightbox orig images
-- [ ] **Recently played view** — sidebar link existe, vista pendiente
-- [ ] **Settings view** — backend URL configurable desde UI (hoy solo via localStorage manual)
-- [ ] **Tests** — cero tests en frontend web
+- [ ] **Push a Gitea** — `git push gitea web` (falló en sesión anterior: `.103:3000` sin respuesta)
+- [ ] **Probar Sync Catalog** — el nuevo scrape por consola es más lento (N consolas × 1 request), verificar que no haya timeouts ni bans de Cloudflare
+- [ ] **Recently played view** — sidebar link existe, vista es stub vacío
+- [ ] **Settings view** — backend URL configurable desde UI (hoy solo via `localStorage` manual o `VGRADIO_ADDR`)
 - [ ] **Deploy VPS** — backend + frontend en servidor (Hetzner u otro)
+- [ ] **Tests de backend Go** — cero tests en `backend/`
 
 ---
 
 ## Notas
 
+### Comandos
+
 - Backend: `cd backend && go run ./cmd/server` (puerto 8080)
+- Backend logs background: `go run ./cmd/server > /tmp/vgradio.log 2>&1 &` luego `tail -f /tmp/vgradio.log`
 - Web dev: `cd web && npm run dev` (puerto 5173)
-- LAN: frontend en `:5173` usa `window.location.hostname:8080` — funciona si se abre con IP del host, no localhost
-- F5 mata el audio — limitación del browser, no fixeable. Spotify web igual. Navegar por SPA (click) no interrumpe.
-- `cover_N_orig.ext` + `cover_N.ext` — backend guarda ambos en scrape. ZIP sirve orig. Display URL es el sin `_orig`.
-- Orig URL derivación: `url.replace(/(cover_\d+)(\.[^.]+)$/, '$1_orig$2')` — en `CoverLightbox.svelte`
-- Swift macOS client: rama `main`, build con Xcode en `/Volumes/ExtDevDisk/Xcode.app`
+- Unit tests: `cd web && npm test`
+- E2E tests: `cd web && npm run test:e2e` (levanta dev server automático, no requiere backend)
+- Push: `git push gitea web` (Gitea en `.103:3000`)
+
+### LAN
+
+- Frontend usa `window.location.hostname:8080` — abrir con IP del host (no localhost) para acceso LAN
+- F5 mata el audio — limitación browser. Navegar con clicks no interrumpe.
+
+### Arquitectura de covers
+
+- `cover_N.ext` — display (≤400px), servido en `/covers/<id>/cover_N.ext`
+- `cover_N_orig.ext` — original, servido en `/covers/<id>/cover_N_orig.ext`
+- Lightbox carga orig en background con `new Image()`, fallback a display si 404
+- ZIP descarga todos los `_orig`
+
+### Catalog sync (actualizado)
+
+3 fases:
+1. A-Z + 0-9 browse pages → `catalog_entries` con platform del HTML (heurístico)
+2. `/console-list` → tabla `consoles` con nombres y URLs
+3. Por cada consola → scrapea su página, setea `platform = c.Name` exacto en `catalog_entries`
+
+La fase 3 hace la búsqueda/filtro por consola exacta. Es lenta (1 request/consola ×N).
+Console counts en UI son dinámicos (subquery COUNT) — no dependen de `album_count` estático.
+
+### Tests
+
+- **Unit (Vitest)**: 40 tests, 5 archivos en `web/src/lib/**/*.test.ts`
+- **E2E (Playwright)**: 10 tests, 2 archivos en `web/e2e/`
+- Inventario completo: `docs/TESTS.md`
+- `vi.resetModules()` en `beforeEach` — stores son singletons, necesario para aislar tests
+
+### macOS client
+
+- Rama: `main`
+- Build: `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build` (desde `VGRadio/`)
