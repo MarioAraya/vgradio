@@ -52,6 +52,8 @@ export const api = {
     post<void>('/history', { trackId, albumId }),
   history: (limit = 100) => get<HistoryEntry[]>(`/history?limit=${limit}`),
 
+  scrapeAlbumTracks: (albumId: string) =>
+    post<{ resolved: number; failed: number; skipped: number }>(`/albums/${albumId}/scrape-tracks`),
   fetchTrack: (trackId: string, signal?: AbortSignal) =>
     post<{ status: string; localPath: string }>(`/tracks/${trackId}/fetch`, undefined, signal),
   resolveTrackUrl: (trackId: string, force = false) =>

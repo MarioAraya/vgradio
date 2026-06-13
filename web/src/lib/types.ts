@@ -33,6 +33,7 @@ export interface Track {
   sizeBytes: number
   streamUrl: string
   downloadUrl: string
+  scraped?: boolean
   downloaded: boolean
 }
 

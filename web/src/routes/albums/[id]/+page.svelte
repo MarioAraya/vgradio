@@ -20,7 +20,8 @@
   let loading = true;
   let error = '';
   let coverIdx = 0;
-  let fetching = new Set<string>(); // track IDs currently being fetched
+  let fetching = new Set<string>();  // track IDs being fetched (download to disk)
+  let scraping = new Set<string>();  // track IDs being scraped (resolve mp3 URL)
 
   $: id = $page.params.id!;
 
@@ -90,6 +91,40 @@
     }
   }
 
+  async function scrapeTrack(trackId: string) {
+    scraping = new Set(scraping).add(trackId);
+    try {
+      await api.resolveTrackUrl(trackId, false);
+      if (album) {
+        album = { ...album, tracks: album.tracks.map(t => t.id === trackId ? { ...t, scraped: true } : t) };
+      }
+    } catch (e) {
+      addToast('Error al scrapear URL: ' + (e instanceof Error ? e.message : String(e)), 'error');
+    } finally {
+      const next = new Set(scraping);
+      next.delete(trackId);
+      scraping = next;
+    }
+  }
+
+  let albumScraping = false;
+  async function scrapeAllTracks() {
+    if (!album || albumScraping) return;
+    albumScraping = true;
+    try {
+      const r = await api.scrapeAlbumTracks(album.id);
+      // Mark all tracks as scraped in local state
+      if (album) {
+        album = { ...album, tracks: album.tracks.map(t => ({ ...t, scraped: t.scraped || true })) };
+      }
+      addToast(`URLs resueltas: ${r.resolved} ok · ${r.failed} fallidas · ${r.skipped} ya tenían`, 'info', 5000);
+    } catch (e) {
+      addToast('Error al scrapear: ' + (e instanceof Error ? e.message : String(e)), 'error');
+    } finally {
+      albumScraping = false;
+    }
+  }
+
   $: isAlbumFav = album ? $favorites.some(f => f.albumId === album!.id) : false;
 
   function toggleAlbumFav() {
@@ -136,6 +171,9 @@
           <a class="btn-sec" href={`${api.baseURL()}/albums/${id}/covers.zip`} download>
             ⬇ Covers
           </a>
+          <button class="btn-sec" class:scraping={albumScraping} on:click={scrapeAllTracks} disabled={albumScraping} title="Resuelve URLs de MP3 de todas las canciones desde khinsider">
+            {albumScraping ? '⟳ Scraping…' : '⚡ Scrape URLs'}
+          </button>
           {#if album.sourceUrl}
             <a class="source-link" href={album.sourceUrl} target="_blank" rel="noopener noreferrer" title="Visit source">↗</a>
           {/if}
@@ -163,7 +201,18 @@
           role="row"
         >
           <span class="col-num">
-            {#if isPlaying}<span class="wave">♪</span>{:else}{i + 1}{/if}
+            {#if isPlaying}
+              <span class="wave">♪</span>
+            {:else}
+              <span class="num-wrap">
+                {i + 1}
+                {#if track.downloaded}
+                  <span class="state-dot dot-local" title="Descargado localmente"></span>
+                {:else if track.scraped}
+                  <span class="state-dot dot-scraped" title="URL resuelta"></span>
+                {/if}
+              </span>
+            {/if}
           </span>
           <button class="col-name track-name" on:click={() => playTrack(i)}>{track.name}</button>
           <span class="col-dur">{fmtTime(track.durationSec)}</span>
@@ -178,11 +227,15 @@
               👎
             </button>
             {#if track.downloaded}
-              <a class="act" href={api.downloadURL(track)} download target="_blank" rel="noopener noreferrer" title="Guardar MP3">⬇</a>
+              <a class="act act-dl-local" href={api.downloadURL(track)} download target="_blank" rel="noopener noreferrer" title="Guardar MP3 (local)">⬇</a>
             {:else if fetching.has(track.id)}
               <span class="act act-spin" title="Descargando…">⟳</span>
+            {:else if scraping.has(track.id)}
+              <span class="act act-spin" title="Scrapeando URL…">⟳</span>
+            {:else if track.scraped}
+              <button class="act act-scraped" title="Descargar localmente" on:click={() => fetchTrack(track.id)}>⬇</button>
             {:else}
-              <button class="act act-fetch" title="Descargar localmente" on:click={() => fetchTrack(track.id)}>⬇</button>
+              <button class="act act-unscrape" title="Resolver URL de khinsider" on:click={() => scrapeTrack(track.id)}>🔗</button>
             {/if}
           </div>
         </div>
@@ -254,6 +307,7 @@
   }
   .btn-sec:hover { color: var(--text); }
   .btn-sec.fav { color: var(--accent); }
+  .btn-sec.scraping { opacity: 0.6; cursor: default; }
   .source-link {
     display: flex; align-items: center; justify-content: center;
     width: 30px; height: 30px;
@@ -320,8 +374,25 @@
   .hide-btn { filter: grayscale(1); opacity: 0.35; }
   .hide-btn:hover { filter: none; opacity: 1; }
   .hide-btn.hide-active { filter: none; opacity: 1; }
-  .act-fetch { opacity: 0.25; }
-  .act-fetch:hover { opacity: 1; color: var(--accent); }
+
+  /* State dots on track number */
+  .num-wrap { position: relative; display: inline-flex; align-items: center; justify-content: flex-end; }
+  .state-dot {
+    position: absolute;
+    right: -6px; top: 50%; transform: translateY(-50%);
+    width: 5px; height: 5px;
+    border-radius: 50%;
+  }
+  .dot-local   { background: #4ade80; } /* green — on disk */
+  .dot-scraped { background: var(--accent); } /* yellow — url known */
+
+  /* Download/scrape action buttons */
+  .act-dl-local  { color: #4ade80; }
+  .act-dl-local:hover { color: #86efac; background: rgba(74,222,128,0.08); }
+  .act-scraped   { color: var(--accent); opacity: 0.7; }
+  .act-scraped:hover { opacity: 1; background: rgba(203,168,39,0.08); }
+  .act-unscrape  { opacity: 0.2; font-size: 11px; }
+  .act-unscrape:hover { opacity: 1; color: var(--text); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .act-spin { animation: spin 0.9s linear infinite; opacity: 0.5; cursor: default; }
 

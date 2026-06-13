@@ -70,6 +70,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /albums", h.getAlbums)
 	mux.HandleFunc("GET /albums/{id}", h.getAlbum)
 	mux.HandleFunc("GET /jobs/{id}", h.getJob)
+	mux.HandleFunc("POST /albums/{id}/scrape-tracks", h.scrapeAlbumTracks)
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
 	mux.HandleFunc("GET /tracks/{id}/resolve", h.resolveTrackURL)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
@@ -215,7 +216,8 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		SizeBytes   int64  `json:"sizeBytes"`
 		StreamURL   string `json:"streamUrl"`
 		DownloadURL string `json:"downloadUrl"`
-		Downloaded  bool   `json:"downloaded"`
+		Scraped     bool   `json:"scraped"`    // mp3_url resolved and cached
+		Downloaded  bool   `json:"downloaded"` // file on local disk
 	}
 	type comment struct {
 		Author   string `json:"author"`
@@ -233,6 +235,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 			SizeBytes:   t.SizeBytes,
 			StreamURL:   "/tracks/" + t.ID + "/stream",
 			DownloadURL: "/tracks/" + t.ID + "/download",
+			Scraped:     t.MP3URL != "",
 			Downloaded:  t.LocalPath != "",
 		}
 	}
@@ -261,6 +264,40 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		"tracks":        tracks,
 		"comments":      comments,
 	}, http.StatusOK)
+}
+
+// POST /albums/{id}/scrape-tracks — resolves and persists MP3 URLs for all tracks
+// that don't yet have one. Sequential to avoid Cloudflare rate-limiting.
+func (h *handler) scrapeAlbumTracks(w http.ResponseWriter, r *http.Request) {
+	albumID := r.PathValue("id")
+	album, err := h.store.Album(r.Context(), albumID)
+	if errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "album not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	var resolved, failed, skipped int
+	for _, t := range album.Tracks {
+		if t.MP3URL != "" {
+			skipped++
+			continue
+		}
+		if t.PageURL == "" {
+			failed++
+			continue
+		}
+		mp3URL, resolveErr := h.fetcher.SongMP3(r.Context(), t.PageURL)
+		if resolveErr != nil {
+			failed++
+			continue
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), t.ID, mp3URL)
+		resolved++
+	}
+	jsonOK(w, map[string]int{"resolved": resolved, "failed": failed, "skipped": skipped}, http.StatusOK)
 }
 
 // GET /tracks/{id}/stream — serves the locally-downloaded MP3 file if available,
