@@ -1,38 +1,29 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-12
+Última sesión: 2026-06-13
 
 ## Sin commitear (listo para commit)
 
-5 archivos modificados:
-- `backend/internal/api/handlers.go` — endpoint `POST /albums/{id}/scrape-tracks`, `scraped` field en track response, `GET /tracks/{id}/resolve?force=1`
-- `backend/internal/scraper/parse.go` — fix double-encoding `%2520` en `absURL()`
-- `web/src/lib/api.ts` — `scrapeAlbumTracks()`, signal en get/post, `resolveTrackUrl(force)`
-- `web/src/lib/types.ts` — `scraped?: boolean` en Track
-- `web/src/routes/albums/[id]/+page.svelte` — 3 estados visuales por track (not scraped / scraped / downloaded), botón "⚡ Scrape URLs", scrape por track individual
+1 archivo modificado:
+- `backend/internal/fetcher/fetcher.go` — eliminado override de HTTP/1.1 forzado; ahora usa `http.DefaultClient` que soporta HTTP/2 automáticamente
 
 ---
 
 ## Completado esta sesión
 
-- [x] **Stream fallback 2 niveles** (`c3e0ac5`) — error → resolve cached → force re-scrape khinsider
-- [x] **Queue collapse** (`c3e0ac5`) — header click colapsa lista, `▸`/`▾`
-- [x] **Play button en Library** (`c3e0ac5`) — `▶` circular en hover de cover, AbortController
-- [x] **Current track amarillo** (`c3e0ac5`) — tracklist y queue, fondo + texto accent
-- [x] **scrapeAlbumTracks** (sin commit) — `POST /albums/{id}/scrape-tracks` resuelve MP3URLs en batch
-- [x] **3 estados visuales por track** (sin commit) — dot verde (local), dot amarillo (scraped), botón `🔗` (sin scrape)
-- [x] **scrapeTrack individual** (sin commit) — botón por track para resolver su URL
-- [x] **Fix double-encoding khinsider** (sin commit) — `absURL()` hace `PathUnescape` antes de parsear; SQL UPDATE en DB (`%2520`→`%20`, 576 rows)
-- [x] **scraped field en API** (sin commit) — `mp3_url != ""` expuesto como `scraped: bool`
-- [x] **Memoria guardada** — `feedback_khinsider_double_encoding.md` en memory/
+- [x] **3 estados visuales por track** (`e8e1c1a`) — dot verde (local), dot amarillo (scraped), botón `🔗` (sin scrape)
+- [x] **Scrape batch + individual** (`e8e1c1a`) — `POST /albums/{id}/scrape-tracks` + botón por track
+- [x] **Fix khinsider double-encoding** (`e8e1c1a`) — `absURL()` hace PathUnescape, 576 rows DB corregidos
+- [x] **Fix fetcher HTTP/2** (sin commit) — `vgradio-s` antiguo tenía transport HTTP/1.1 forzado que rompía con CF/h2; removido → `http.DefaultClient` negocia h2 correctamente
+- [x] **Verificado funcionando** — `curl http://localhost:8080/tracks/214/resolve` retorna URL correcta
 
 ---
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Commitear todo** — 5 archivos listos
+- [ ] **Commitear fetcher fix** — `backend/internal/fetcher/fetcher.go`
 - [ ] **Push a Gitea** — `git push gitea web`
-- [ ] **Probar Scrape URLs** en álbum con tracks sin scrape (ej: Dracula Battle tracks 214-217)
+- [ ] **Verificar tracks 7-10 Dracula Battle** en web y macOS app
 - [ ] **Recently played view** — sidebar link existe, vista stub vacía
 - [ ] **Settings view** — backend URL configurable desde UI
 - [ ] **Deploy VPS**
@@ -42,28 +33,29 @@
 
 ## Notas
 
-### Fix khinsider double-encoding
+### Fix HTTP/2 en fetcher (importante para ops)
 
-khinsider tiene `%20` en hrefs HTML → `url.Parse` decodifica `%25`→`%` → `String()` re-codifica → `%2520`.
-Fix: `url.PathUnescape(href)` antes de `url.Parse` en `absURL()`.
-Si reaparece en DB: `SELECT name, page_url FROM tracks WHERE page_url LIKE '%2520%';`
-SQL fix: `UPDATE tracks SET page_url = replace(page_url, '%2520', '%20') WHERE page_url LIKE '%2520%';`
-Ver memoria: `feedback_khinsider_double_encoding.md`
+El backend compilado anterior (`vgradio-s`) tenía el transport con `TLSNextProto = {}` que deshabilitaba H2. CF/khinsider negocia H2 via ALPN y responde con frames H2, lo que causaba `malformed HTTP response \x00\x00\x12\x04...`.
 
-### 3 estados de track
+Fix: usar `http.DefaultClient` (nil Transport → http.DefaultTransport que incluye soporte H2 nativo de Go).
 
-| Estado | Dot | Botón | Acción |
-|--------|-----|-------|--------|
-| Not scraped | — | `🔗` gris | `GET /tracks/{id}/resolve` → persiste mp3_url |
-| Scraped | 🟡 | `⬇` amarillo | `POST /tracks/{id}/fetch` → descarga local |
-| Downloaded | 🟢 | `⬇` verde | link descarga archivo local |
+**Diagnóstico futuro si reaparece:**
+1. Verificar qué proceso corre en :8080 → `lsof -i :8080`
+2. Si es `vgradio-s` en vez del `go run` → el binary viejo sigue corriendo → `kill <PID>` y reiniciar
+
+### Matar el backend correctamente
+
+```bash
+kill $(lsof -t -i :8080)
+cd backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
+```
+`pkill -f vgradio` NO funciona porque el binary compilado se llama `vgradio-s`.
 
 ### Comandos
 
 - Backend: `cd backend && go run ./cmd/server` (puerto 8080)
 - Web dev: `cd web && npm run dev` (puerto 5173)
-- Unit tests: `cd web && npm test`
-- E2E: `cd web && npm run test:e2e`
+- Logs: `tail -f /tmp/vgradio.log`
 - Push: `git push gitea web`
 
 ### LAN
