@@ -101,16 +101,16 @@ func extractCatalogEntries(doc *goquery.Document, base *url.URL) []CatalogEntry 
 		if href == "" {
 			return
 		}
+		// Skip icon links (no visible text) without poisoning the seen map.
+		title := strings.TrimSpace(s.Text())
+		if title == "" {
+			return
+		}
 		abs := absURL(base, href)
 		if seen[abs] {
 			return
 		}
 		seen[abs] = true
-
-		title := strings.TrimSpace(s.Text())
-		if title == "" {
-			return
-		}
 
 		// Try to read platform and year from sibling <td> cells.
 		platform, year := "", 0

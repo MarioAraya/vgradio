@@ -36,6 +36,19 @@
     }
   }
 
+  // --- Section CF Clearance ---
+  let cfValue = '';
+  let cfStatus: 'idle' | 'ok' | 'error' = 'idle';
+
+  async function saveCF() {
+    if (!cfValue.trim()) return;
+    try {
+      await api.setCFClearance(cfValue.trim());
+      cfStatus = 'ok';
+      cfValue = '';
+    } catch { cfStatus = 'error'; }
+  }
+
   // --- Section 2: Downloaded albums ---
   let dlAlbums: DownloadedAlbum[] = [];
   let dlLoading = true;
@@ -120,6 +133,25 @@
       {/if}
     </div>
     <p class="hint">Se guarda en localStorage. Útil cuando el backend corre en otra IP (LAN, VPS).</p>
+  </section>
+
+  <!-- ─── Section CF Clearance ─── -->
+  <section>
+    <h2>Cloudflare Clearance</h2>
+    <p class="hint">Necesaria para sincronizar el catálogo (Browse). Copia el valor de la cookie <code>cf_clearance</code> desde khinsider.com en tu browser (DevTools → Application → Cookies).</p>
+    <div class="field-row" style="margin-top:10px">
+      <div class="input-group">
+        <input
+          type="password"
+          placeholder="Pega aquí el valor de cf_clearance…"
+          bind:value={cfValue}
+          on:keydown={e => e.key === 'Enter' && saveCF()}
+        />
+        <button class="btn-sm" on:click={saveCF} disabled={!cfValue.trim()}>Guardar</button>
+      </div>
+      {#if cfStatus === 'ok'}<span class="status-ok">Cookie enviada al backend</span>{/if}
+      {#if cfStatus === 'error'}<span class="status-err">Error al enviar</span>{/if}
+    </div>
   </section>
 
   <!-- ─── Section 2: Downloaded albums ─── -->

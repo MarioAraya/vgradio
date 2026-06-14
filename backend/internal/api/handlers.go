@@ -55,6 +55,8 @@ type trackFetcher interface {
 
 type catalogSyncer interface {
 	Start(ctx context.Context) bool
+	StartLetter(ctx context.Context, letter string) bool
+	SetCFClearance(v string)
 	Progress() catalog.SyncProgress
 }
 
@@ -508,8 +510,19 @@ func validateURL(raw string) error {
 	return nil
 }
 
-// POST /catalog/sync — starts a background catalog sync. 202 if started, 409 if already running.
+// POST /catalog/sync — starts a background catalog sync.
+// Optional ?letter=S syncs only that browse letter (with pagination).
+// 202 if started, 409 if already running.
 func (h *handler) postCatalogSync(w http.ResponseWriter, r *http.Request) {
+	letter := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("letter")))
+	if letter != "" {
+		if started := h.syncer.StartLetter(context.Background(), letter); !started {
+			jsonError(w, "sync already running", http.StatusConflict)
+			return
+		}
+		jsonOK(w, map[string]string{"status": "started", "letter": letter}, http.StatusAccepted)
+		return
+	}
 	if started := h.syncer.Start(context.Background()); !started {
 		jsonError(w, "sync already running", http.StatusConflict)
 		return
@@ -593,6 +606,7 @@ func (h *handler) putCFClearance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.fetcher.SetCFClearance(body.Value)
+	h.syncer.SetCFClearance(body.Value)
 	jsonOK(w, map[string]string{"status": "ok"}, http.StatusOK)
 }
 

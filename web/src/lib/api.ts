@@ -53,6 +53,7 @@ export const api = {
   },
   catalogConsoles: () => get<CatalogConsole[]>('/catalog/consoles'),
   startCatalogSync: () => post<void>('/catalog/sync'),
+  startLetterSync: (letter: string) => post<{ status: string; letter: string }>(`/catalog/sync?letter=${encodeURIComponent(letter)}`),
   catalogSyncProgress: () => get<CatalogSyncProgress>('/catalog/sync'),
 
   recordPlay: (trackId: string, albumId: string) =>
@@ -65,6 +66,13 @@ export const api = {
     post<{ status: string; localPath: string }>(`/tracks/${trackId}/fetch`, undefined, signal),
   resolveTrackUrl: (trackId: string, force = false) =>
     get<{ url: string }>(`/tracks/${trackId}/resolve${force ? '?force=1' : ''}`),
+  setCFClearance: (value: string) =>
+    fetch(BASE() + '/config/cf-clearance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    }).then(r => r.json()),
+
   stats: () => get<LibraryStats>('/stats'),
   downloadedAlbums: () => get<DownloadedAlbum[]>('/albums/downloaded'),
   deleteAlbumLocal: (albumId: string) => del<{ deleted: number }>(`/albums/${albumId}/local`),

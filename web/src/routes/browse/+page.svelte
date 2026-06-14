@@ -59,6 +59,15 @@
     } catch {}
   }
 
+  async function startLetterSync() {
+    if (!letter) return;
+    try {
+      await api.startLetterSync(letter);
+      syncing = true;
+      pollSync();
+    } catch {}
+  }
+
   async function pollSync() {
     while (syncing) {
       await new Promise(r => setTimeout(r, 1500));
@@ -105,12 +114,19 @@
       </div>
     </div>
 
-    <div class="letter-strip">
-      {#each LETTERS as l}
-        <button class="letter" class:sel={letter === l} on:click={() => setLetter(l)}>
-          {l || 'All'}
+    <div class="letter-row">
+      <div class="letter-strip">
+        {#each LETTERS as l}
+          <button class="letter" class:sel={letter === l} on:click={() => setLetter(l)}>
+            {l || 'All'}
+          </button>
+        {/each}
+      </div>
+      {#if letter}
+        <button class="sync-letter-btn" disabled={syncing} on:click={startLetterSync}>
+          {syncing ? 'Syncing…' : `Sync "${letter}"`}
         </button>
-      {/each}
+      {/if}
     </div>
 
     {#if consoles.length > 0}
@@ -190,7 +206,14 @@
     background: var(--accent-soft);
   }
   .sync-btn:disabled { opacity: 0.5; }
-  .letter-strip { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 2px; }
+  .letter-row { display: flex; align-items: center; gap: 8px; }
+  .letter-strip { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 2px; flex: 1; }
+  .sync-letter-btn {
+    flex-shrink: 0; font-size: 12px; color: var(--accent);
+    padding: 4px 10px; border-radius: var(--r-sm); background: var(--accent-soft); white-space: nowrap;
+  }
+  .sync-letter-btn:hover:not(:disabled) { background: rgba(203,168,39,0.18); }
+  .sync-letter-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .letter {
     font-size: 11px;
     padding: 2px 6px;
