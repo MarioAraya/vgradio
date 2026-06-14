@@ -11,6 +11,7 @@
     { href: '/favorites', label: 'Favorites', icon: '★' },
     { href: '/history',   label: 'Recientes', icon: '🕐' },
     { href: '/wishlist',  label: 'Wishlist',  icon: '📋' },
+    { href: '/settings', label: 'Settings',  icon: '⚙' },
   ];
 </script>
 

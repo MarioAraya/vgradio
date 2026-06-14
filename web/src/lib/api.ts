@@ -1,6 +1,6 @@
 import type {
   Album, AlbumSummary, CatalogConsole, CatalogPage,
-  CatalogSyncProgress, HistoryEntry, ScrapeJob, Track
+  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, Track
 } from './types';
 
 const BASE = () =>
@@ -10,6 +10,13 @@ const BASE = () =>
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const r = await fetch(BASE() + path, { signal });
   if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
+  return r.json();
+}
+
+async function del<T>(path: string): Promise<T> {
+  const r = await fetch(BASE() + path, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`DELETE ${path} → ${r.status}`);
+  if (r.status === 204 || r.headers.get('content-length') === '0') return undefined as T;
   return r.json();
 }
 
@@ -58,6 +65,11 @@ export const api = {
     post<{ status: string; localPath: string }>(`/tracks/${trackId}/fetch`, undefined, signal),
   resolveTrackUrl: (trackId: string, force = false) =>
     get<{ url: string }>(`/tracks/${trackId}/resolve${force ? '?force=1' : ''}`),
+  stats: () => get<LibraryStats>('/stats'),
+  downloadedAlbums: () => get<DownloadedAlbum[]>('/albums/downloaded'),
+  deleteAlbumLocal: (albumId: string) => del<{ deleted: number }>(`/albums/${albumId}/local`),
+  scrapeAllPending: () => post<{ resolved: number; failed: number; total: number }>('/scrape/pending'),
+
   streamURL: (track: Track) => BASE() + track.streamUrl,
   downloadURL: (track: Track) => BASE() + track.downloadUrl,
   coverURL: (url: string) => url.startsWith('http') ? url : BASE() + url,

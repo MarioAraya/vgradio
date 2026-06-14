@@ -90,6 +90,25 @@ export interface FavoriteTrack {
 
 export interface WishlistItem { url: string }
 
+export interface LibraryStats {
+  albums: number
+  tracks: number
+  scraped: number
+  downloaded: number
+  pending: number
+}
+
+export interface DownloadedAlbum {
+  id: string
+  title: string
+  platform: string
+  year: number
+  coverUrl: string
+  trackCount: number
+  downloaded: number
+  diskBytes: number
+}
+
 export interface HistoryEntry {
   trackId: string
   trackName: string
