@@ -6,8 +6,8 @@
   import type { Album, AlbumSummary } from '$lib/types';
   import { player } from '$lib/stores/player';
   import { hidden } from '$lib/stores/hidden';
-  import { currentUser } from '$lib/stores/auth';
   import { requireAuth } from '$lib/stores/authModal';
+  import { favoritedTrackIDs, setTrackFavorited } from '$lib/stores/trackFavorites';
   import { coverPrefs } from '$lib/stores/coverPrefs';
   import CoverCarousel from '$lib/components/CoverCarousel.svelte';
   import CoverLightbox from '$lib/components/CoverLightbox.svelte';
@@ -157,11 +157,7 @@
   async function doToggleTrackFav(track: import('$lib/types').Track) {
     try {
       const res = await api.toggleTrackFavorite(track.id);
-      if (album) {
-        album = { ...album, tracks: album.tracks.map(t =>
-          t.id === track.id ? { ...t, isFavorite: res.favorited } : t
-        )};
-      }
+      setTrackFavorited(track.id, res.favorited);
     } catch (e) {
       addToast('Error al guardar favorito', 'error');
     }
@@ -208,7 +204,7 @@
         </div>
         {#if album.developer}<p class="detail">Developer: {album.developer}</p>{/if}
         {#if album.publisher}<p class="detail">Publisher: {album.publisher}</p>{/if}
-        {#if album.catalogNumber}<p class="detail">Catalog: {album.catalogNumber}</p>{/if}
+        {#if album.catalogNumber}<p class="detail">Catalog: <a class="catalog-link" href={`https://vgmdb.net/search?q=${encodeURIComponent(album.catalogNumber)}`} target="_blank" rel="noopener noreferrer">{album.catalogNumber}</a></p>{/if}
         <div class="actions">
           <button class="btn-primary" on:click={() => playAll(false)}>▶ Play All</button>
           <button class="btn-sec" on:click={() => playAll(true)}>⇀ Shuffle</button>
@@ -247,7 +243,7 @@
       {#each album.tracks.filter(t => !trackFilter || t.name.toLowerCase().includes(trackFilter.toLowerCase())) as track, i}
         {@const isPlaying = $player.queue[$player.queueIndex]?.id === track.id && $player.isPlaying}
         {@const isCurrent = $player.queue[$player.queueIndex]?.id === track.id}
-        {@const isFav = track.isFavorite ?? false}
+        {@const isFav = $favoritedTrackIDs.has(track.id)}
         {@const isHid = $hidden.has(track.id)}
         {@const trackNum = album.tracks.indexOf(track) + 1}
         <div
@@ -364,6 +360,8 @@
     color: var(--text-sec);
   }
   .detail { font-size: 12px; color: var(--text-muted); }
+  .catalog-link { color: var(--text-muted); text-decoration: underline; }
+  .catalog-link:hover { color: var(--text); }
   .actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
   .btn-primary {
     padding: 7px 16px;

@@ -5,19 +5,23 @@
   import QueuePanel from '$lib/components/QueuePanel.svelte';
   import AddURLModal from '$lib/components/AddURLModal.svelte';
   import AuthModal from '$lib/components/AuthModal.svelte';
+  import SearchModal from '$lib/components/SearchModal.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import UserMenu from '$lib/components/UserMenu.svelte';
   import { player } from '$lib/stores/player';
-  import { initAuth } from '$lib/stores/auth';
+  import { initAuth, currentUser } from '$lib/stores/auth';
+  import { initTrackFavorites } from '$lib/stores/trackFavorites';
   import { showAuthModal, pendingAuthAction } from '$lib/stores/authModal';
   import { api } from '$lib/api';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
   let showAddURL = false;
+  let showSearch = false;
 
-  onMount(() => {
-    initAuth(api.baseURL());
+  onMount(async () => {
+    await initAuth(api.baseURL());
+    if ($currentUser) initTrackFavorites();
   });
 
   function onAuthDone() {
@@ -31,6 +35,7 @@
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (e.code === 'Space') { e.preventDefault(); player.togglePlay(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); showSearch = true; return; }
     if ((e.metaKey || e.ctrlKey) && e.key === '1') { e.preventDefault(); goto('/'); }
     if ((e.metaKey || e.ctrlKey) && e.key === '2') { e.preventDefault(); goto('/browse'); }
     if ((e.metaKey || e.ctrlKey) && e.key === '3') { e.preventDefault(); goto('/favorites'); }
@@ -54,6 +59,7 @@
   <PlayerBar />
   <QueuePanel />
   <AddURLModal bind:open={showAddURL} on:done={() => showAddURL = false} />
+  <SearchModal bind:open={showSearch} />
   <AuthModal bind:open={$showAuthModal} on:done={onAuthDone} />
   <Toast />
 </div>

@@ -1,10 +1,11 @@
 <script lang="ts">
   import { player, playerNext, playerPrev } from '$lib/stores/player';
-  import { favorites } from '$lib/stores/favorites';
   import { fmtTime } from '$lib/utils';
   import CoverImage from './CoverImage.svelte';
   import { api } from '$lib/api';
   import { goto } from '$app/navigation';
+  import { requireAuth } from '$lib/stores/authModal';
+  import { favoritedTrackIDs, setTrackFavorited } from '$lib/stores/trackFavorites';
 
   let volumeHovered = false;
   let scrubDragging = false;
@@ -18,7 +19,22 @@
   $: album = $player.currentAlbum;
   $: covers = $player.currentCovers;
   $: coverUrl = covers[$player.currentCoverIndex]?.url ?? '';
-  $: isFav = track ? $favorites.some(f => f.id === track!.id) : false;
+  $: isFav = track ? $favoritedTrackIDs.has(track.id) : false;
+
+  async function doToggleTrackFav() {
+    if (!track) return;
+    const id = track.id;
+    try {
+      const res = await api.toggleTrackFavorite(id);
+      setTrackFavorited(id, res.favorited);
+    } catch (e) {
+      console.error('[PlayerBar] toggleTrackFavorite failed:', e);
+    }
+  }
+
+  function toggleTrackFav() {
+    requireAuth(doToggleTrackFav);
+  }
   $: fraction = $player.duration > 0 ? $player.currentTime / $player.duration : 0;
   $: volFrac = $player.isMuted ? 0 : $player.volume;
   $: repeatTitle = $player.repeatMode === 'off'
@@ -95,7 +111,7 @@
       </div>
       {#if track && album}
         <button class="icon-btn star" class:active={isFav}
-          on:click={() => favorites.toggle(track!, album!)} title="Favorite">
+          on:click={toggleTrackFav} title="Favorite">
           {isFav ? '★' : '☆'}
         </button>
       {/if}

@@ -2,36 +2,46 @@
 
 Última sesión: 2026-06-14
 
-## Completado esta sesión
+## En progreso
 
-- [x] **Settings page** (`b23d9ff`) — Backend URL editable + test conexión, lista álbumes descargados con tamaño en disco + eliminar local, stats de biblioteca + scrape all pending
-- [x] **4 endpoints backend** (`b23d9ff`) — `GET /stats`, `GET /albums/downloaded`, `DELETE /albums/{id}/local`, `POST /scrape/pending`
-- [x] **Per-letter catalog sync** (`e163af5`) — `POST /catalog/sync?letter=S`, botón "Sync X" en Browse cuando hay letra seleccionada
-- [x] **cf_clearance propagado al Syncer** (`e163af5`) — `PUT /config/cf-clearance` actualiza fetcher Y syncer. Campo en Settings para pegarlo.
-- [x] **Fix crítico scraper** (`e163af5`) — `extractCatalogEntries` en `scraper/catalog.go`: icon links (sin texto) envenenaban el `seen` map antes de checar `title == ""`, bloqueando title links. Solo 22/409 álbumes por página. Fix: checar title primero, luego seen.
-- [x] **Entries live en sync progress** (`e163af5`) — counter de entries se actualiza por página, no solo al final
-- [x] **Merge web → main** (`07d4ec0`) — branch `web` mergeado, ahora en `main`
+### Rama `users` — refactor favoritos + SearchModal (uncommitted)
 
----
+Cambios sin commitear que mejoran la arquitectura de favoritos y añaden búsqueda global.
 
-## Estado actual
+**Qué hay sin commitear:**
 
-- **Rama:** `main`
-- **Backend:** corriendo en :8080 (verificar con `lsof -i :8080`)
-- **Catalog:** ~13477 entries (S + X + otros syncs anteriores, pre-fix)
-- **Biblioteca:** 12 álbumes, 598 tracks, 138 scrapeados, 460 pendientes
+1. **`trackFavorites.ts`** (nuevo) — store centralizado `Set<number>` de IDs favoritos. Reemplaza tracking por componente. `initTrackFavorites()` carga desde API al login.
+2. **`SearchModal.svelte`** (nuevo) — modal de búsqueda global, activa con `Cmd+K` / `Ctrl+K`.
+3. **`authModal.ts` fix** — `requireAuth()` ahora verifica si user ya está logueado antes de abrir modal (bug: antes siempre abría el modal).
+4. **`PlayerBar.svelte`** — favoritos usan `favoritedTrackIDs` Set en vez del store `favorites` viejo.
+5. **`+layout.svelte`** — añade `<SearchModal>`, atajo `Cmd+K`, llama `initTrackFavorites()` tras `initAuth()`.
+6. **`albums/[id]/+page.svelte`** — usa `favoritedTrackIDs` Set; catalog number es ahora link a `vgmdb.net/search?q=<catalog>`.
+7. **`browse/+page.svelte`** — post-import muestra link clickeable al álbum (en vez de solo ✓); `imported` record guarda `albumId` string.
+8. **`favorites/+page.svelte`** — llama `setTrackFavorited(id, false)` al unfavoritar.
 
----
+**Decisiones tomadas:**
+- Catalog number → link de búsqueda en vgmdb.net (opción 1: búsqueda, no link directo). VGMdb no tiene URL directa por catalog number; usa IDs numéricos internos.
+- `trackFavorites` es un `Set<number>` global en vez de array, para O(1) lookup en listas largas.
+
+**Preguntas pendientes:**
+1. ¿`SearchModal` ya tiene lógica de búsqueda implementada o solo es el shell visual?
+
+## Completado esta sesión (antes del trabajo sin commitear)
+
+- [x] **Spotify-style player bar + fullscreen** (`bacc002`) — UX polish, controles mejorados
+- [x] **CORS fix** (`c77afba`) — reflect Origin header en vez de env var fija
+- [x] **Multi-user auth frontend** (`6641da3`) — lazy login, favorites, user menu
+- [x] **Multi-user auth backend** (`945000c`) — sessions, favorites, enrichment endpoints
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Re-sync letra S** — el fix del seen-map cambia completamente cuántos álbumes se trae. Con el fix, S debería traer ~12070 de una sola página (Browse → S → Sync "S"). Los 13477 actuales son mezcla de syncs viejos (parciales) + X.
-- [ ] **FTS5 para búsqueda** — `LIKE '%q%'` full scan. Con >50k entries puede volverse lento. Migrar a SQLite FTS5 virtual table.
+- [ ] **Commitear rama `users`** — los 8 archivos modificados/nuevos están listos para commit
+- [ ] **Verificar SearchModal** — confirmar que tiene funcionalidad de búsqueda o implementarla
+- [ ] **Re-sync letra S** — con fix del seen-map, S debería traer ~12k álbumes (antes: ~22/409 por página)
+- [ ] **Merge `users` → `main`** — cuando esté todo verificado
 - [ ] **Deploy VPS** — backend + frontend
+- [ ] **FTS5 para búsqueda** — `LIKE '%q%'` full scan, con >50k entries puede ser lento
 - [ ] **Tests backend Go** — cero tests actualmente
-- [ ] **Push a Gitea** — `git push gitea main`
-
----
 
 ## Notas
 
@@ -48,27 +58,27 @@ tail -f /tmp/vgradio.log
 ### Browse pages khinsider — NO están paginadas
 
 Todos los álbumes de una letra están en una sola URL (`/browse/S`). No hay `?page=2`.
-El código de paginación que implementamos existe pero nunca se activa (page 2 devuelve 0).
 El fix del seen-map era el problema real: 22/409 ≈ 5% de álbumes por página.
 
 ### cf_clearance — actualmente innecesaria
 
-khinsider no está desafiando con CF (sin cookie y curl funciona). Si vuelve a bloquear:
-- Abrir khinsider.com en browser
-- DevTools → Application → Cookies → `downloads.khinsider.com`
-- Copiar valor de `cf_clearance`
+khinsider no está desafiando con CF. Si vuelve a bloquear:
+- DevTools → Application → Cookies → `downloads.khinsider.com` → copiar `cf_clearance`
 - Settings → pegar → Guardar
+
+### VGMdb — no hay URL directa por catalog number
+
+Solo existe búsqueda: `https://vgmdb.net/search?q=CATALOG`. Las páginas de álbum usan IDs numéricos (`vgmdb.net/album/12345`). Para links directos habría que enriquecer la DB con IDs de vgmdb (opción futura).
 
 ### Comandos útiles
 
 ```bash
-# Stats
+# Stats backend
 curl -s http://localhost:8080/stats
-curl -s "http://localhost:8080/catalog?limit=1" | python3 -c "import json,sys; print(json.load(sys.stdin)['total'], 'entries')"
-
-# Sync letra S manualmente
-curl -X POST http://localhost:8080/catalog/sync?letter=S
 
 # Web dev
 cd /Users/maaya/dev/vgradio-app/web && npm run dev
+
+# Sync letra S
+curl -X POST http://localhost:8080/catalog/sync?letter=S
 ```

@@ -120,14 +120,14 @@
   }
 
   let importing: Record<string, boolean> = {};
-  let imported: Record<string, boolean> = {};
+  let imported: Record<string, string> = {}; // sourceUrl → albumId
 
   async function importEntry(entry: CatalogEntry) {
     importing[entry.sourceUrl] = true;
     try {
       const job = await api.addAlbum(entry.sourceUrl);
-      if (job.status === 'done') { imported[entry.sourceUrl] = true; return; }
-      await pollJob(job.jobId, () => { imported[entry.sourceUrl] = true; });
+      if (job.status === 'done') { imported[entry.sourceUrl] = job.albumId; return; }
+      await pollJob(job.jobId, (albumId) => { imported[entry.sourceUrl] = albumId; });
     } catch {}
     importing[entry.sourceUrl] = false;
   }
@@ -195,13 +195,17 @@
     <div class="list">
       {#each entries as entry}
         {@const imp = importing[entry.sourceUrl]}
-        {@const done = imported[entry.sourceUrl]}
-        <div class="entry">
+        {@const albumId = imported[entry.sourceUrl]}
+        <div class="entry" class:entry-done={!!albumId}>
           <div class="entry-header">
-            <span class="entry-title">{entry.title}</span>
+            {#if albumId}
+              <a class="entry-title entry-link" href="/albums/{albumId}">{entry.title}</a>
+            {:else}
+              <span class="entry-title">{entry.title}</span>
+            {/if}
             <div class="entry-action">
-              {#if done}
-                <span class="check">✓</span>
+              {#if albumId}
+                <a class="check" href="/albums/{albumId}" title="Ver álbum">✓</a>
               {:else if imp}
                 <span class="muted spin">⟳</span>
               {:else}
@@ -305,6 +309,9 @@
   .entry:hover { background: rgba(255,255,255,0.02); }
   .entry-header { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; }
   .entry-title { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-link { color: var(--accent); text-decoration: none; }
+  .entry-link:hover { text-decoration: underline; }
+  .entry-done .check { color: #4caf50; font-size: 14px; text-decoration: none; }
   .entry-meta { font-size: 11px; color: var(--text-muted); }
   .entry-action { display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 6px; }
   .import-btn {

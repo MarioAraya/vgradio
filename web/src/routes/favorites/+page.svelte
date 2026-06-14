@@ -7,6 +7,7 @@
   import { fmtTime } from '$lib/utils';
   import { goto } from '$app/navigation';
   import { addToast } from '$lib/stores/toasts';
+  import { setTrackFavorited } from '$lib/stores/trackFavorites';
 
   let tracks: FavoriteTrack[] = [];
   let favLoading = false;
@@ -46,6 +47,7 @@
   async function unfavorite(t: FavoriteTrack) {
     try {
       await api.toggleTrackFavorite(t.id);
+      setTrackFavorited(t.id, false);
       tracks = tracks.filter(tr => tr.id !== t.id);
     } catch (e) {
       addToast('Error al eliminar favorito', 'error');
