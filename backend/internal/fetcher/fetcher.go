@@ -3,7 +3,6 @@ package fetcher
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -46,10 +45,10 @@ func New(opts Options) *Fetcher {
 	}
 	client := opts.HTTPClient
 	if client == nil {
-		// Force HTTP/1.1 — Cloudflare detects Go's HTTP/2 SETTINGS fingerprint and blocks it.
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
-		client = &http.Client{Timeout: 30 * time.Second, Transport: transport}
+		// Use default transport — khinsider/CF endpoints require HTTP/2 (respond with
+		// H2 SETTINGS frames regardless of ALPN). Go's default client handles H2 correctly.
+		// CF clearance cookie is the primary bypass mechanism.
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
 	return &Fetcher{
 		client:      client,

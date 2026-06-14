@@ -163,6 +163,10 @@ func cleanLine(re *regexp.Regexp, html []byte) string {
 }
 
 func absURL(base *url.URL, href string) string {
+	// khinsider double-encodes paths in HTML (%20 → %2520); normalise before parsing.
+	if unescaped, err := url.PathUnescape(href); err == nil {
+		href = unescaped
+	}
 	ref, err := url.Parse(href)
 	if err != nil {
 		return href

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arayama/vgradio-app/backend/internal/imageutil"
 	"github.com/arayama/vgradio-app/backend/internal/scraper"
 	"github.com/arayama/vgradio-app/backend/internal/store"
 )
@@ -154,16 +155,26 @@ func (q *Queue) run(ctx context.Context, albumURL string) (string, error) {
 	}
 
 	// Download covers to dataDir/<albumID>/covers/.
-	// Store a relative API URL (/covers/...) so the client can fetch via HTTP.
+	// Original saved as cover_N_orig.ext; display (resized ≤400px) as cover_N.ext.
+	// The API serves the display version; /albums/:id/covers.zip serves originals.
 	coverDir := filepath.Join(q.dataDir, albumID, "covers")
 	for i, c := range album.Covers {
-		filename := fmt.Sprintf("cover_%d%s", i, ext(c.URL))
-		dest := filepath.Join(coverDir, filename)
-		if dlErr := q.fetcher.Download(ctx, c.URL, dest); dlErr != nil {
+		fileExt := ext(c.URL)
+		origName := fmt.Sprintf("cover_%d_orig%s", i, fileExt)
+		dispName := fmt.Sprintf("cover_%d%s", i, fileExt)
+		origPath := filepath.Join(coverDir, origName)
+		dispPath := filepath.Join(coverDir, dispName)
+
+		if dlErr := q.fetcher.Download(ctx, c.URL, origPath); dlErr != nil {
 			_ = dlErr
 			continue
 		}
-		album.Covers[i].URL = "/covers/" + albumID + "/" + filename
+		if resErr := imageutil.ResizeToDisplay(origPath, dispPath); resErr != nil {
+			// Fallback: serve original as display if resize fails.
+			_ = resErr
+			_ = imageutil.CopyIfMissing(origPath, dispPath)
+		}
+		album.Covers[i].URL = "/covers/" + albumID + "/" + dispName
 	}
 
 	// Persist — MP3 URLs resolved lazily at stream time.

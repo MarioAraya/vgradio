@@ -3,10 +3,12 @@
 package api
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,9 +36,15 @@ type storer interface {
 	SetTrackMP3URL(ctx context.Context, trackID, mp3URL string) error
 	SetTrackLocalPath(ctx context.Context, trackID, localPath string) error
 	Exists(ctx context.Context, albumID string) (bool, error)
+	LibraryStats(ctx context.Context) (store.LibraryStats, error)
+	AlbumsWithDownloads(ctx context.Context) ([]store.DownloadedAlbum, error)
+	ClearAlbumLocalPaths(ctx context.Context, albumID string) ([]string, error)
+	PendingTracks(ctx context.Context) ([]store.PendingTrack, error)
 	SearchCatalog(ctx context.Context, q, platform, letter string, offset, limit int) ([]scraper.CatalogEntry, error)
 	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
 	Consoles(ctx context.Context) ([]scraper.Console, error)
+	RecordPlay(ctx context.Context, trackID, albumID string) error
+	RecentHistory(ctx context.Context, limit int) ([]store.HistoryEntry, error)
 }
 
 type trackFetcher interface {
@@ -47,6 +55,8 @@ type trackFetcher interface {
 
 type catalogSyncer interface {
 	Start(ctx context.Context) bool
+	StartLetter(ctx context.Context, letter string) bool
+	SetCFClearance(v string)
 	Progress() catalog.SyncProgress
 }
 
@@ -66,7 +76,9 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /albums", h.getAlbums)
 	mux.HandleFunc("GET /albums/{id}", h.getAlbum)
 	mux.HandleFunc("GET /jobs/{id}", h.getJob)
+	mux.HandleFunc("POST /albums/{id}/scrape-tracks", h.scrapeAlbumTracks)
 	mux.HandleFunc("GET /tracks/{id}/stream", h.streamTrack)
+	mux.HandleFunc("GET /tracks/{id}/resolve", h.resolveTrackURL)
 	mux.HandleFunc("GET /tracks/{id}/download", h.downloadTrack)
 	mux.HandleFunc("POST /tracks/{id}/fetch", h.fetchTrackLocal)
 	mux.HandleFunc("POST /catalog/sync", h.postCatalogSync)
@@ -74,6 +86,13 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /catalog", h.getCatalog)
 	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
 	mux.HandleFunc("PUT /config/cf-clearance", h.putCFClearance)
+	mux.HandleFunc("POST /history", h.postHistory)
+	mux.HandleFunc("GET /history", h.getHistory)
+	mux.HandleFunc("GET /albums/{id}/covers.zip", h.getCoversZip)
+	mux.HandleFunc("GET /stats", h.getStats)
+	mux.HandleFunc("GET /albums/downloaded", h.getDownloadedAlbums)
+	mux.HandleFunc("DELETE /albums/{id}/local", h.deleteAlbumLocal)
+	mux.HandleFunc("POST /scrape/pending", h.scrapeAllPending)
 	// Serve downloaded cover images.
 	// URL pattern: /covers/<albumID>/<filename>
 	// File on disk:  <dataDir>/<albumID>/covers/<filename>
@@ -88,7 +107,21 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 		albumID, filename := parts[0], filepath.Base(parts[1])
 		http.ServeFile(w, r, filepath.Join(dataDir, albumID, "covers", filename))
 	})
-	return mux
+	return cors(mux)
+}
+
+// cors wraps h with permissive CORS headers for local web client access.
+func cors(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // POST /albums
@@ -193,7 +226,8 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		SizeBytes   int64  `json:"sizeBytes"`
 		StreamURL   string `json:"streamUrl"`
 		DownloadURL string `json:"downloadUrl"`
-		Downloaded  bool   `json:"downloaded"`
+		Scraped     bool   `json:"scraped"`    // mp3_url resolved and cached
+		Downloaded  bool   `json:"downloaded"` // file on local disk
 	}
 	type comment struct {
 		Author   string `json:"author"`
@@ -211,6 +245,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 			SizeBytes:   t.SizeBytes,
 			StreamURL:   "/tracks/" + t.ID + "/stream",
 			DownloadURL: "/tracks/" + t.ID + "/download",
+			Scraped:     t.MP3URL != "",
 			Downloaded:  t.LocalPath != "",
 		}
 	}
@@ -239,6 +274,40 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		"tracks":        tracks,
 		"comments":      comments,
 	}, http.StatusOK)
+}
+
+// POST /albums/{id}/scrape-tracks — resolves and persists MP3 URLs for all tracks
+// that don't yet have one. Sequential to avoid Cloudflare rate-limiting.
+func (h *handler) scrapeAlbumTracks(w http.ResponseWriter, r *http.Request) {
+	albumID := r.PathValue("id")
+	album, err := h.store.Album(r.Context(), albumID)
+	if errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "album not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	var resolved, failed, skipped int
+	for _, t := range album.Tracks {
+		if t.MP3URL != "" {
+			skipped++
+			continue
+		}
+		if t.PageURL == "" {
+			failed++
+			continue
+		}
+		mp3URL, resolveErr := h.fetcher.SongMP3(r.Context(), t.PageURL)
+		if resolveErr != nil {
+			failed++
+			continue
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), t.ID, mp3URL)
+		resolved++
+	}
+	jsonOK(w, map[string]int{"resolved": resolved, "failed": failed, "skipped": skipped}, http.StatusOK)
 }
 
 // GET /tracks/{id}/stream — serves the locally-downloaded MP3 file if available,
@@ -277,6 +346,36 @@ func (h *handler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		tr.MP3URL = mp3URL
 	}
 	http.Redirect(w, r, tr.MP3URL, http.StatusFound)
+}
+
+// GET /tracks/{id}/resolve — returns the direct MP3 URL without redirecting.
+// ?force=1 re-scrapes even if a cached URL exists (use when cached URL is stale).
+func (h *handler) resolveTrackURL(w http.ResponseWriter, r *http.Request) {
+	trackID := r.PathValue("id")
+	force := r.URL.Query().Get("force") == "1"
+	tr, err := h.store.Track(r.Context(), trackID)
+	if errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "track not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	if force || tr.MP3URL == "" {
+		if tr.PageURL == "" {
+			jsonError(w, "track has no source URL", http.StatusServiceUnavailable)
+			return
+		}
+		mp3URL, resolveErr := h.fetcher.SongMP3(r.Context(), tr.PageURL)
+		if resolveErr != nil {
+			jsonError(w, "failed to resolve mp3: "+resolveErr.Error(), http.StatusBadGateway)
+			return
+		}
+		_ = h.store.SetTrackMP3URL(r.Context(), trackID, mp3URL)
+		tr.MP3URL = mp3URL
+	}
+	jsonOK(w, map[string]string{"url": tr.MP3URL}, http.StatusOK)
 }
 
 // POST /tracks/{id}/fetch — resolves the MP3 URL and downloads the file locally.
@@ -411,8 +510,19 @@ func validateURL(raw string) error {
 	return nil
 }
 
-// POST /catalog/sync — starts a background catalog sync. 202 if started, 409 if already running.
+// POST /catalog/sync — starts a background catalog sync.
+// Optional ?letter=S syncs only that browse letter (with pagination).
+// 202 if started, 409 if already running.
 func (h *handler) postCatalogSync(w http.ResponseWriter, r *http.Request) {
+	letter := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("letter")))
+	if letter != "" {
+		if started := h.syncer.StartLetter(context.Background(), letter); !started {
+			jsonError(w, "sync already running", http.StatusConflict)
+			return
+		}
+		jsonOK(w, map[string]string{"status": "started", "letter": letter}, http.StatusAccepted)
+		return
+	}
 	if started := h.syncer.Start(context.Background()); !started {
 		jsonError(w, "sync already running", http.StatusConflict)
 		return
@@ -496,7 +606,176 @@ func (h *handler) putCFClearance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.fetcher.SetCFClearance(body.Value)
+	h.syncer.SetCFClearance(body.Value)
 	jsonOK(w, map[string]string{"status": "ok"}, http.StatusOK)
+}
+
+// GET /albums/{id}/covers.zip — streams a ZIP of original cover images.
+// Prefers cover_N_orig.* files (new albums); falls back to cover_N.* (old albums).
+func (h *handler) getCoversZip(w http.ResponseWriter, r *http.Request) {
+	albumID := r.PathValue("id")
+	coverDir := filepath.Join(h.dataDir, albumID, "covers")
+
+	entries, err := os.ReadDir(coverDir)
+	if err != nil {
+		jsonError(w, "album covers not found", http.StatusNotFound)
+		return
+	}
+
+	// Collect files to zip: prefer _orig variants, fall back to display.
+	type entry struct{ name, path string }
+	origMap := map[string]string{} // base → orig path
+	dispMap := map[string]string{} // base → display path
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		fullPath := filepath.Join(coverDir, name)
+		if strings.Contains(name, "_orig") {
+			// strip _orig from the zip filename so it's clean
+			clean := strings.Replace(name, "_orig", "", 1)
+			origMap[clean] = fullPath
+		} else {
+			dispMap[name] = fullPath
+		}
+	}
+
+	var files []entry
+	for name, path := range origMap {
+		files = append(files, entry{name, path})
+	}
+	if len(files) == 0 {
+		for name, path := range dispMap {
+			files = append(files, entry{name, path})
+		}
+	}
+	if len(files) == 0 {
+		jsonError(w, "no covers found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-covers.zip"`, albumID))
+
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	for _, f := range files {
+		fw, err := zw.Create(f.name)
+		if err != nil {
+			continue
+		}
+		src, err := os.Open(f.path)
+		if err != nil {
+			continue
+		}
+		io.Copy(fw, src) //nolint:errcheck
+		src.Close()
+	}
+}
+
+// POST /history — records a track play event.
+func (h *handler) postHistory(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TrackID string `json:"trackId"`
+		AlbumID string `json:"albumId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TrackID == "" || body.AlbumID == "" {
+		jsonError(w, "trackId and albumId required", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.RecordPlay(r.Context(), body.TrackID, body.AlbumID); err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /history?limit=N — returns recent play history.
+func (h *handler) getHistory(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	entries, err := h.store.RecentHistory(r.Context(), limit)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, entries, http.StatusOK)
+}
+
+// GET /stats — library aggregate counts.
+func (h *handler) getStats(w http.ResponseWriter, r *http.Request) {
+	st, err := h.store.LibraryStats(r.Context())
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, st, http.StatusOK)
+}
+
+// GET /albums/downloaded — albums with at least one locally-downloaded track.
+func (h *handler) getDownloadedAlbums(w http.ResponseWriter, r *http.Request) {
+	albums, err := h.store.AlbumsWithDownloads(r.Context())
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	type result struct {
+		store.DownloadedAlbum
+		DiskBytes int64 `json:"diskBytes"`
+	}
+	out := make([]result, 0, len(albums))
+	for _, a := range albums {
+		var diskBytes int64
+		for _, p := range a.LocalPaths {
+			if fi, err := os.Stat(p); err == nil {
+				diskBytes += fi.Size()
+			}
+		}
+		out = append(out, result{DownloadedAlbum: a, DiskBytes: diskBytes})
+	}
+	jsonOK(w, out, http.StatusOK)
+}
+
+// DELETE /albums/{id}/local — deletes local audio files and clears local_path in DB.
+func (h *handler) deleteAlbumLocal(w http.ResponseWriter, r *http.Request) {
+	albumID := r.PathValue("id")
+	paths, err := h.store.ClearAlbumLocalPaths(r.Context(), albumID)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	deleted := 0
+	for _, p := range paths {
+		if os.Remove(p) == nil {
+			deleted++
+		}
+	}
+	jsonOK(w, map[string]int{"deleted": deleted}, http.StatusOK)
+}
+
+// POST /scrape/pending — resolves mp3_url for all tracks that have page_url but no mp3_url.
+func (h *handler) scrapeAllPending(w http.ResponseWriter, r *http.Request) {
+	tracks, err := h.store.PendingTracks(r.Context())
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	resolved, failed := 0, 0
+	for _, t := range tracks {
+		mp3URL, err := h.fetcher.SongMP3(r.Context(), t.PageURL)
+		if err != nil {
+			failed++
+			continue
+		}
+		if err := h.store.SetTrackMP3URL(r.Context(), t.ID, mp3URL); err != nil {
+			failed++
+			continue
+		}
+		resolved++
+	}
+	jsonOK(w, map[string]int{"resolved": resolved, "failed": failed, "total": len(tracks)}, http.StatusOK)
 }
 
 // --- helpers ---
