@@ -13,7 +13,7 @@
   let error = '';
   let total = 0;
   let offset = 0;
-  const LIMIT = 50;
+  const LIMIT = 100;
 
   let q = '';
   let letter = '';
@@ -157,21 +157,21 @@
         {@const imp = importing[entry.sourceUrl]}
         {@const done = imported[entry.sourceUrl]}
         <div class="entry">
-          <div class="entry-info">
+          <div class="entry-header">
             <span class="entry-title">{entry.title}</span>
-            <span class="entry-meta">
-              {entry.platform || ''}{entry.platform && entry.year ? ' · ' : ''}{entry.year || ''}
-            </span>
+            <div class="entry-action">
+              {#if done}
+                <span class="check">✓</span>
+              {:else if imp}
+                <span class="muted spin">⟳</span>
+              {:else}
+                <button class="import-btn" on:click={() => importEntry(entry)} title="Import to library">+</button>
+              {/if}
+            </div>
           </div>
-          <div class="entry-action">
-            {#if done}
-              <span class="check">✓</span>
-            {:else if imp}
-              <span class="muted spin">⟳</span>
-            {:else}
-              <button class="import-btn" on:click={() => importEntry(entry)} title="Import to library">+</button>
-            {/if}
-          </div>
+          <span class="entry-meta">
+            {entry.platform || ''}{entry.platform && entry.year ? ' · ' : ''}{entry.year || ''}
+          </span>
         </div>
       {/each}
       {#if loading}
@@ -237,26 +237,31 @@
   .chip:hover { color: var(--text); }
   .chip.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .err-banner { padding: 8px 16px; background: rgba(224,85,85,0.15); color: var(--red); font-size: 12px; }
-  .list { flex: 1; overflow-y: auto; }
+  .list { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; }
   .entry {
     display: flex;
-    align-items: center;
-    padding: 8px 16px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--border60);
-    height: 40px;
+    border-right: 1px solid var(--border60);
+    min-height: 40px;
   }
+  .entry:nth-child(odd) { border-right: 1px solid var(--border60); }
+  .entry:nth-child(even) { border-right: none; }
   .entry:hover { background: rgba(255,255,255,0.02); }
-  .entry-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .entry-header { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; }
   .entry-title { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .entry-meta { font-size: 11px; color: var(--text-muted); }
-  .entry-action { width: 28px; display: flex; align-items: center; justify-content: center; }
+  .entry-action { display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 6px; }
   .import-btn {
-    width: 22px; height: 22px;
+    width: 20px; height: 20px;
     border-radius: 50%;
-    font-size: 16px;
+    font-size: 14px;
     color: var(--accent);
     display: flex; align-items: center; justify-content: center;
     opacity: 0;
+    flex-shrink: 0;
   }
   .entry:hover .import-btn { opacity: 1; }
   .check { color: #4caf50; font-size: 14px; }
