@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/arayama/vgradio-app/backend/internal/catalog"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
@@ -43,8 +44,21 @@ type storer interface {
 	SearchCatalog(ctx context.Context, q, platform, letter string, offset, limit int) ([]scraper.CatalogEntry, error)
 	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
 	Consoles(ctx context.Context) ([]scraper.Console, error)
-	RecordPlay(ctx context.Context, trackID, albumID string) error
-	RecentHistory(ctx context.Context, limit int) ([]store.HistoryEntry, error)
+	RecordPlay(ctx context.Context, trackID, albumID, userID string) error
+	RecentHistory(ctx context.Context, limit int, userID string) ([]store.HistoryEntry, error)
+	// auth
+	CreateUser(ctx context.Context, id, username, email, passwordHash string) error
+	GetUserByEmail(ctx context.Context, email string) (*store.User, string, error)
+	GetUserByID(ctx context.Context, id string) (*store.User, error)
+	ResetPassword(ctx context.Context, email, passwordHash string) error
+	CreateSession(ctx context.Context, sessionID, userID string, expiresAt time.Time) error
+	GetSession(ctx context.Context, sessionID string) (string, time.Time, error)
+	RenewSession(ctx context.Context, sessionID string, expiresAt time.Time) error
+	DeleteSession(ctx context.Context, sessionID string) error
+	// favorites
+	ToggleFavorite(ctx context.Context, userID, albumID string) (bool, error)
+	GetFavorites(ctx context.Context, userID string) ([]store.AlbumSummary, error)
+	FavoriteAlbumIDs(ctx context.Context, userID string) (map[string]bool, error)
 }
 
 type trackFetcher interface {
@@ -72,6 +86,8 @@ type handler struct {
 func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir string) http.Handler {
 	h := &handler{store: s, queue: q, fetcher: f, syncer: syn, dataDir: dataDir}
 	mux := http.NewServeMux()
+
+	// existing routes
 	mux.HandleFunc("POST /albums", h.postAlbum)
 	mux.HandleFunc("GET /albums", h.getAlbums)
 	mux.HandleFunc("GET /albums/{id}", h.getAlbum)
@@ -93,11 +109,22 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /albums/downloaded", h.getDownloadedAlbums)
 	mux.HandleFunc("DELETE /albums/{id}/local", h.deleteAlbumLocal)
 	mux.HandleFunc("POST /scrape/pending", h.scrapeAllPending)
-	// Serve downloaded cover images.
-	// URL pattern: /covers/<albumID>/<filename>
-	// File on disk:  <dataDir>/<albumID>/covers/<filename>
+
+	// auth routes (public)
+	mux.HandleFunc("POST /auth/register", h.postRegister)
+	mux.HandleFunc("POST /auth/login", h.postLogin)
+	mux.HandleFunc("POST /auth/logout", h.postLogout)
+	mux.HandleFunc("GET /auth/me", h.getMe)
+
+	// favorites (require auth)
+	mux.HandleFunc("POST /favorites/{id}", requireAuth(h.postFavorite))
+	mux.HandleFunc("GET /favorites", requireAuth(h.getFavorites))
+
+	// admin
+	mux.HandleFunc("POST /admin/reset-password", h.postAdminResetPassword)
+
+	// cover image files
 	mux.HandleFunc("/covers/", func(w http.ResponseWriter, r *http.Request) {
-		// strip leading /covers/
 		rel := strings.TrimPrefix(r.URL.Path, "/covers/")
 		parts := strings.SplitN(rel, "/", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -107,15 +134,23 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 		albumID, filename := parts[0], filepath.Base(parts[1])
 		http.ServeFile(w, r, filepath.Join(dataDir, albumID, "covers", filename))
 	})
-	return cors(mux)
+
+	return cors(h.authMiddleware(mux))
 }
 
-// cors wraps h with permissive CORS headers for local web client access.
+// cors wraps h with CORS headers. When VGRADIO_CORS_ORIGIN is set, uses that
+// specific origin with credentials support; otherwise falls back to * (no cookies).
 func cors(h http.Handler) http.Handler {
+	origin := os.Getenv("VGRADIO_CORS_ORIGIN")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -181,6 +216,9 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 	if albums == nil {
 		albums = []store.AlbumSummary{}
 	}
+	uid := userIDFromCtx(r.Context())
+	favs, _ := h.store.FavoriteAlbumIDs(r.Context(), uid)
+
 	type item struct {
 		ID         string   `json:"id"`
 		Title      string   `json:"title"`
@@ -189,6 +227,7 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 		AlbumType  string   `json:"albumType"`
 		TrackCount int      `json:"trackCount"`
 		CoverURLs  []string `json:"coverUrls"`
+		IsFavorite bool     `json:"isFavorite"`
 	}
 	out := make([]item, len(albums))
 	for i, a := range albums {
@@ -196,7 +235,7 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 		if urls == nil {
 			urls = []string{}
 		}
-		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, urls}
+		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, urls, favs[a.ID]}
 	}
 	jsonOK(w, out, http.StatusOK)
 }
@@ -258,6 +297,13 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		comments[i] = comment{c.Author, c.Body, c.PostedAt.Format("2006-01-02T15:04:05Z")}
 	}
 
+	uid := userIDFromCtx(r.Context())
+	isFav := false
+	if uid != "" {
+		favs, _ := h.store.FavoriteAlbumIDs(r.Context(), uid)
+		isFav = favs[r.PathValue("id")]
+	}
+
 	jsonOK(w, map[string]any{
 		"id":            r.PathValue("id"),
 		"sourceUrl":     a.SourceURL,
@@ -273,6 +319,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		"covers":        covers,
 		"tracks":        tracks,
 		"comments":      comments,
+		"isFavorite":    isFav,
 	}, http.StatusOK)
 }
 
@@ -676,7 +723,7 @@ func (h *handler) getCoversZip(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /history — records a track play event.
+// POST /history — records a track play event for the current user (no-op if anonymous).
 func (h *handler) postHistory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		TrackID string `json:"trackId"`
@@ -686,17 +733,20 @@ func (h *handler) postHistory(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "trackId and albumId required", http.StatusBadRequest)
 		return
 	}
-	if err := h.store.RecordPlay(r.Context(), body.TrackID, body.AlbumID); err != nil {
+	uid := userIDFromCtx(r.Context())
+	if err := h.store.RecordPlay(r.Context(), body.TrackID, body.AlbumID, uid); err != nil {
 		jsonError(w, "store error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /history?limit=N — returns recent play history.
+// GET /history?limit=N — returns recent play history for the authenticated user.
+// Returns empty array for anonymous requests.
 func (h *handler) getHistory(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	entries, err := h.store.RecentHistory(r.Context(), limit)
+	uid := userIDFromCtx(r.Context())
+	entries, err := h.store.RecentHistory(r.Context(), limit, uid)
 	if err != nil {
 		jsonError(w, "store error", http.StatusInternalServerError)
 		return

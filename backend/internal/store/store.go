@@ -73,6 +73,7 @@ func (s *Store) migrate() error {
 	// Idempotent column additions for existing databases (ignore error if column exists).
 	s.db.Exec(`ALTER TABLE albums ADD COLUMN catalog_number TEXT NOT NULL DEFAULT ''`)  //nolint:errcheck
 	s.db.Exec(`ALTER TABLE tracks ADD COLUMN local_path TEXT NOT NULL DEFAULT ''`)      //nolint:errcheck
+	s.db.Exec(`ALTER TABLE play_history ADD COLUMN user_id TEXT`)                       //nolint:errcheck
 
 	s.migrateCatalog()
 
@@ -137,28 +138,59 @@ func (s *Store) migrate() error {
 			id        INTEGER PRIMARY KEY AUTOINCREMENT,
 			track_id  TEXT NOT NULL,
 			album_id  TEXT NOT NULL,
+			user_id   TEXT,
 			played_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		);
 		CREATE INDEX IF NOT EXISTS idx_play_history_played_at ON play_history(id DESC);
+
+		CREATE TABLE IF NOT EXISTS users (
+			id            TEXT PRIMARY KEY,
+			username      TEXT NOT NULL UNIQUE,
+			email         TEXT NOT NULL UNIQUE,
+			password_hash TEXT NOT NULL,
+			created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+		);
+
+		CREATE TABLE IF NOT EXISTS sessions (
+			id         TEXT PRIMARY KEY,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			expires_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+		CREATE TABLE IF NOT EXISTS favorites (
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			album_id   TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+			PRIMARY KEY (user_id, album_id)
+		);
 	`)
 	return err
 }
 
 // RecordPlay inserts a play_history row. Skips if the same track_id is the most recent entry.
-func (s *Store) RecordPlay(ctx context.Context, trackID, albumID string) error {
+// userID may be empty for anonymous plays.
+func (s *Store) RecordPlay(ctx context.Context, trackID, albumID, userID string) error {
 	var lastTrackID string
 	s.db.QueryRowContext(ctx, `SELECT track_id FROM play_history ORDER BY id DESC LIMIT 1`).Scan(&lastTrackID) //nolint:errcheck
 	if lastTrackID == trackID {
 		return nil
 	}
+	var uid any
+	if userID != "" {
+		uid = userID
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO play_history (track_id, album_id) VALUES (?, ?)`, trackID, albumID)
+		`INSERT INTO play_history (track_id, album_id, user_id) VALUES (?, ?, ?)`, trackID, albumID, uid)
 	return err
 }
 
-// RecentHistory returns the last N play_history entries enriched with track/album metadata.
-// Rows whose track or album was deleted are omitted.
-func (s *Store) RecentHistory(ctx context.Context, limit int) ([]HistoryEntry, error) {
+// RecentHistory returns the last N play_history entries for userID enriched with track/album metadata.
+// Rows whose track or album was deleted are omitted. Returns empty slice for empty userID.
+func (s *Store) RecentHistory(ctx context.Context, limit int, userID string) ([]HistoryEntry, error) {
+	if userID == "" {
+		return []HistoryEntry{}, nil
+	}
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
@@ -169,8 +201,9 @@ func (s *Store) RecentHistory(ctx context.Context, limit int) ([]HistoryEntry, e
 		FROM play_history ph
 		JOIN tracks t  ON CAST(t.id AS TEXT) = ph.track_id
 		JOIN albums a  ON a.id = ph.album_id
+		WHERE ph.user_id = ?
 		ORDER BY ph.id DESC
-		LIMIT ?`, limit)
+		LIMIT ?`, userID, limit)
 	if err != nil {
 		return nil, err
 	}
