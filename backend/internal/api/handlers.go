@@ -138,14 +138,15 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	return cors(h.authMiddleware(mux))
 }
 
-// cors wraps h with CORS headers. When VGRADIO_CORS_ORIGIN is set, uses that
-// specific origin with credentials support; otherwise falls back to * (no cookies).
+// cors reflects the request Origin back so cookies work from any origin.
+// Uses Vary: Origin so caches don't serve wrong responses.
 func cors(h http.Handler) http.Handler {
-	origin := os.Getenv("VGRADIO_CORS_ORIGIN")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
 		if origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Add("Vary", "Origin")
 		} else {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
