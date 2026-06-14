@@ -91,10 +91,14 @@ export const api = {
   logout: () => post<void>('/auth/logout'),
   me: () => get<User | null>('/auth/me'),
 
-  // favorites (album-level, per user)
+  // album favorites
   toggleFavorite: (albumId: string) =>
     post<{ favorited: boolean }>(`/favorites/${albumId}`),
   favorites: () => get<AlbumSummary[]>('/favorites'),
+  // track favorites
+  toggleTrackFavorite: (trackId: string) =>
+    post<{ favorited: boolean }>(`/favorites/tracks/${trackId}`),
+  favoriteTracks: () => get<import('$lib/types').FavoriteTrack[]>('/favorites/tracks'),
 };
 
 export async function pollJob(jobId: string, onDone: (albumId: string) => void) {

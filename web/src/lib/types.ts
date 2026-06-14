@@ -24,6 +24,7 @@ export interface Album {
   covers: Cover[]
   tracks: Track[]
   comments: Comment[]
+  isFavorite?: boolean
 }
 
 export interface Track {
@@ -36,6 +37,7 @@ export interface Track {
   downloadUrl: string
   scraped?: boolean
   downloaded: boolean
+  isFavorite?: boolean
 }
 
 export interface Cover { url: string; width: number; height: number }

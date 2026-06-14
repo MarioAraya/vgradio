@@ -111,9 +111,10 @@
       await new Promise(r => setTimeout(r, 3000));
       if (!syncing || !syncingLetter) break;
       try {
-        const page = await api.catalog({ q, platform: console_, letter, offset: entries.length, limit: LIMIT });
+        const page = await api.catalog({ q, platform: console_, letter, offset: 0, limit: LIMIT });
+        if (!syncingLetter) break; // guard: pollSync may have finished and reset state while we awaited
         total = page.total;
-        if (page.items.length > 0) entries = [...entries, ...page.items];
+        entries = page.items;
       } catch {}
     }
   }

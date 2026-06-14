@@ -29,7 +29,7 @@ const initial: PlayerState = {
   isPlaying: false, currentTime: 0, duration: 0,
   volume: parseFloat(localStorage.getItem('vgradio.volume') ?? '0.8'),
   isMuted: false, isShuffle: false, repeatMode: 'off',
-  showQueue: localStorage.getItem('vgradio.showQueue') === 'true',
+  showQueue: false,
 };
 
 const { subscribe, update, set } = writable<PlayerState>(initial);

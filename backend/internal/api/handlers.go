@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -55,10 +56,14 @@ type storer interface {
 	GetSession(ctx context.Context, sessionID string) (string, time.Time, error)
 	RenewSession(ctx context.Context, sessionID string, expiresAt time.Time) error
 	DeleteSession(ctx context.Context, sessionID string) error
-	// favorites
+	// album favorites
 	ToggleFavorite(ctx context.Context, userID, albumID string) (bool, error)
 	GetFavorites(ctx context.Context, userID string) ([]store.AlbumSummary, error)
 	FavoriteAlbumIDs(ctx context.Context, userID string) (map[string]bool, error)
+	// track favorites
+	ToggleTrackFavorite(ctx context.Context, userID, trackID string) (bool, error)
+	GetFavoriteTracks(ctx context.Context, userID string) ([]store.TrackFavorite, error)
+	FavoriteTrackIDs(ctx context.Context, userID string) (map[string]bool, error)
 }
 
 type trackFetcher interface {
@@ -82,8 +87,33 @@ type handler struct {
 	dataDir string
 }
 
+// requestLogger logs method, path, status and latency for every request.
+func requestLogger(log *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &statusWriter{ResponseWriter: w, code: 200}
+		next.ServeHTTP(rw, r)
+		// skip noisy catalog-sync poll and cover-file requests
+		if r.URL.Path == "/catalog/sync" || strings.HasPrefix(r.URL.Path, "/covers/") {
+			return
+		}
+		log.Info("http", "method", r.Method, "path", r.URL.Path,
+			"status", rw.code, "ms", time.Since(start).Milliseconds())
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (sw *statusWriter) WriteHeader(code int) {
+	sw.code = code
+	sw.ResponseWriter.WriteHeader(code)
+}
+
 // NewRouter returns the API router. dataDir is the root for downloaded files.
-func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir string) http.Handler {
+func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir string, log *slog.Logger) http.Handler {
 	h := &handler{store: s, queue: q, fetcher: f, syncer: syn, dataDir: dataDir}
 	mux := http.NewServeMux()
 
@@ -119,6 +149,8 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	// favorites (require auth)
 	mux.HandleFunc("POST /favorites/{id}", requireAuth(h.postFavorite))
 	mux.HandleFunc("GET /favorites", requireAuth(h.getFavorites))
+	mux.HandleFunc("POST /favorites/tracks/{id}", requireAuth(h.postTrackFavorite))
+	mux.HandleFunc("GET /favorites/tracks", requireAuth(h.getFavoriteTracks))
 
 	// admin
 	mux.HandleFunc("POST /admin/reset-password", h.postAdminResetPassword)
@@ -135,7 +167,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 		http.ServeFile(w, r, filepath.Join(dataDir, albumID, "covers", filename))
 	})
 
-	return cors(h.authMiddleware(mux))
+	return requestLogger(log, cors(h.authMiddleware(mux)))
 }
 
 // cors reflects the request Origin back so cookies work from any origin.
@@ -266,14 +298,18 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		SizeBytes   int64  `json:"sizeBytes"`
 		StreamURL   string `json:"streamUrl"`
 		DownloadURL string `json:"downloadUrl"`
-		Scraped     bool   `json:"scraped"`    // mp3_url resolved and cached
-		Downloaded  bool   `json:"downloaded"` // file on local disk
+		Scraped     bool   `json:"scraped"`
+		Downloaded  bool   `json:"downloaded"`
+		IsFavorite  bool   `json:"isFavorite"`
 	}
 	type comment struct {
 		Author   string `json:"author"`
 		Body     string `json:"body"`
 		PostedAt string `json:"postedAt"`
 	}
+
+	uid := userIDFromCtx(r.Context())
+	trackFavs, _ := h.store.FavoriteTrackIDs(r.Context(), uid)
 
 	tracks := make([]track, len(a.Tracks))
 	for i, t := range a.Tracks {
@@ -287,6 +323,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 			DownloadURL: "/tracks/" + t.ID + "/download",
 			Scraped:     t.MP3URL != "",
 			Downloaded:  t.LocalPath != "",
+			IsFavorite:  trackFavs[t.ID],
 		}
 	}
 	covers := make([]cover, len(a.Covers))
@@ -298,7 +335,6 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		comments[i] = comment{c.Author, c.Body, c.PostedAt.Format("2006-01-02T15:04:05Z")}
 	}
 
-	uid := userIDFromCtx(r.Context())
 	isFav := false
 	if uid != "" {
 		favs, _ := h.store.FavoriteAlbumIDs(r.Context(), uid)

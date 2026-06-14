@@ -5,8 +5,9 @@
   import { api } from '$lib/api';
   import type { Album, AlbumSummary } from '$lib/types';
   import { player } from '$lib/stores/player';
-  import { favorites } from '$lib/stores/favorites';
   import { hidden } from '$lib/stores/hidden';
+  import { currentUser } from '$lib/stores/auth';
+  import { requireAuth } from '$lib/stores/authModal';
   import { coverPrefs } from '$lib/stores/coverPrefs';
   import CoverCarousel from '$lib/components/CoverCarousel.svelte';
   import CoverLightbox from '$lib/components/CoverLightbox.svelte';
@@ -29,6 +30,13 @@
     try {
       album = await api.album(id);
       coverIdx = coverPrefs.get(id);
+      const activeId = $player.queue[$player.queueIndex]?.id;
+      if (activeId) {
+        // wait one tick for DOM to render the track rows
+        setTimeout(() => {
+          document.getElementById(`track-${activeId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 50);
+      }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally { loading = false; }
@@ -107,6 +115,10 @@
   }
 
   let trackFilter = '';
+  let compact = false;
+
+  $: isThisAlbumCurrent = $player.currentAlbum?.id === album?.id;
+  $: isThisAlbumPlaying = isThisAlbumCurrent && $player.isPlaying;
 
   let albumScraping = false;
   async function scrapeAllTracks() {
@@ -126,13 +138,37 @@
     }
   }
 
-  $: isAlbumFav = album ? $favorites.some(f => f.albumId === album!.id) : false;
+  $: isAlbumFav = album?.isFavorite ?? false;
+
+  async function doToggleAlbumFav() {
+    if (!album) return;
+    try {
+      const res = await api.toggleFavorite(album.id);
+      album = { ...album, isFavorite: res.favorited };
+    } catch (e) {
+      addToast('Error al guardar favorito', 'error');
+    }
+  }
 
   function toggleAlbumFav() {
-    if (!album) return;
-    const sum = toSummary(album);
-    if (isAlbumFav) favorites.removeAll(album.id);
-    else favorites.addAll(album.tracks, sum);
+    requireAuth(doToggleAlbumFav);
+  }
+
+  async function doToggleTrackFav(track: import('$lib/types').Track) {
+    try {
+      const res = await api.toggleTrackFavorite(track.id);
+      if (album) {
+        album = { ...album, tracks: album.tracks.map(t =>
+          t.id === track.id ? { ...t, isFavorite: res.favorited } : t
+        )};
+      }
+    } catch (e) {
+      addToast('Error al guardar favorito', 'error');
+    }
+  }
+
+  function toggleTrackFav(track: import('$lib/types').Track) {
+    requireAuth(() => doToggleTrackFav(track));
   }
 </script>
 
@@ -145,13 +181,23 @@
     <div class="center"><span class="err">{error}</span></div>
   {:else if album}
     <div class="top">
-      <CoverCarousel
-        covers={album.covers}
-        index={coverIdx}
-        size={220}
-        on:change={(e) => setCover(e.detail)}
-        on:open={(e) => { lightboxIndex = e.detail; lightboxOpen = true; }}
-      />
+      <div class="cover-wrap">
+        <CoverCarousel
+          covers={album.covers}
+          index={coverIdx}
+          size={220}
+          on:change={(e) => setCover(e.detail)}
+          on:open={(e) => { lightboxIndex = e.detail; lightboxOpen = true; }}
+        />
+        <button
+          class="play-fab"
+          class:playing={isThisAlbumPlaying}
+          on:click={() => isThisAlbumCurrent ? player.togglePlay() : playAll(false)}
+          title={isThisAlbumPlaying ? 'Pause' : 'Play'}
+        >
+          {#if isThisAlbumPlaying}⏸{:else}▶{/if}
+        </button>
+      </div>
       <div class="meta">
         <h1 class="title">{album.title}</h1>
         {#if album.altTitle}<p class="alt">{album.altTitle}</p>{/if}
@@ -182,7 +228,7 @@
       </div>
     </div>
 
-    <div class="tracklist">
+    <div class="tracklist" class:compact>
       <div class="track-header">
         <span class="col-num">#</span>
         <span class="col-name">
@@ -192,15 +238,20 @@
           </div>
         </span>
         <span class="col-dur">Duration</span>
-        <span class="col-acts"></span>
+        <span class="col-acts">
+          <button class="compact-btn" class:active={compact} on:click={() => compact = !compact} title={compact ? 'Vista normal' : 'Vista compacta'}>
+            {compact ? '▤' : '☰'}
+          </button>
+        </span>
       </div>
       {#each album.tracks.filter(t => !trackFilter || t.name.toLowerCase().includes(trackFilter.toLowerCase())) as track, i}
         {@const isPlaying = $player.queue[$player.queueIndex]?.id === track.id && $player.isPlaying}
         {@const isCurrent = $player.queue[$player.queueIndex]?.id === track.id}
-        {@const isFav = $favorites.some(f => f.id === track.id)}
+        {@const isFav = track.isFavorite ?? false}
         {@const isHid = $hidden.has(track.id)}
         {@const trackNum = album.tracks.indexOf(track) + 1}
         <div
+          id="track-{track.id}"
           class="track-row"
           class:current={isCurrent}
           class:hidden-track={isHid}
@@ -226,7 +277,7 @@
           <div class="col-acts acts">
             <button class="act" title="Play next" on:click={() => player.playNext(track)}>▶+</button>
             <button class="act" class:act-active={isFav} title="Favorite"
-              on:click={() => favorites.toggle(track, toSummary(album!))}>
+              on:click={() => toggleTrackFav(track)}>
               {isFav ? '★' : '☆'}
             </button>
             <button class="act hide-btn" class:hide-active={isHid} title={isHid ? 'Unhide' : 'Hide'}
@@ -284,6 +335,23 @@
   .muted { color: var(--text-muted); }
   .err { color: var(--red); }
   .top { display: flex; gap: 28px; margin-bottom: 28px; align-items: flex-start; }
+  .cover-wrap { position: relative; flex-shrink: 0; }
+  .play-fab {
+    position: absolute;
+    bottom: 10px; right: 10px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #131320;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .cover-wrap:hover .play-fab,
+  .play-fab.playing { opacity: 1; transform: translateY(0); }
   .meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .title { font-size: 22px; font-weight: 700; line-height: 1.2; }
   .alt { font-size: 13px; color: var(--text-sec); }
@@ -350,7 +418,18 @@
   .filter-wrap.has-value .track-filter { width: 100%; opacity: 1; }
   .track-filter::placeholder { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .track-filter:focus { outline: none; border-bottom-color: var(--accent); }
+  .compact-btn {
+    font-size: 14px;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    border-radius: var(--r-sm);
+  }
+  .compact-btn:hover, .compact-btn.active { color: var(--accent); }
   .tracklist { margin-bottom: 24px; }
+  .tracklist.compact .track-row { height: 28px; padding-top: 2px; padding-bottom: 2px; }
+  .tracklist.compact .track-name { font-size: 12px; }
+  .tracklist.compact .col-num { font-size: 11px; }
+  .tracklist.compact .col-dur { font-size: 11px; }
   .track-header {
     display: grid;
     grid-template-columns: 32px 1fr 64px 120px;

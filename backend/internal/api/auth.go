@@ -202,6 +202,43 @@ func (h *handler) getFavorites(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, out, http.StatusOK)
 }
 
+// POST /favorites/tracks/{id} — toggle track favorite for authenticated user.
+func (h *handler) postTrackFavorite(w http.ResponseWriter, r *http.Request) {
+	uid := userIDFromCtx(r.Context())
+	trackID := r.PathValue("id")
+	favorited, err := h.store.ToggleTrackFavorite(r.Context(), uid, trackID)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, map[string]bool{"favorited": favorited}, http.StatusOK)
+}
+
+// GET /favorites/tracks — list favorited tracks for authenticated user.
+func (h *handler) getFavoriteTracks(w http.ResponseWriter, r *http.Request) {
+	uid := userIDFromCtx(r.Context())
+	tracks, err := h.store.GetFavoriteTracks(r.Context(), uid)
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	type item struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		AlbumID     string `json:"albumId"`
+		AlbumTitle  string `json:"albumTitle"`
+		Platform    string `json:"platform"`
+		Year        int    `json:"year"`
+		DurationSec int    `json:"durationSec"`
+		CoverURL    string `json:"coverUrl"`
+	}
+	out := make([]item, len(tracks))
+	for i, t := range tracks {
+		out[i] = item{t.ID, t.Name, t.AlbumID, t.AlbumTitle, t.Platform, t.Year, t.DurationSec, t.CoverURL}
+	}
+	jsonOK(w, out, http.StatusOK)
+}
+
 // POST /admin/reset-password — admin-only password reset via X-Admin-Key header.
 func (h *handler) postAdminResetPassword(w http.ResponseWriter, r *http.Request) {
 	secret := os.Getenv("ADMIN_SECRET")

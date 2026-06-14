@@ -62,8 +62,6 @@
           <div class="cover-wrap">
             <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={120} radius={8} />
             <div class="play-overlay">
-              <FavoriteButton albumId={album.id} favorited={album.isFavorite ?? false}
-                on:change={(e) => { album.isFavorite = e.detail; albums = albums; }} />
               <button
                 class="play-btn"
                 class:loading={playingId === album.id}
@@ -79,7 +77,11 @@
             </div>
           </div>
           <div class="card-info">
-            <span class="card-title">{album.title}</span>
+            <div class="card-title-row">
+              <span class="card-title">{album.title}</span>
+              <FavoriteButton albumId={album.id} favorited={album.isFavorite ?? false}
+                on:change={(e) => { album.isFavorite = e.detail; albums = albums; }} />
+            </div>
             <span class="card-sub">{album.platform || album.albumType}{album.year ? ` · ${album.year}` : ''}</span>
           </div>
         </div>
@@ -162,6 +164,11 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { display: inline-block; animation: spin 0.8s linear infinite; }
   .card-info { display: flex; flex-direction: column; gap: 2px; }
+  .card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
   .card-title {
     font-size: 13px;
     font-weight: 600;
@@ -169,6 +176,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
   }
   .card-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

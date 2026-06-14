@@ -1,66 +1,75 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { currentUser } from '$lib/stores/auth';
-  import { goto } from '$app/navigation';
-  import type { AlbumSummary } from '$lib/types';
+  import { currentUser, authLoading } from '$lib/stores/auth';
+  import type { FavoriteTrack } from '$lib/types';
   import CoverImage from '$lib/components/CoverImage.svelte';
-  import FavoriteButton from '$lib/components/FavoriteButton.svelte';
   import { player } from '$lib/stores/player';
+  import { fmtTime } from '$lib/utils';
+  import { goto } from '$app/navigation';
+  import { addToast } from '$lib/stores/toasts';
 
-  let albums: AlbumSummary[] = [];
-  let loading = true;
+  let tracks: FavoriteTrack[] = [];
+  let favLoading = false;
   let error = '';
 
-  // Lazy-auth gate: show login prompt if no session
-  $: needsLogin = !$currentUser && !loading;
+  $: loading = $authLoading || favLoading;
+  $: needsLogin = !$authLoading && !$currentUser;
 
   async function loadFavorites() {
-    loading = true;
+    favLoading = true;
     error = '';
     try {
-      albums = await api.favorites();
+      tracks = await api.favoriteTracks();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
-      loading = false;
+      favLoading = false;
     }
   }
 
-  onMount(async () => {
-    // Wait for auth state to hydrate before deciding
-    await new Promise(r => setTimeout(r, 50));
-    if ($currentUser) {
-      await loadFavorites();
-    } else {
-      loading = false;
-    }
-  });
-
-  // Reload when user logs in
-  $: if ($currentUser) {
+  $: if (!$authLoading && $currentUser) {
     loadFavorites();
   }
 
-  async function playAlbum(summary: AlbumSummary) {
+  async function playTrack(t: FavoriteTrack) {
     try {
-      const album = await api.album(summary.id);
-      if (!album.tracks.length) return;
-      player.play(album.tracks[0], summary, album.tracks, album.covers);
+      const album = await api.album(t.albumId);
+      const summary = { id: album.id, title: album.title, platform: album.platform,
+        year: album.year, albumType: album.albumType, trackCount: album.tracks.length,
+        coverUrls: album.covers.map(c => c.url) };
+      const track = album.tracks.find(tr => tr.id === t.id);
+      if (!track) return;
+      player.play(track, summary, album.tracks, album.covers);
     } catch {}
   }
 
-  function onFavoriteChange(albumId: string, favorited: boolean) {
-    if (!favorited) {
-      albums = albums.filter(a => a.id !== albumId);
+  async function unfavorite(t: FavoriteTrack) {
+    try {
+      await api.toggleTrackFavorite(t.id);
+      tracks = tracks.filter(tr => tr.id !== t.id);
+    } catch (e) {
+      addToast('Error al eliminar favorito', 'error');
     }
   }
+
+  // Group tracks by album
+  $: grouped = (() => {
+    const map = new Map<string, { albumId: string; albumTitle: string; platform: string; year: number; coverUrl: string; tracks: FavoriteTrack[] }>();
+    for (const t of tracks) {
+      if (!map.has(t.albumId)) {
+        map.set(t.albumId, { albumId: t.albumId, albumTitle: t.albumTitle,
+          platform: t.platform, year: t.year, coverUrl: t.coverUrl ?? '', tracks: [] });
+      }
+      map.get(t.albumId)!.tracks.push(t);
+    }
+    return [...map.values()];
+  })();
 </script>
 
 <div class="page">
   <div class="header">
     <h1>Favoritos</h1>
-    <span class="count">{albums.length > 0 ? `${albums.length} álbumes` : ''}</span>
+    <span class="count">{tracks.length > 0 ? `${tracks.length} canciones` : ''}</span>
   </div>
 
   {#if loading}
@@ -69,44 +78,43 @@
   {:else if needsLogin}
     <div class="center">
       <div class="icon">★</div>
-      <p>Inicia sesión para ver tus álbumes favoritos</p>
+      <p>Inicia sesión para ver tus canciones favoritas</p>
       <a href="/" class="browse-link">Explorar álbumes →</a>
     </div>
 
   {:else if error}
     <div class="center"><span class="err">{error}</span></div>
 
-  {:else if albums.length === 0}
+  {:else if tracks.length === 0}
     <div class="center">
       <div class="icon">★</div>
       <p class="muted">Sin favoritos todavía</p>
-      <p class="hint">Haz click en ★ en cualquier álbum para guardarlo aquí</p>
+      <p class="hint">Haz click en ☆ junto a cualquier canción en un álbum</p>
     </div>
 
   {:else}
-    <div class="grid">
-      {#each albums as album (album.id)}
-        <div class="card" on:click={() => goto(`/albums/${album.id}`)}
-          role="button" tabindex="0"
-          on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
-          <div class="cover-wrap">
-            <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={120} radius={8} />
-            <div class="overlay">
-              <button class="play-btn" on:click|stopPropagation={() => playAlbum(album)}>▶</button>
-              <FavoriteButton
-                albumId={album.id}
-                favorited={true}
-                on:change={(e) => onFavoriteChange(album.id, e.detail)}
-              />
-            </div>
-          </div>
-          <div class="info">
-            <span class="title">{album.title}</span>
-            <span class="sub">{album.platform || album.albumType}{album.year ? ` · ${album.year}` : ''}</span>
+    {#each grouped as group (group.albumId)}
+      <div class="album-group">
+        <div class="album-header" role="button" tabindex="0"
+          on:click={() => goto(`/albums/${group.albumId}`)}
+          on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${group.albumId}`)}>
+          <CoverImage url={group.coverUrl} title={group.albumTitle} size={40} radius={4} />
+          <div class="album-meta">
+            <span class="album-title">{group.albumTitle}</span>
+            <span class="album-sub">{group.platform}{group.year ? ` · ${group.year}` : ''}</span>
           </div>
         </div>
-      {/each}
-    </div>
+        <div class="track-list">
+          {#each group.tracks as track (track.id)}
+            <div class="track-row">
+              <button class="track-name" on:click={() => playTrack(track)}>{track.name}</button>
+              <span class="track-dur">{fmtTime(track.durationSec)}</span>
+              <button class="unfav" title="Quitar de favoritos" on:click={() => unfavorite(track)}>★</button>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/each}
   {/if}
 </div>
 
@@ -124,36 +132,43 @@
   .err { color: var(--red); font-size: 13px; }
   .hint { font-size: 12px; }
   .browse-link { font-size: 13px; color: var(--accent); text-decoration: underline; }
-  .grid {
+
+  .album-group { margin-bottom: var(--sp-lg); }
+  .album-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; border-radius: var(--r-sm);
+    cursor: pointer; margin-bottom: 4px;
+  }
+  .album-header:hover { background: rgba(255,255,255,0.04); }
+  .album-meta { display: flex; flex-direction: column; gap: 2px; }
+  .album-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .album-sub { font-size: 11px; color: var(--text-muted); }
+
+  .track-list { padding-left: 50px; }
+  .track-row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: var(--sp-md);
+    grid-template-columns: 1fr 52px 32px;
+    align-items: center;
+    padding: 5px 8px;
+    border-radius: var(--r-sm);
+    height: 36px;
   }
-  .card {
-    display: flex; flex-direction: column; gap: 8px;
-    border-radius: var(--r-md); padding: 8px;
-    transition: background 0.15s; cursor: pointer;
-  }
-  .card:hover { background: rgba(255,255,255,0.04); }
-  .cover-wrap { border-radius: var(--r-md); overflow: hidden; position: relative; }
-  .overlay {
-    position: absolute; inset: 0;
-    display: flex; align-items: flex-end; justify-content: space-between;
-    padding: 8px;
-    background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%);
-    opacity: 0; transition: opacity 0.15s;
-  }
-  .cover-wrap:hover .overlay { opacity: 1; }
-  .play-btn {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: rgba(255,255,255,0.9); color: #131320;
-    font-size: 12px; display: flex; align-items: center; justify-content: center;
-    padding-left: 1px;
-  }
-  .info { display: flex; flex-direction: column; gap: 2px; }
-  .title {
-    font-size: 13px; font-weight: 600; color: var(--text);
+  .track-row:hover { background: rgba(255,255,255,0.04); }
+  .track-name {
+    text-align: left; font-size: 13px; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding-right: 8px;
   }
-  .sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track-name:hover { color: var(--accent); }
+  .track-dur { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .unfav {
+    font-size: 14px; color: var(--accent);
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--r-sm);
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .track-row:hover .unfav { opacity: 1; }
+  .unfav:hover { background: rgba(203,168,39,0.12); }
 </style>

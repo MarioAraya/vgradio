@@ -172,6 +172,86 @@ func (s *Store) GetFavorites(ctx context.Context, userID string) ([]AlbumSummary
 	return out, rows.Err()
 }
 
+// TrackFavorite is a favorited track enriched with album metadata.
+type TrackFavorite struct {
+	ID          string
+	Name        string
+	AlbumID     string
+	AlbumTitle  string
+	Platform    string
+	Year        int
+	DurationSec int
+	CoverURL    string
+}
+
+// ToggleTrackFavorite adds or removes a track from a user's favorites.
+// Returns true if now favorited, false if removed.
+func (s *Store) ToggleTrackFavorite(ctx context.Context, userID, trackID string) (bool, error) {
+	var count int
+	s.db.QueryRowContext(ctx, //nolint:errcheck
+		`SELECT COUNT(*) FROM track_favorites WHERE user_id = ? AND track_id = ?`, userID, trackID).Scan(&count)
+	if count > 0 {
+		_, err := s.db.ExecContext(ctx,
+			`DELETE FROM track_favorites WHERE user_id = ? AND track_id = ?`, userID, trackID)
+		return false, err
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO track_favorites (user_id, track_id) VALUES (?,?)`, userID, trackID)
+	return err == nil, err
+}
+
+// GetFavoriteTracks returns favorited tracks for userID, newest first, with album metadata.
+func (s *Store) GetFavoriteTracks(ctx context.Context, userID string) ([]TrackFavorite, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT t.id, t.name, a.id, a.title, a.platform, a.year, t.duration_sec,
+		       COALESCE((SELECT url FROM covers WHERE album_id = a.id LIMIT 1), '')
+		FROM track_favorites tf
+		JOIN tracks t ON t.id = tf.track_id
+		JOIN albums a ON a.id = t.album_id
+		WHERE tf.user_id = ?
+		ORDER BY tf.created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TrackFavorite
+	for rows.Next() {
+		var f TrackFavorite
+		if err := rows.Scan(&f.ID, &f.Name, &f.AlbumID, &f.AlbumTitle,
+			&f.Platform, &f.Year, &f.DurationSec, &f.CoverURL); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	if out == nil {
+		out = []TrackFavorite{}
+	}
+	return out, rows.Err()
+}
+
+// FavoriteTrackIDs returns a set of track IDs that userID has favorited.
+// Returns an empty map for empty userID.
+func (s *Store) FavoriteTrackIDs(ctx context.Context, userID string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if userID == "" {
+		return out, nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT track_id FROM track_favorites WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
 // FavoriteAlbumIDs returns a set of album IDs that userID has favorited.
 // Returns an empty map for empty userID.
 func (s *Store) FavoriteAlbumIDs(ctx context.Context, userID string) (map[string]bool, error) {
