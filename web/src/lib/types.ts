@@ -6,6 +6,7 @@ export interface AlbumSummary {
   albumType: string
   trackCount: number
   coverUrls: string[]
+  isFavorite?: boolean
 }
 
 export interface Album {
@@ -107,6 +108,12 @@ export interface DownloadedAlbum {
   trackCount: number
   downloaded: number
   diskBytes: number
+}
+
+export interface User {
+  id: string
+  username: string
+  email: string
 }
 
 export interface HistoryEntry {

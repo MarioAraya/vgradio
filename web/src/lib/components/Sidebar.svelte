@@ -26,6 +26,7 @@
     {/each}
   </nav>
   <div class="bottom">
+    <slot name="user" />
     <button class="add-btn" on:click={onAddURL}>+ Add URL</button>
   </div>
 </aside>
@@ -71,6 +72,9 @@
   .bottom {
     padding: 12px;
     border-top: 1px solid var(--separator);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   .add-btn {
     width: 100%;

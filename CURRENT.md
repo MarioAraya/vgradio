@@ -4,69 +4,71 @@
 
 ## Completado esta sesión
 
-- [x] **Settings page** (`b23d9ff`) — 3 secciones: Conexión (backend URL + test), Álbumes descargados (lista + eliminar local), Biblioteca (stats + scrape all pending)
-- [x] **4 nuevos endpoints backend** (`b23d9ff`) — `GET /stats`, `GET /albums/downloaded`, `DELETE /albums/{id}/local`, `POST /scrape/pending`
-- [x] **Settings → cf_clearance** — campo en Settings para pegar cookie CF y enviarla al backend (fetcher + syncer)
-- [x] **Per-letter catalog sync** (`e163af5`) — `StartLetter(ctx, letter)` en Syncer + `POST /catalog/sync?letter=S` + botón "Sync S" en Browse
-- [x] **Fix crítico scraper** (`e163af5`) — `extractCatalogEntries` marcaba URLs como vistas antes de checar si el link tenía texto; icon links (sin texto) "envenenaban" el seen-map, bloqueando los title links → solo 22/409 álbumes scrapeados por página. Fix: checar `title == ""` antes de marcar seen.
-- [x] **Catalog entries live count** durante sync — `entries` en progress ahora se actualiza por página, no solo al final
-- [x] **cf_clearance propagado al Syncer** — `PUT /config/cf-clearance` ahora llama a `syncer.SetCFClearance()` además de `fetcher.SetCFClearance()`
+- [x] **Settings page** (`b23d9ff`) — Backend URL editable + test conexión, lista álbumes descargados con tamaño en disco + eliminar local, stats de biblioteca + scrape all pending
+- [x] **4 endpoints backend** (`b23d9ff`) — `GET /stats`, `GET /albums/downloaded`, `DELETE /albums/{id}/local`, `POST /scrape/pending`
+- [x] **Per-letter catalog sync** (`e163af5`) — `POST /catalog/sync?letter=S`, botón "Sync X" en Browse cuando hay letra seleccionada
+- [x] **cf_clearance propagado al Syncer** (`e163af5`) — `PUT /config/cf-clearance` actualiza fetcher Y syncer. Campo en Settings para pegarlo.
+- [x] **Fix crítico scraper** (`e163af5`) — `extractCatalogEntries` en `scraper/catalog.go`: icon links (sin texto) envenenaban el `seen` map antes de checar `title == ""`, bloqueando title links. Solo 22/409 álbumes por página. Fix: checar title primero, luego seen.
+- [x] **Entries live en sync progress** (`e163af5`) — counter de entries se actualiza por página, no solo al final
+- [x] **Merge web → main** (`07d4ec0`) — branch `web` mergeado, ahora en `main`
 
 ---
 
 ## Estado actual
 
-- **Backend:** corriendo en :8080
-- **Catalog:** 13477 entries (sync S + X corridos con fix)
+- **Rama:** `main`
+- **Backend:** corriendo en :8080 (verificar con `lsof -i :8080`)
+- **Catalog:** ~13477 entries (S + X + otros syncs anteriores, pre-fix)
 - **Biblioteca:** 12 álbumes, 598 tracks, 138 scrapeados, 460 pendientes
-- **Browse sin `cf_clearance`:** funciona igual, khinsider no desafió con CF (no hay cookie)
 
 ---
 
-## Pendiente (próximos pasos)
+## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Verificar sync S completo** — después del fix del seen-map, S debería traer ~12070. Actualmente hay ~13477 totales (S+X+otros de antes). Correr Sync S desde Browse para completar.
-- [ ] **FTS5 para búsqueda** — `LIKE '%q%'` hace full scan. Con >50k entries puede volverse lento. Migrar a SQLite FTS5.
-- [ ] **Favoritar desde album detail** — ya existe (★/☆ por track), confirmado en sesión
+- [ ] **Re-sync letra S** — el fix del seen-map cambia completamente cuántos álbumes se trae. Con el fix, S debería traer ~12070 de una sola página (Browse → S → Sync "S"). Los 13477 actuales son mezcla de syncs viejos (parciales) + X.
+- [ ] **FTS5 para búsqueda** — `LIKE '%q%'` full scan. Con >50k entries puede volverse lento. Migrar a SQLite FTS5 virtual table.
 - [ ] **Deploy VPS** — backend + frontend
 - [ ] **Tests backend Go** — cero tests actualmente
-- [ ] **Push a Gitea** — `git push gitea web`
+- [ ] **Push a Gitea** — `git push gitea main`
 
 ---
 
 ## Notas
 
-### Fix kill backend correcto
-
-`pkill -f "go run.*server"` mata solo el orquestador, el binary hijo sigue en :8080.
+### Cómo matar y reiniciar backend correctamente
 
 ```bash
-kill $(lsof -t -i :8080) 2>/dev/null; sleep 1; cd backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
+kill $(lsof -t -i :8080) 2>/dev/null; sleep 1
+cd /Users/maaya/dev/vgradio-app/backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
+tail -f /tmp/vgradio.log
 ```
 
-### Sync de letras khinsider
+`pkill -f "go run.*server"` NO funciona — mata el orquestador pero el binary hijo sigue en :8080.
 
-- Browse pages NO están paginadas — todos los álbumes de una letra están en una sola página
-- La paginación `?page=N` que implementamos no se usa (no hay page 2, devuelve 0)
-- El bug del seen-map era el problema real: 22 de 409 ≈ 5% de álbumes scrapeados
-- Sin `cf_clearance`: funciona (khinsider no está desafiando actualmente)
-- Con `cf_clearance`: Settings → pega valor de DevTools → khinsider.com → Application → Cookies
+### Browse pages khinsider — NO están paginadas
+
+Todos los álbumes de una letra están en una sola URL (`/browse/S`). No hay `?page=2`.
+El código de paginación que implementamos existe pero nunca se activa (page 2 devuelve 0).
+El fix del seen-map era el problema real: 22/409 ≈ 5% de álbumes por página.
+
+### cf_clearance — actualmente innecesaria
+
+khinsider no está desafiando con CF (sin cookie y curl funciona). Si vuelve a bloquear:
+- Abrir khinsider.com en browser
+- DevTools → Application → Cookies → `downloads.khinsider.com`
+- Copiar valor de `cf_clearance`
+- Settings → pegar → Guardar
 
 ### Comandos útiles
 
 ```bash
-# Backend
-kill $(lsof -t -i :8080) 2>/dev/null && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
-tail -f /tmp/vgradio.log
-
 # Stats
 curl -s http://localhost:8080/stats
 curl -s "http://localhost:8080/catalog?limit=1" | python3 -c "import json,sys; print(json.load(sys.stdin)['total'], 'entries')"
 
+# Sync letra S manualmente
+curl -X POST http://localhost:8080/catalog/sync?letter=S
+
 # Web dev
-cd web && npm run dev
+cd /Users/maaya/dev/vgradio-app/web && npm run dev
 ```
-
-### Favoritos ya implementados
-
-★/☆ por track en album detail + "Favorite all" en header. No había nada que agregar.

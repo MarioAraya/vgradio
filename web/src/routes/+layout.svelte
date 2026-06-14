@@ -4,11 +4,28 @@
   import PlayerBar from '$lib/components/PlayerBar.svelte';
   import QueuePanel from '$lib/components/QueuePanel.svelte';
   import AddURLModal from '$lib/components/AddURLModal.svelte';
+  import AuthModal from '$lib/components/AuthModal.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import UserMenu from '$lib/components/UserMenu.svelte';
   import { player } from '$lib/stores/player';
+  import { initAuth } from '$lib/stores/auth';
+  import { showAuthModal, pendingAuthAction } from '$lib/stores/authModal';
+  import { api } from '$lib/api';
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
 
   let showAddURL = false;
+
+  onMount(() => {
+    initAuth(api.baseURL());
+  });
+
+  function onAuthDone() {
+    showAuthModal.set(false);
+    const action = $pendingAuthAction;
+    pendingAuthAction.set(null);
+    if (action) action();
+  }
 
   function handleKeydown(e: KeyboardEvent) {
     const tag = (e.target as HTMLElement).tagName;
@@ -25,7 +42,11 @@
 
 <div class="shell">
   <div class="main">
-    <Sidebar onAddURL={() => showAddURL = true} />
+    <Sidebar onAddURL={() => showAddURL = true}>
+      <svelte:fragment slot="user">
+        <UserMenu onLogin={() => showAuthModal.set(true)} />
+      </svelte:fragment>
+    </Sidebar>
     <div class="content">
       <slot />
     </div>
@@ -33,6 +54,7 @@
   <PlayerBar />
   <QueuePanel />
   <AddURLModal bind:open={showAddURL} on:done={() => showAddURL = false} />
+  <AuthModal bind:open={$showAuthModal} on:done={onAuthDone} />
   <Toast />
 </div>
 

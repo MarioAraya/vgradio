@@ -9,6 +9,7 @@ export type RepeatMode = 'off' | 'all' | 'one';
 interface PlayerState {
   queue: Track[];
   queueIndex: number;
+  queuedEnd: number; // last index of manually-queued tracks; resets on track change
   currentAlbum: AlbumSummary | null;
   currentCovers: Cover[];
   currentCoverIndex: number;
@@ -23,7 +24,7 @@ interface PlayerState {
 }
 
 const initial: PlayerState = {
-  queue: [], queueIndex: 0,
+  queue: [], queueIndex: 0, queuedEnd: 0,
   currentAlbum: null, currentCovers: [], currentCoverIndex: 0,
   isPlaying: false, currentTime: 0, duration: 0,
   volume: parseFloat(localStorage.getItem('vgradio.volume') ?? '0.8'),
@@ -157,7 +158,8 @@ export const player = {
   play(track: Track, album: AlbumSummary, queue: Track[], covers: Cover[] = []) {
     update(s => {
       const idx = queue.findIndex(t => t.id === track.id);
-      const next: PlayerState = { ...s, queue, queueIndex: idx >= 0 ? idx : 0, currentAlbum: album, currentCovers: covers, currentCoverIndex: s.currentAlbum?.id === album.id ? s.currentCoverIndex : 0 };
+      const qi = idx >= 0 ? idx : 0;
+      const next: PlayerState = { ...s, queue, queueIndex: qi, queuedEnd: qi, currentAlbum: album, currentCovers: covers, currentCoverIndex: s.currentAlbum?.id === album.id ? s.currentCoverIndex : 0 };
       return loadTrack(next);
     });
   },
@@ -193,8 +195,9 @@ export const player = {
   playNext(track: Track) {
     update(s => {
       const q = [...s.queue];
-      q.splice(s.queueIndex + 1, 0, track);
-      return { ...s, queue: q };
+      const insertAt = s.queuedEnd + 1;
+      q.splice(insertAt, 0, track);
+      return { ...s, queue: q, queuedEnd: insertAt };
     });
   },
 
@@ -256,7 +259,7 @@ function next() {
     const candidates = s.queue.map((_, i) => i).filter(i => i !== s.queueIndex && !isHidden(s.queue[i]));
     if (!candidates.length) return;
     const idx = candidates[Math.floor(Math.random() * candidates.length)];
-    update(state => loadTrack({ ...state, queueIndex: idx }));
+    update(state => loadTrack({ ...state, queueIndex: idx, queuedEnd: idx }));
     return;
   }
   let idx = s.queueIndex + 1;
@@ -267,7 +270,7 @@ function next() {
     while (idx < s.queue.length && isHidden(s.queue[idx])) idx++;
     if (idx >= s.queue.length) return;
   }
-  update(state => loadTrack({ ...state, queueIndex: idx }));
+  update(state => loadTrack({ ...state, queueIndex: idx, queuedEnd: idx }));
 }
 
 export function playerNext() { next(); }
@@ -279,5 +282,5 @@ export function playerPrev() {
   let idx = s.queueIndex - 1;
   while (idx >= 0 && isHidden(s.queue[idx])) idx--;
   if (idx < 0) return;
-  update(state => loadTrack({ ...state, queueIndex: idx }));
+  update(state => loadTrack({ ...state, queueIndex: idx, queuedEnd: idx }));
 }

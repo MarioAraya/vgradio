@@ -43,10 +43,9 @@
     return album!.tracks.filter(t => !$hidden.has(t.id));
   }
 
-  function playTrack(idx: number) {
+  function playTrack(track: import('$lib/types').Track) {
     if (!album) return;
     const sum = toSummary(album);
-    const track = album.tracks[idx];
     const queue = visibleTracks();
     player.play(track, sum, queue.length ? queue : [track], album.covers);
   }
@@ -106,6 +105,8 @@
       scraping = next;
     }
   }
+
+  let trackFilter = '';
 
   let albumScraping = false;
   async function scrapeAllTracks() {
@@ -184,20 +185,26 @@
     <div class="tracklist">
       <div class="track-header">
         <span class="col-num">#</span>
-        <span class="col-name">Title</span>
+        <span class="col-name">
+          <div class="filter-wrap" class:has-value={!!trackFilter}>
+            <span class="filter-icon">🔍</span>
+            <input class="track-filter" type="text" placeholder="Filter tracks…" bind:value={trackFilter} />
+          </div>
+        </span>
         <span class="col-dur">Duration</span>
         <span class="col-acts"></span>
       </div>
-      {#each album.tracks as track, i}
+      {#each album.tracks.filter(t => !trackFilter || t.name.toLowerCase().includes(trackFilter.toLowerCase())) as track, i}
         {@const isPlaying = $player.queue[$player.queueIndex]?.id === track.id && $player.isPlaying}
         {@const isCurrent = $player.queue[$player.queueIndex]?.id === track.id}
         {@const isFav = $favorites.some(f => f.id === track.id)}
         {@const isHid = $hidden.has(track.id)}
+        {@const trackNum = album.tracks.indexOf(track) + 1}
         <div
           class="track-row"
           class:current={isCurrent}
           class:hidden-track={isHid}
-          on:dblclick={() => playTrack(i)}
+          on:dblclick={() => playTrack(track)}
           role="row"
         >
           <span class="col-num">
@@ -205,7 +212,7 @@
               <span class="wave">♪</span>
             {:else}
               <span class="num-wrap">
-                {i + 1}
+                {trackNum}
                 {#if track.downloaded}
                   <span class="state-dot dot-local" title="Descargado localmente"></span>
                 {:else if track.scraped}
@@ -214,7 +221,7 @@
               </span>
             {/if}
           </span>
-          <button class="col-name track-name" on:click={() => playTrack(i)}>{track.name}</button>
+          <button class="col-name track-name" on:click={() => playTrack(track)}>{track.name}</button>
           <span class="col-dur">{fmtTime(track.durationSec)}</span>
           <div class="col-acts acts">
             <button class="act" title="Play next" on:click={() => player.playNext(track)}>▶+</button>
@@ -318,6 +325,31 @@
   }
   .source-link:hover { color: var(--text-sec); background: var(--surface-hi); }
 
+  .filter-wrap { display: flex; align-items: center; width: 100%; }
+  .filter-icon {
+    font-size: 11px;
+    opacity: 0.45;
+    transition: opacity 0.15s, width 0.15s;
+    width: auto;
+    flex-shrink: 0;
+  }
+  .track-filter {
+    font-size: 11px;
+    background: transparent;
+    color: var(--text);
+    width: 0;
+    opacity: 0;
+    padding: 0;
+    border-bottom: 1px solid transparent;
+    transition: width 0.2s, opacity 0.15s, border-color 0.15s;
+    overflow: hidden;
+  }
+  .filter-wrap:hover .filter-icon,
+  .filter-wrap.has-value .filter-icon { opacity: 0; width: 0; pointer-events: none; }
+  .filter-wrap:hover .track-filter,
+  .filter-wrap.has-value .track-filter { width: 100%; opacity: 1; }
+  .track-filter::placeholder { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .track-filter:focus { outline: none; border-bottom-color: var(--accent); }
   .tracklist { margin-bottom: 24px; }
   .track-header {
     display: grid;

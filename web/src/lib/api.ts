@@ -1,6 +1,6 @@
 import type {
   Album, AlbumSummary, CatalogConsole, CatalogPage,
-  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, Track
+  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, Track, User
 } from './types';
 
 const BASE = () =>
@@ -8,13 +8,13 @@ const BASE = () =>
   `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8080`;
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const r = await fetch(BASE() + path, { signal });
+  const r = await fetch(BASE() + path, { signal, credentials: 'include' });
   if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
   return r.json();
 }
 
 async function del<T>(path: string): Promise<T> {
-  const r = await fetch(BASE() + path, { method: 'DELETE' });
+  const r = await fetch(BASE() + path, { method: 'DELETE', credentials: 'include' });
   if (!r.ok) throw new Error(`DELETE ${path} → ${r.status}`);
   if (r.status === 204 || r.headers.get('content-length') === '0') return undefined as T;
   return r.json();
@@ -26,6 +26,7 @@ async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Prom
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
     signal,
+    credentials: 'include',
   });
   if (!r.ok && r.status !== 409) {
     const err = await r.json().catch(() => ({ error: r.statusText }));
@@ -81,6 +82,19 @@ export const api = {
   streamURL: (track: Track) => BASE() + track.streamUrl,
   downloadURL: (track: Track) => BASE() + track.downloadUrl,
   coverURL: (url: string) => url.startsWith('http') ? url : BASE() + url,
+
+  // auth
+  register: (username: string, email: string, password: string) =>
+    post<User>('/auth/register', { username, email, password }),
+  login: (email: string, password: string) =>
+    post<User>('/auth/login', { email, password }),
+  logout: () => post<void>('/auth/logout'),
+  me: () => get<User | null>('/auth/me'),
+
+  // favorites (album-level, per user)
+  toggleFavorite: (albumId: string) =>
+    post<{ favorited: boolean }>(`/favorites/${albumId}`),
+  favorites: () => get<AlbumSummary[]>('/favorites'),
 };
 
 export async function pollJob(jobId: string, onDone: (albumId: string) => void) {

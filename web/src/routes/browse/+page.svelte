@@ -9,11 +9,27 @@
   let consoles: CatalogConsole[] = [];
   let syncProgress: CatalogSyncProgress | null = null;
   let syncing = false;
+  let syncingLetter = false;
   let loading = false;
   let error = '';
   let total = 0;
-  let offset = 0;
-  const LIMIT = 100;
+  let currentPage = 1;
+  const LIMIT = 300;
+
+  $: totalPages = Math.ceil(total / LIMIT);
+  $: pageNums = buildPageNums(currentPage, totalPages);
+
+  function buildPageNums(cur: number, tot: number): (number | null)[] {
+    if (tot <= 7) return Array.from({ length: tot }, (_, i) => i + 1);
+    const show = new Set([1, tot, cur - 2, cur - 1, cur, cur + 1, cur + 2].filter(n => n >= 1 && n <= tot));
+    const sorted = [...show].sort((a, b) => a - b);
+    const pages: (number | null)[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i] - sorted[i - 1] > 1) pages.push(null);
+      pages.push(sorted[i]);
+    }
+    return pages;
+  }
 
   let q = '';
   let letter = '';
@@ -30,17 +46,21 @@
   });
 
   async function load(reset = false) {
-    if (reset) { entries = []; offset = 0; }
+    if (reset) { currentPage = 1; }
     loading = true;
     error = '';
     try {
-      const page = await api.catalog({ q, platform: console_, letter, offset, limit: LIMIT });
+      const page = await api.catalog({ q, platform: console_, letter, offset: (currentPage - 1) * LIMIT, limit: LIMIT });
       total = page.total;
-      entries = reset ? page.items : [...entries, ...page.items];
-      offset = entries.length;
+      entries = page.items;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally { loading = false; }
+  }
+
+  async function goToPage(p: number) {
+    currentPage = p;
+    await load(false);
   }
 
   function onSearch() {
@@ -64,7 +84,11 @@
     try {
       await api.startLetterSync(letter);
       syncing = true;
+      syncingLetter = true;
+      entries = [];
+      total = 0;
       pollSync();
+      pollAlbumsDuringSync();
     } catch {}
   }
 
@@ -74,8 +98,23 @@
       try {
         syncProgress = await api.catalogSyncProgress();
         syncing = syncProgress.running;
-        if (!syncing) await load(true);
+        if (!syncing) {
+          syncingLetter = false;
+          await load(true);
+        }
       } catch { break; }
+    }
+  }
+
+  async function pollAlbumsDuringSync() {
+    while (syncing && syncingLetter) {
+      await new Promise(r => setTimeout(r, 3000));
+      if (!syncing || !syncingLetter) break;
+      try {
+        const page = await api.catalog({ q, platform: console_, letter, offset: entries.length, limit: LIMIT });
+        total = page.total;
+        if (page.items.length > 0) entries = [...entries, ...page.items];
+      } catch {}
     }
   }
 
@@ -145,7 +184,7 @@
     <div class="err-banner">{error}</div>
   {/if}
 
-  {#if entries.length === 0 && !loading}
+  {#if entries.length === 0 && !loading && !syncingLetter}
     <div class="empty">
       <div class="empty-icon">📦</div>
       <p>{q ? 'No results' : 'Catalog empty'}</p>
@@ -175,12 +214,25 @@
         </div>
       {/each}
       {#if loading}
-        <div class="loading">Loading…</div>
-      {/if}
-      {#if !loading && entries.length < total}
-        <button class="load-more" on:click={() => load()}>Load more</button>
+        <div class="list-status">Loading…</div>
+      {:else if syncingLetter && entries.length > 0}
+        <div class="list-status syncing-hint">⟳ fetching more…</div>
       {/if}
     </div>
+
+    {#if !syncingLetter && totalPages > 1}
+      <div class="pagination">
+        <button class="pg-btn" disabled={currentPage === 1} on:click={() => goToPage(currentPage - 1)}>‹</button>
+        {#each pageNums as p}
+          {#if p === null}
+            <span class="pg-ellipsis">…</span>
+          {:else}
+            <button class="pg-btn" class:pg-cur={p === currentPage} on:click={() => goToPage(p)}>{p}</button>
+          {/if}
+        {/each}
+        <button class="pg-btn" disabled={currentPage === totalPages} on:click={() => goToPage(currentPage + 1)}>›</button>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -273,7 +325,23 @@
   }
   .empty-icon { font-size: 36px; opacity: 0.4; }
   .hint { font-size: 12px; }
-  .loading, .load-more { padding: 12px; text-align: center; font-size: 12px; color: var(--text-muted); }
-  .load-more { color: var(--accent); cursor: pointer; }
-  .load-more:hover { text-decoration: underline; }
+  .list-status { padding: 12px; text-align: center; font-size: 12px; color: var(--text-muted); grid-column: 1 / -1; }
+  .syncing-hint { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .pagination {
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 10px; border-top: 1px solid var(--separator); flex-shrink: 0;
+  }
+  .pg-btn {
+    min-width: 28px; height: 28px;
+    padding: 0 6px;
+    border-radius: var(--r-sm);
+    font-size: 12px;
+    color: var(--text-sec);
+    background: rgba(255,255,255,0.04);
+  }
+  .pg-btn:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,0.08); }
+  .pg-btn:disabled { opacity: 0.3; cursor: default; }
+  .pg-btn.pg-cur { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .pg-ellipsis { font-size: 12px; color: var(--text-muted); padding: 0 4px; }
 </style>

@@ -1,111 +1,159 @@
 <script lang="ts">
-  import { favorites, favoritesGrouped } from '$lib/stores/favorites';
-  import { player } from '$lib/stores/player';
+  import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import type { Track, AlbumSummary } from '$lib/types';
-  import { fmtTime } from '$lib/utils';
+  import { currentUser } from '$lib/stores/auth';
+  import { goto } from '$app/navigation';
+  import type { AlbumSummary } from '$lib/types';
   import CoverImage from '$lib/components/CoverImage.svelte';
+  import FavoriteButton from '$lib/components/FavoriteButton.svelte';
+  import { player } from '$lib/stores/player';
 
-  function toTrack(f: import('$lib/types').FavoriteTrack): Track {
-    return { id: f.id, name: f.name, index: 0, durationSec: f.durationSec,
-      sizeBytes: 0, streamUrl: `/tracks/${f.id}/stream`, downloadUrl: `/tracks/${f.id}/download`, downloaded: false };
+  let albums: AlbumSummary[] = [];
+  let loading = true;
+  let error = '';
+
+  // Lazy-auth gate: show login prompt if no session
+  $: needsLogin = !$currentUser && !loading;
+
+  async function loadFavorites() {
+    loading = true;
+    error = '';
+    try {
+      albums = await api.favorites();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading = false;
+    }
   }
 
-  function toSummary(f: import('$lib/types').FavoriteTrack): AlbumSummary {
-    return { id: f.albumId, title: f.albumTitle, platform: f.platform, year: f.year,
-      albumType: '', trackCount: 0, coverUrls: [] };
+  onMount(async () => {
+    // Wait for auth state to hydrate before deciding
+    await new Promise(r => setTimeout(r, 50));
+    if ($currentUser) {
+      await loadFavorites();
+    } else {
+      loading = false;
+    }
+  });
+
+  // Reload when user logs in
+  $: if ($currentUser) {
+    loadFavorites();
   }
 
-  function playAll() {
-    const all = $favorites;
-    if (!all.length) return;
-    const tracks = all.map(toTrack);
-    const first = all[0];
-    const sum = toSummary(first);
-    player.play(tracks[0], sum, tracks);
+  async function playAlbum(summary: AlbumSummary) {
+    try {
+      const album = await api.album(summary.id);
+      if (!album.tracks.length) return;
+      player.play(album.tracks[0], summary, album.tracks, album.covers);
+    } catch {}
   }
 
-  function playGroup(tracks: import('$lib/types').FavoriteTrack[], idx: number) {
-    const tlist = tracks.map(toTrack);
-    const sum = toSummary(tracks[idx]);
-    player.play(tlist[idx], sum, tlist);
+  function onFavoriteChange(albumId: string, favorited: boolean) {
+    if (!favorited) {
+      albums = albums.filter(a => a.id !== albumId);
+    }
   }
 </script>
 
 <div class="page">
   <div class="header">
-    <h1>Favorites</h1>
-    {#if $favorites.length > 0}
-      <button class="play-all" on:click={playAll}>▶ Play all</button>
-    {/if}
+    <h1>Favoritos</h1>
+    <span class="count">{albums.length > 0 ? `${albums.length} álbumes` : ''}</span>
   </div>
 
-  {#if $favorites.length === 0}
-    <div class="empty">
-      <span class="icon">★</span>
-      <p>No favorites yet</p>
-      <p class="hint">Star tracks in album view to add them here</p>
+  {#if loading}
+    <div class="center"><span class="muted">Cargando…</span></div>
+
+  {:else if needsLogin}
+    <div class="center">
+      <div class="icon">★</div>
+      <p>Inicia sesión para ver tus álbumes favoritos</p>
+      <a href="/" class="browse-link">Explorar álbumes →</a>
     </div>
+
+  {:else if error}
+    <div class="center"><span class="err">{error}</span></div>
+
+  {:else if albums.length === 0}
+    <div class="center">
+      <div class="icon">★</div>
+      <p class="muted">Sin favoritos todavía</p>
+      <p class="hint">Haz click en ★ en cualquier álbum para guardarlo aquí</p>
+    </div>
+
   {:else}
-    {#each $favoritesGrouped as group}
-      <div class="group">
-        <div class="group-header">
-          {#if group.coverUrl}
-            <CoverImage url={group.coverUrl} title={group.albumTitle} size={60} radius={5} />
-          {/if}
-          <div class="group-info">
-            <span class="group-title">{group.albumTitle}</span>
-            <span class="group-meta">{group.platform}{group.platform && group.year ? ' · ' : ''}{group.year}</span>
+    <div class="grid">
+      {#each albums as album (album.id)}
+        <div class="card" on:click={() => goto(`/albums/${album.id}`)}
+          role="button" tabindex="0"
+          on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
+          <div class="cover-wrap">
+            <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={120} radius={8} />
+            <div class="overlay">
+              <button class="play-btn" on:click|stopPropagation={() => playAlbum(album)}>▶</button>
+              <FavoriteButton
+                albumId={album.id}
+                favorited={true}
+                on:change={(e) => onFavoriteChange(album.id, e.detail)}
+              />
+            </div>
           </div>
-          <button class="rm-all" on:click={() => favorites.removeAll(group.tracks[0].albumId)}>Remove all</button>
+          <div class="info">
+            <span class="title">{album.title}</span>
+            <span class="sub">{album.platform || album.albumType}{album.year ? ` · ${album.year}` : ''}</span>
+          </div>
         </div>
-        {#each group.tracks as fav, i}
-          <div class="fav-row">
-            <button class="fav-name" on:click={() => playGroup(group.tracks, i)}>{fav.name}</button>
-            <span class="fav-dur">{fmtTime(fav.durationSec)}</span>
-            <button class="rm" on:click={() => favorites.toggle({ id: fav.id, name: fav.name, index: 0, durationSec: fav.durationSec, sizeBytes: 0, streamUrl: '', downloadUrl: '', downloaded: false }, { id: fav.albumId, title: fav.albumTitle, platform: fav.platform, year: fav.year, albumType: '', trackCount: 0, coverUrls: [] })}>✕</button>
-          </div>
-        {/each}
-      </div>
-    {/each}
+      {/each}
+    </div>
   {/if}
 </div>
 
 <style>
   .page { padding: var(--sp-md); }
-  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+  .header { display: flex; align-items: baseline; gap: 10px; margin-bottom: var(--sp-lg); }
   h1 { font-size: 22px; font-weight: 700; }
-  .play-all {
-    padding: 6px 14px;
-    background: var(--accent);
-    color: #131320;
-    border-radius: var(--r-sm);
-    font-size: 13px;
-    font-weight: 600;
+  .count { font-size: 12px; color: var(--text-muted); }
+  .center {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; min-height: 300px; color: var(--text-muted);
   }
-  .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 300px; justify-content: center; color: var(--text-muted); }
   .icon { font-size: 36px; opacity: 0.4; }
+  .muted { color: var(--text-muted); }
+  .err { color: var(--red); font-size: 13px; }
   .hint { font-size: 12px; }
-  .group { margin-bottom: 20px; }
-  .group-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--separator);
-    margin-bottom: 4px;
+  .browse-link { font-size: 13px; color: var(--accent); text-decoration: underline; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--sp-md);
   }
-  .group-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-  .group-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .group-meta { font-size: 12px; color: var(--text-muted); }
-  .rm-all { font-size: 11px; color: var(--text-muted); }
-  .rm-all:hover { color: var(--red); }
-  .fav-row { display: flex; align-items: center; padding: 5px 8px; border-radius: var(--r-sm); }
-  .fav-row:hover { background: rgba(255,255,255,0.04); }
-  .fav-name { flex: 1; text-align: left; font-size: 13px; color: var(--text); }
-  .fav-name:hover { color: var(--accent); }
-  .fav-dur { font-size: 12px; color: var(--text-muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
-  .rm { font-size: 12px; color: var(--text-muted); opacity: 0; }
-  .fav-row:hover .rm { opacity: 1; }
-  .rm:hover { color: var(--red); }
+  .card {
+    display: flex; flex-direction: column; gap: 8px;
+    border-radius: var(--r-md); padding: 8px;
+    transition: background 0.15s; cursor: pointer;
+  }
+  .card:hover { background: rgba(255,255,255,0.04); }
+  .cover-wrap { border-radius: var(--r-md); overflow: hidden; position: relative; }
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 8px;
+    background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%);
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .cover-wrap:hover .overlay { opacity: 1; }
+  .play-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(255,255,255,0.9); color: #131320;
+    font-size: 12px; display: flex; align-items: center; justify-content: center;
+    padding-left: 1px;
+  }
+  .info { display: flex; flex-direction: column; gap: 2px; }
+  .title {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

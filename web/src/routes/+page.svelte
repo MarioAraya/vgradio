@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import type { AlbumSummary } from '$lib/types';
   import CoverImage from '$lib/components/CoverImage.svelte';
+  import FavoriteButton from '$lib/components/FavoriteButton.svelte';
   import { player } from '$lib/stores/player';
 
   $: currentAlbumId = $player.currentAlbum?.id ?? null;
@@ -61,6 +62,8 @@
           <div class="cover-wrap">
             <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={120} radius={8} />
             <div class="play-overlay">
+              <FavoriteButton albumId={album.id} favorited={album.isFavorite ?? false}
+                on:change={(e) => { album.isFavorite = e.detail; albums = albums; }} />
               <button
                 class="play-btn"
                 class:loading={playingId === album.id}
