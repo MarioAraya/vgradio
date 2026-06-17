@@ -26,7 +26,7 @@ struct SidebarView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.05)))
             .padding(.horizontal, 12)
-            .padding(.top, 12)
+            .padding(.top, 36)
             .padding(.bottom, 4)
 
             // MY MUSIC
@@ -69,8 +69,9 @@ struct SidebarView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
-        .frame(width: VGLayout.sidebarWidth)
+        .frame(maxWidth: .infinity)
         .background(Color.vgSidebar)
+        .ignoresSafeArea(.all, edges: .top)
     }
 }
 

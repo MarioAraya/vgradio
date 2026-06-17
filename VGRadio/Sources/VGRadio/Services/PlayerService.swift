@@ -149,16 +149,19 @@ final class PlayerService {
 
     private func setupRemoteCommands() {
         let cc = MPRemoteCommandCenter.shared()
+        cc.playCommand.isEnabled = true
         cc.playCommand.addTarget { [weak self] _ in
             guard let self, !self.isPlaying else { return .commandFailed }
             Task { @MainActor in self.togglePlay() }
             return .success
         }
+        cc.pauseCommand.isEnabled = true
         cc.pauseCommand.addTarget { [weak self] _ in
             guard let self, self.isPlaying else { return .commandFailed }
             Task { @MainActor in self.togglePlay() }
             return .success
         }
+        cc.togglePlayPauseCommand.isEnabled = true
         cc.togglePlayPauseCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
             Task { @MainActor in self.togglePlay() }
@@ -184,8 +187,10 @@ final class PlayerService {
     }
 
     private func updateNowPlayingInfo() {
+        let center = MPNowPlayingInfoCenter.default()
         guard let track = currentTrack else {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            center.nowPlayingInfo = nil
+            center.playbackState = .stopped
             return
         }
         var info: [String: Any] = [
@@ -197,7 +202,8 @@ final class PlayerService {
         if let album = currentAlbum {
             info[MPMediaItemPropertyAlbumTitle] = album.title
         }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        center.nowPlayingInfo = info
+        center.playbackState = isPlaying ? .playing : .paused
     }
 
     private func updateNowPlayingElapsed() {

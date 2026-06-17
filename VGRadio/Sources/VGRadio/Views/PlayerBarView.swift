@@ -19,17 +19,26 @@ struct PlayerBarView: View {
                     player.seek(to: frac * player.duration)
                 }
 
-                // Single row
-                HStack(spacing: 0) {
-                    transportSection
-                    coverAndInfoSection
-                    Spacer(minLength: 8)
-                    volumeSection
-                    actionsSection
-                    secondarySection
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 16)
+                // Single row: cover+info LEFT | transport CENTER | volume+actions RIGHT
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .leading) {
+                        if player.currentTrack != nil {
+                            coverAndInfoSection
+                                .padding(.leading, 16)
+                        }
+                    }
+                    .overlay {
+                        transportSection
+                    }
+                    .overlay(alignment: .trailing) {
+                        HStack(spacing: 0) {
+                            volumeSection
+                            actionsSection
+                            secondarySection
+                        }
+                        .padding(.trailing, 4)
+                    }
             }
         }
         .frame(height: VGLayout.playerBarHeight)
@@ -43,12 +52,14 @@ struct PlayerBarView: View {
             PlayPauseButton(isPlaying: player.isPlaying) { player.togglePlay() }
             YTTransportButton(icon: "forward.fill", size: 20) { player.next() }
 
-            Text("\(formatTime(player.currentTime)) / \(formatTime(player.duration))")
-                .font(VGFont.mono(12))
-                .foregroundStyle(Color.vgTextSec)
-                .monospacedDigit()
-                .padding(.leading, 12)
-                .fixedSize()
+            if player.currentTrack != nil {
+                Text("\(formatTime(player.currentTime)) / \(formatTime(player.duration))")
+                    .font(VGFont.mono(12))
+                    .foregroundStyle(Color.vgTextSec)
+                    .monospacedDigit()
+                    .padding(.leading, 12)
+                    .fixedSize()
+            }
         }
     }
 
@@ -88,7 +99,7 @@ struct PlayerBarView: View {
             .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(player.currentTrack?.name ?? "Nothing playing")
+                Text(player.currentTrack?.name ?? "")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.vgText)
                     .lineLimit(1)
@@ -101,7 +112,6 @@ struct PlayerBarView: View {
             .onTapGesture { navigateToCurrentAlbum() }
             .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
         }
-        .padding(.leading, 16)
     }
 
     private func navigateToCurrentAlbum() {

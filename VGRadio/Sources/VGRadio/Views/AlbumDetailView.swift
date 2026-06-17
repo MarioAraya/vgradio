@@ -674,7 +674,10 @@ private struct DetailTrackRow: View {
                     .frame(width: 40, alignment: .center)
                 }
 
-                Button { hidden.toggle(track.id) } label: {
+                Button {
+                    hidden.toggle(track.id)
+                    if player.currentTrack?.id == track.id { player.next() }
+                } label: {
                     Image(systemName: isHidden ? "hand.thumbsdown.fill" : "hand.thumbsdown")
                         .font(.system(size: 12))
                         .foregroundStyle(isHidden ? Color.vgAccent.opacity(0.7) : isHovered ? Color.vgTextSec : Color.clear)

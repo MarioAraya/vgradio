@@ -33,7 +33,7 @@ struct LibraryView: View {
                 Text("Library")
                     .font(VGFont.title())
                     .foregroundStyle(Color.vgText)
-                    .padding(.top, VGSpace.xl)
+                    .padding(.top, VGSpace.sm)
                     .padding(.horizontal, VGSpace.xl)
 
                 if library.isLoading {

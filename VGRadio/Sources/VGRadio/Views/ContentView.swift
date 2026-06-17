@@ -10,12 +10,14 @@ struct ContentView: View {
     @State private var selection: SidebarItem = .library
     @State private var showAddURL = false
     @State private var showSearch = false
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var spaceKeyMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView(selection: $selection, showAddURL: $showAddURL)
-                    .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 220)
+                    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 180)
             } detail: {
                 ZStack {
                     Color.vgBg.ignoresSafeArea()
@@ -26,8 +28,10 @@ struct ContentView: View {
                     case .recentlyPlayed: RecentlyPlayedView()
                     }
                 }
+                .ignoresSafeArea(.all, edges: .top)
             }
             .navigationSplitViewStyle(.balanced)
+            .toolbar(.hidden, for: .windowToolbar)
 
             Divider().overlay(Color.vgSeparator)
             PlayerBarView()
@@ -62,11 +66,24 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: player.showQueue)
-        .onAppear { Task { await library.load() } }
+        .onAppear {
+            Task { await library.load() }
+            spaceKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                guard event.keyCode == 49 else { return event } // space
+                if let responder = NSApp.keyWindow?.firstResponder,
+                   responder is NSText || responder is NSTextView {
+                    return event
+                }
+                player.togglePlay()
+                return nil
+            }
+        }
+        .onDisappear {
+            if let monitor = spaceKeyMonitor { NSEvent.removeMonitor(monitor) }
+        }
         .onChange(of: library.pendingNavigation) { _, album in
             if album != nil { selection = .library }
         }
-        .onKeyPress(.space) { player.togglePlay(); return .handled }
         .keyboardShortcut("k", modifiers: .command)
         .background {
             Group {
@@ -74,6 +91,11 @@ struct ContentView: View {
                 Button("") { selection = .browse    }.keyboardShortcut("2", modifiers: .command)
                 Button("") { selection = .favorites }.keyboardShortcut("3", modifiers: .command)
                 Button("") { showAddURL = true      }.keyboardShortcut("4", modifiers: .command)
+                Button("") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                    }
+                }.keyboardShortcut("b", modifiers: .command)
             }
             .hidden()
         }

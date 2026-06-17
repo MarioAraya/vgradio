@@ -1,47 +1,54 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-14
+Última sesión: 2026-06-16
 
 ## En progreso
 
-### Rama `users` — refactor favoritos + SearchModal (uncommitted)
+### macOS app UX polish (sin commitear)
 
-Cambios sin commitear que mejoran la arquitectura de favoritos y añaden búsqueda global.
+Varios refinamientos de UI/UX en la app macOS. Cambios sin commitear:
 
-**Qué hay sin commitear:**
-
-1. **`trackFavorites.ts`** (nuevo) — store centralizado `Set<number>` de IDs favoritos. Reemplaza tracking por componente. `initTrackFavorites()` carga desde API al login.
-2. **`SearchModal.svelte`** (nuevo) — modal de búsqueda global, activa con `Cmd+K` / `Ctrl+K`.
-3. **`authModal.ts` fix** — `requireAuth()` ahora verifica si user ya está logueado antes de abrir modal (bug: antes siempre abría el modal).
-4. **`PlayerBar.svelte`** — favoritos usan `favoritedTrackIDs` Set en vez del store `favorites` viejo.
-5. **`+layout.svelte`** — añade `<SearchModal>`, atajo `Cmd+K`, llama `initTrackFavorites()` tras `initAuth()`.
-6. **`albums/[id]/+page.svelte`** — usa `favoritedTrackIDs` Set; catalog number es ahora link a `vgmdb.net/search?q=<catalog>`.
-7. **`browse/+page.svelte`** — post-import muestra link clickeable al álbum (en vez de solo ✓); `imported` record guarda `albumId` string.
-8. **`favorites/+page.svelte`** — llama `setTrackFavorited(id, false)` al unfavoritar.
+**Archivos modificados:**
+- `DesignSystem.swift` — sidebar 220→180px, playerBar 72→56px
+- `PlayerBarView.swift` — layout 3-columnas (cover+info LEFT | transport CENTER | vol+acciones RIGHT)
+- `ContentView.swift` — Cmd+B toggle sidebar, Space key via `NSEvent.addLocalMonitorForEvents` (reemplaza `.onKeyPress` que no funcionaba bien), toolbar oculto, ignoresSafeArea top
+- `SidebarView.swift` — padding top 12→36 (espacio para titlebar sin toolbar), `maxWidth: .infinity`, ignoresSafeArea top
+- `PlayerService.swift` — `isEnabled = true` en remote commands, `playbackState` explícito en NowPlayingInfoCenter
+- `AlbumDetailView.swift` — botón "hide track" también llama `player.next()` si es el track actual
+- `web/src/routes/albums/[id]/+page.svelte` — misma lógica hide+skip en web
 
 **Decisiones tomadas:**
-- Catalog number → link de búsqueda en vgmdb.net (opción 1: búsqueda, no link directo). VGMdb no tiene URL directa por catalog number; usa IDs numéricos internos.
-- `trackFavorites` es un `Set<number>` global en vez de array, para O(1) lookup en listas largas.
+- `.toolbar(.hidden, for: .windowToolbar)` para quitar barra de título nativa y dar estilo borderless
+- Space key con `NSEvent.addLocalMonitorForEvents` en lugar de `.onKeyPress` porque `.onKeyPress` solo funciona si la vista tiene foco de teclado
+- PlayerBar a 3 columnas con `Color.clear + .overlay` para centrado real del transport
 
 **Preguntas pendientes:**
-1. ¿`SearchModal` ya tiene lógica de búsqueda implementada o solo es el shell visual?
+1. ¿Compilar y verificar en Xcode antes de commitear? (Cambios no testeados en build real)
+2. ¿SearchModal tiene búsqueda implementada o solo es shell visual?
 
-## Completado esta sesión (antes del trabajo sin commitear)
+## Completado esta sesión
 
-- [x] **Spotify-style player bar + fullscreen** (`bacc002`) — UX polish, controles mejorados
-- [x] **CORS fix** (`c77afba`) — reflect Origin header en vez de env var fija
-- [x] **Multi-user auth frontend** (`6641da3`) — lazy login, favorites, user menu
-- [x] **Multi-user auth backend** (`945000c`) — sessions, favorites, enrichment endpoints
+- [x] **macOS UX polish** — sidebar más angosta, player bar más compacta, layout 3-col, Cmd+B toggle sidebar, Space key fix, hide-track skip-if-current (Swift + Svelte)
+- [x] **NowPlayingInfo fix** — `playbackState` explícito + `isEnabled` en remote commands
+
+## Completado sesiones anteriores
+
+- [x] **Tests backend Go** — 29/29 pasan (`go test ./...`, ~8.7s)
+- [x] `61098e0` — favorites centralizados (`trackFavorites.ts`), SearchModal (`Cmd+K`), UX improvements
+- [x] `bacc002` — Spotify-style player bar + fullscreen
+- [x] `c77afba` — CORS fix (reflect Origin header)
+- [x] `6641da3` — frontend multi-user auth (lazy login, favorites, user menu)
+- [x] `945000c` — backend multi-user auth (sessions, favorites, enrichment)
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Commitear rama `users`** — los 8 archivos modificados/nuevos están listos para commit
-- [ ] **Verificar SearchModal** — confirmar que tiene funcionalidad de búsqueda o implementarla
-- [ ] **Re-sync letra S** — con fix del seen-map, S debería traer ~12k álbumes (antes: ~22/409 por página)
-- [ ] **Merge `users` → `main`** — cuando esté todo verificado
+- [ ] **Compilar y verificar** — abrir Xcode, build, probar Cmd+B, Space, player bar layout
+- [ ] **Commitear UX polish** — si build pasa, un commit limpio con todos los cambios Swift + Svelte
+- [ ] **Verificar SearchModal** — ¿tiene funcionalidad de búsqueda o solo shell visual?
+- [ ] **Merge `users` → `main`** — rama limpia, tests pasan, lista para merge
 - [ ] **Deploy VPS** — backend + frontend
+- [ ] **Re-sync letra S** — con fix del seen-map, S debería traer ~12k álbumes
 - [ ] **FTS5 para búsqueda** — `LIKE '%q%'` full scan, con >50k entries puede ser lento
-- [ ] **Tests backend Go** — cero tests actualmente
 
 ## Notas
 
@@ -73,6 +80,9 @@ Solo existe búsqueda: `https://vgmdb.net/search?q=CATALOG`. Las páginas de ál
 ### Comandos útiles
 
 ```bash
+# Tests backend
+cd /Users/maaya/dev/vgradio-app/backend && go test ./...
+
 # Stats backend
 curl -s http://localhost:8080/stats
 

@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import type { Album, AlbumSummary } from '$lib/types';
-  import { player } from '$lib/stores/player';
+  import { player, playerNext } from '$lib/stores/player';
   import { hidden } from '$lib/stores/hidden';
   import { requireAuth } from '$lib/stores/authModal';
   import { favoritedTrackIDs, setTrackFavorited } from '$lib/stores/trackFavorites';
@@ -277,7 +277,10 @@
               {isFav ? '★' : '☆'}
             </button>
             <button class="act hide-btn" class:hide-active={isHid} title={isHid ? 'Unhide' : 'Hide'}
-              on:click={() => hidden.toggle(track.id)}>
+              on:click={() => {
+                hidden.toggle(track.id);
+                if (isCurrent) playerNext();
+              }}>
               👎
             </button>
             {#if track.downloaded}

@@ -34,7 +34,7 @@ struct FavoritesView: View {
                         .help("Play all favorites")
                     }
                 }
-                .padding(.top, VGSpace.xl)
+                .padding(.top, VGSpace.md)
                 .padding(.horizontal, VGSpace.xl)
 
                 if favorites.grouped.isEmpty {

@@ -57,8 +57,8 @@ enum VGSpace {
 // MARK: - Layout constants
 
 enum VGLayout {
-    static let sidebarWidth: CGFloat    = 220
-    static let playerBarHeight: CGFloat = 72
+    static let sidebarWidth: CGFloat    = 180
+    static let playerBarHeight: CGFloat = 56
     static let albumCoverDetail: CGFloat = 220
     static let albumCoverPlayer: CGFloat = 44
     static let albumCoverGrid: CGFloat   = 120
