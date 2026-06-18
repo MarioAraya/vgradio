@@ -37,6 +37,7 @@
       const album = await api.album(t.albumId);
       const summary = { id: album.id, title: album.title, platform: album.platform,
         year: album.year, albumType: album.albumType, trackCount: album.tracks.length,
+        totalDurationSec: album.tracks.reduce((s, t) => s + t.durationSec, 0),
         coverUrls: album.covers.map(c => c.url) };
       const track = album.tracks.find(tr => tr.id === t.id);
       if (!track) return;

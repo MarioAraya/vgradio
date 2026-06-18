@@ -57,6 +57,12 @@ struct BrowseView: View {
         .padding(.vertical, VGSpace.sm)
     }
 
+    private var syncButtonLabel: String {
+        let l = catalog.selectedLetter
+        if l.isEmpty { return "Sync All" }
+        return "Sync \(l)"
+    }
+
     private var syncSection: some View {
         HStack(spacing: VGSpace.sm) {
             if let p = catalog.syncProgress {
@@ -74,10 +80,10 @@ struct BrowseView: View {
                         .foregroundStyle(Color.vgTextMuted)
                 }
             }
-            Button(action: { Task { await catalog.startSync() } }) {
+            Button(action: { Task { await catalog.startSync(letter: catalog.selectedLetter) } }) {
                 HStack(spacing: 4) {
                     Image(systemName: catalog.isSyncing ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
-                    Text(catalog.isSyncing ? "Syncing…" : "Sync Catalog")
+                    Text(catalog.isSyncing ? "Syncing…" : syncButtonLabel)
                 }
                 .font(VGFont.caption())
                 .foregroundStyle(catalog.isSyncing ? Color.vgTextMuted : Color.vgAccent)
@@ -192,7 +198,7 @@ struct BrowseView: View {
                     .font(VGFont.heading())
                     .foregroundStyle(Color.vgTextSec)
                 Text(searchText.isEmpty
-                    ? "Press Sync Catalog to fetch all albums from khinsider."
+                    ? "Select a letter and press Sync to fetch albums from khinsider."
                     : "Try a different search term or filter.")
                     .font(VGFont.body())
                     .foregroundStyle(Color.vgTextMuted)

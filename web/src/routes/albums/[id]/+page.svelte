@@ -11,7 +11,7 @@
   import { coverPrefs } from '$lib/stores/coverPrefs';
   import CoverCarousel from '$lib/components/CoverCarousel.svelte';
   import CoverLightbox from '$lib/components/CoverLightbox.svelte';
-  import { fmtTime } from '$lib/utils';
+  import { fmtTime, fmtDuration } from '$lib/utils';
   import { addToast } from '$lib/stores/toasts';
 
   let lightboxOpen = false;
@@ -44,7 +44,9 @@
 
   function toSummary(a: Album): AlbumSummary {
     return { id: a.id, title: a.title, platform: a.platform, year: a.year,
-      albumType: a.albumType, trackCount: a.tracks.length, coverUrls: a.covers.map(c => c.url) };
+      albumType: a.albumType, trackCount: a.tracks.length,
+      totalDurationSec: a.tracks.reduce((s, t) => s + t.durationSec, 0),
+      coverUrls: a.covers.map(c => c.url) };
   }
 
   function visibleTracks() {
@@ -201,6 +203,8 @@
           {#if album.platform}<span class="tag">{album.platform}</span>{/if}
           {#if album.year}<span class="tag">{album.year}</span>{/if}
           {#if album.albumType}<span class="tag">{album.albumType}</span>{/if}
+          {@const totalSec = album.tracks.reduce((s, t) => s + t.durationSec, 0)}
+          {#if totalSec > 0}<span class="tag">{fmtDuration(totalSec)}</span>{/if}
         </div>
         {#if album.developer}<p class="detail">Developer: {album.developer}</p>{/if}
         {#if album.publisher}<p class="detail">Publisher: {album.publisher}</p>{/if}

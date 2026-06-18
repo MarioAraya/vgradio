@@ -69,8 +69,10 @@ final class APIClient {
 
     // MARK: - Catalog
 
-    func startCatalogSync() async throws {
-        var req = URLRequest(url: try url("/catalog/sync"))
+    func startCatalogSync(letter: String = "") async throws {
+        var comps = URLComponents(string: baseURL + "/catalog/sync")!
+        if !letter.isEmpty { comps.queryItems = [.init(name: "letter", value: letter)] }
+        var req = URLRequest(url: comps.url!)
         req.httpMethod = "POST"
         let (_, resp) = try await session.data(for: req)
         if let http = resp as? HTTPURLResponse, http.statusCode >= 400 && http.statusCode != 409 {

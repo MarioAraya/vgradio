@@ -41,6 +41,7 @@ struct QueuePanel: View {
                         ForEach(player.queue.indices, id: \.self) { i in
                             QueueRow(
                                 track: player.queue[i],
+                                albumTitle: player.currentAlbum?.title,
                                 index: i,
                                 isCurrent: i == player.queueIndex
                             ) {
@@ -65,8 +66,7 @@ struct QueuePanel: View {
             }
         }
         .frame(width: 320, height: 420)
-        .background(.ultraThinMaterial)
-        .background(Color.vgSidebar.opacity(0.85))
+        .background(Color.vgSidebar.opacity(0.97))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.vgBorder60))
         .shadow(color: .black.opacity(0.4), radius: 20, y: 8)
@@ -75,6 +75,7 @@ struct QueuePanel: View {
 
 private struct QueueRow: View {
     let track: Track
+    let albumTitle: String?
     let index: Int
     let isCurrent: Bool
     let onRemove: () -> Void
@@ -95,11 +96,19 @@ private struct QueueRow: View {
             }
             .frame(width: 24, alignment: .center)
 
-            Text(track.name)
-                .font(VGFont.body(13))
-                .foregroundStyle(isCurrent ? Color.vgAccent : Color.vgText)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(track.name)
+                    .font(VGFont.body(13))
+                    .foregroundStyle(isCurrent ? Color.vgAccent : Color.vgText)
+                    .lineLimit(1)
+                if let albumTitle {
+                    Text(albumTitle)
+                        .font(VGFont.caption(10))
+                        .foregroundStyle(Color.vgTextMuted)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(track.durationFormatted)
                 .font(VGFont.mono(11))
@@ -122,8 +131,8 @@ private struct QueueRow: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(height: 42)
+        .padding(.vertical, 6)
+        .frame(height: 50)
         .background(isCurrent ? Color.vgAccentBg : isHovered ? Color.white.opacity(0.04) : Color.clear)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovered)

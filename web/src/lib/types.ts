@@ -5,6 +5,7 @@ export interface AlbumSummary {
   year: number
   albumType: string
   trackCount: number
+  totalDurationSec: number
   coverUrls: string[]
   isFavorite?: boolean
 }

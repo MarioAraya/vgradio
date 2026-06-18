@@ -637,7 +637,7 @@ private struct DetailTrackRow: View {
                 .frame(width: 40, alignment: .center)
                 .help("Play next")
 
-                // Download button (when not downloaded) or thumbs up (when downloaded)
+                // Download button (only when not downloaded)
                 if !isDownloaded {
                     Button(action: onDownload) {
                         Group {
@@ -656,23 +656,24 @@ private struct DetailTrackRow: View {
                     .frame(width: 40, alignment: .center)
                     .disabled(isDownloading)
                     .help("Download track")
-                } else {
-                    Button { favorites.toggle(track, album: album) } label: {
-                        Group {
-                            if isHovered || isFav {
-                                Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
-                                    .scaleEffect(isFav ? 1.1 : 1)
-                            } else {
-                                Color.clear
-                            }
-                        }
-                        .animation(.spring(response: 0.2), value: isFav)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(width: 40, alignment: .center)
                 }
+
+                // Favorite button (always visible)
+                Button { favorites.toggle(track, album: album) } label: {
+                    Group {
+                        if isHovered || isFav {
+                            Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                .font(.system(size: 12))
+                                .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
+                                .scaleEffect(isFav ? 1.1 : 1)
+                        } else {
+                            Color.clear
+                        }
+                    }
+                    .animation(.spring(response: 0.2), value: isFav)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 40, alignment: .center)
 
                 Button {
                     hidden.toggle(track.id)

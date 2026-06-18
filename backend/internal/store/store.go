@@ -370,19 +370,21 @@ func (s *Store) SetTrackLocalPath(ctx context.Context, trackID, localPath string
 
 // AlbumSummary is a lightweight album record for list responses.
 type AlbumSummary struct {
-	ID         string
-	Title      string
-	Platform   string
-	Year       int
-	AlbumType  string
-	TrackCount int
-	CoverURLs  []string // all cover URLs for this album, in insertion order
+	ID               string
+	Title            string
+	Platform         string
+	Year             int
+	AlbumType        string
+	TrackCount       int
+	TotalDurationSec int
+	CoverURLs        []string // all cover URLs for this album, in insertion order
 }
 
 // Albums returns all cached album summaries including cover URLs.
 func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT a.id, a.title, a.platform, a.year, a.album_type, COUNT(t.id),
+		       COALESCE(SUM(t.duration_sec), 0),
 		       (SELECT GROUP_CONCAT(url, '|') FROM covers WHERE album_id = a.id)
 		FROM albums a LEFT JOIN tracks t ON t.album_id = a.id
 		GROUP BY a.id ORDER BY a.title`)
@@ -394,7 +396,7 @@ func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
 	for rows.Next() {
 		var sum AlbumSummary
 		var coverConcat sql.NullString
-		if err := rows.Scan(&sum.ID, &sum.Title, &sum.Platform, &sum.Year, &sum.AlbumType, &sum.TrackCount, &coverConcat); err != nil {
+		if err := rows.Scan(&sum.ID, &sum.Title, &sum.Platform, &sum.Year, &sum.AlbumType, &sum.TrackCount, &sum.TotalDurationSec, &coverConcat); err != nil {
 			return nil, err
 		}
 		if coverConcat.Valid && coverConcat.String != "" {

@@ -6,6 +6,7 @@
   import CoverImage from '$lib/components/CoverImage.svelte';
   import FavoriteButton from '$lib/components/FavoriteButton.svelte';
   import { player } from '$lib/stores/player';
+  import { fmtDuration } from '$lib/utils';
 
   $: currentAlbumId = $player.currentAlbum?.id ?? null;
 
@@ -82,7 +83,7 @@
               <FavoriteButton albumId={album.id} favorited={album.isFavorite ?? false}
                 on:change={(e) => { album.isFavorite = e.detail; albums = albums; }} />
             </div>
-            <span class="card-sub">{album.platform || album.albumType}{album.year ? ` · ${album.year}` : ''}</span>
+            <span class="card-sub">{album.platform || album.albumType}{album.year ? ` · ${album.year}` : ''}{album.totalDurationSec ? ` · ${fmtDuration(album.totalDurationSec)}` : ''}</span>
           </div>
         </div>
       {/each}

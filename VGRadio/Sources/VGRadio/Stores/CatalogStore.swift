@@ -79,12 +79,12 @@ final class CatalogStore {
         }
     }
 
-    func startSync() async {
+    func startSync(letter: String = "") async {
         guard !isSyncing else { return }
         isSyncing = true
         error = nil
         do {
-            try await api.startCatalogSync()
+            try await api.startCatalogSync(letter: letter)
         } catch {
             self.error = error.localizedDescription
             isSyncing = false

@@ -253,14 +253,15 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 	favs, _ := h.store.FavoriteAlbumIDs(r.Context(), uid)
 
 	type item struct {
-		ID         string   `json:"id"`
-		Title      string   `json:"title"`
-		Platform   string   `json:"platform"`
-		Year       int      `json:"year"`
-		AlbumType  string   `json:"albumType"`
-		TrackCount int      `json:"trackCount"`
-		CoverURLs  []string `json:"coverUrls"`
-		IsFavorite bool     `json:"isFavorite"`
+		ID               string   `json:"id"`
+		Title            string   `json:"title"`
+		Platform         string   `json:"platform"`
+		Year             int      `json:"year"`
+		AlbumType        string   `json:"albumType"`
+		TrackCount       int      `json:"trackCount"`
+		TotalDurationSec int      `json:"totalDurationSec"`
+		CoverURLs        []string `json:"coverUrls"`
+		IsFavorite       bool     `json:"isFavorite"`
 	}
 	out := make([]item, len(albums))
 	for i, a := range albums {
@@ -268,7 +269,7 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 		if urls == nil {
 			urls = []string{}
 		}
-		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, urls, favs[a.ID]}
+		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, a.TotalDurationSec, urls, favs[a.ID]}
 	}
 	jsonOK(w, out, http.StatusOK)
 }

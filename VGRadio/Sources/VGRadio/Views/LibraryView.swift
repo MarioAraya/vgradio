@@ -168,6 +168,10 @@ private struct AlbumCard: View {
                 PlatformPill(platform: firstPlatform.trimmingCharacters(in: .whitespaces))
                 Text("·").foregroundStyle(Color.vgTextMuted)
                 Text(String(album.year)).font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
+                if !album.totalDurationFormatted.isEmpty {
+                    Text("·").foregroundStyle(Color.vgTextMuted)
+                    Text(album.totalDurationFormatted).font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
+                }
             }
         }
         .padding(VGSpace.sm)

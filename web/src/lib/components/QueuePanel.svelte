@@ -55,7 +55,12 @@
             <button class="play-row" on:click={() => {
               const s = $player;
               if (s.currentAlbum) player.play(track, s.currentAlbum, s.queue, s.currentCovers);
-            }}>{track.name}</button>
+            }}>
+              <span class="track-name">{track.name}</span>
+              {#if $player.currentAlbum}
+                <span class="album-name">{$player.currentAlbum.title}</span>
+              {/if}
+            </button>
             <span class="dur">{fmtTime(track.durationSec)}</span>
             <button class="rm" on:click={() => player.removeFromQueue(i)}>✕</button>
           </div>
@@ -104,7 +109,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 7px 10px;
     border-top: 2px solid transparent;
     border-bottom: 2px solid transparent;
     transition: background 0.1s;
@@ -121,14 +126,27 @@
   .play-row {
     flex: 1;
     text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow: hidden;
+  }
+  .track-name {
     font-size: 12px;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .row.current .play-row { color: var(--accent); font-weight: 600; }
-  .play-row:hover { color: var(--accent); }
+  .album-name {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row.current .track-name { color: var(--accent); font-weight: 600; }
+  .play-row:hover .track-name { color: var(--accent); }
   .dur { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
   .rm {
     font-size: 11px;

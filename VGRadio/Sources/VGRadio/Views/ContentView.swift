@@ -96,6 +96,7 @@ struct ContentView: View {
                         columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
                     }
                 }.keyboardShortcut("b", modifiers: .command)
+                Button("") { Task { await library.load() } }.keyboardShortcut("r", modifiers: .command)
             }
             .hidden()
         }

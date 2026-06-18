@@ -20,7 +20,7 @@
     const track: Track = { id: e.trackId, name: e.trackName, index: 0, durationSec: 0,
       sizeBytes: 0, streamUrl: `/tracks/${e.trackId}/stream`, downloadUrl: `/tracks/${e.trackId}/download`, downloaded: false };
     const album: AlbumSummary = { id: e.albumId, title: e.albumTitle, platform: e.platform,
-      year: e.year, albumType: '', trackCount: 0, coverUrls: e.coverUrl ? [e.coverUrl] : [] };
+      year: e.year, albumType: '', trackCount: 0, totalDurationSec: 0, coverUrls: e.coverUrl ? [e.coverUrl] : [] };
     player.play(track, album, [track]);
   }
 </script>

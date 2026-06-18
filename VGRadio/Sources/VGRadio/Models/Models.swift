@@ -29,9 +29,19 @@ struct AlbumSummary: Codable, Identifiable, Hashable {
     var year: Int
     var albumType: String
     var trackCount: Int
+    var totalDurationSec: Int
     var coverUrls: [String]
 
     var covers: [Cover] { coverUrls.map { Cover(url: $0, width: 0, height: 0) } }
+
+    var totalDurationFormatted: String {
+        guard totalDurationSec > 0 else { return "" }
+        let h = totalDurationSec / 3600
+        let m = (totalDurationSec % 3600) / 60
+        let s = totalDurationSec % 60
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+        return String(format: "%d:%02d", m, s)
+    }
 }
 
 struct Track: Codable, Identifiable, Hashable {
