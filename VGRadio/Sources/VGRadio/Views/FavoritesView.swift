@@ -62,7 +62,7 @@ struct FavoritesView: View {
         guard let first = tracks.first else { return }
         let album = AlbumSummary(id: "favorites", title: "Favorites",
                                  platform: "", year: 0, albumType: "",
-                                 trackCount: tracks.count, coverUrls: [])
+                                 trackCount: tracks.count, totalDurationSec: 0, coverUrls: [])
         player.play(track: first, in: album, queue: tracks)
     }
 
@@ -177,7 +177,7 @@ private struct FavoriteTrackRow: View {
                                      streamUrl: "", downloadUrl: "", downloaded: true)
                     let dummyAlbum = AlbumSummary(id: track.albumId, title: track.albumTitle,
                                                    platform: track.platform, year: track.year,
-                                                   albumType: "", trackCount: 0, coverUrls: [])
+                                                   albumType: "", trackCount: 0, totalDurationSec: 0, coverUrls: [])
                     favorites.toggle(dummy, album: dummyAlbum)
                 }
         }
