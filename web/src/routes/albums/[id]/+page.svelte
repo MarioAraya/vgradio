@@ -203,8 +203,7 @@
           {#if album.platform}<span class="tag">{album.platform}</span>{/if}
           {#if album.year}<span class="tag">{album.year}</span>{/if}
           {#if album.albumType}<span class="tag">{album.albumType}</span>{/if}
-          {@const totalSec = album.tracks.reduce((s, t) => s + t.durationSec, 0)}
-          {#if totalSec > 0}<span class="tag">{fmtDuration(totalSec)}</span>{/if}
+          {#if album.tracks.reduce((s, t) => s + t.durationSec, 0) > 0}<span class="tag">{fmtDuration(album.tracks.reduce((s, t) => s + t.durationSec, 0))}</span>{/if}
         </div>
         {#if album.developer}<p class="detail">Developer: {album.developer}</p>{/if}
         {#if album.publisher}<p class="detail">Publisher: {album.publisher}</p>{/if}
