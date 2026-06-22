@@ -7,12 +7,15 @@ struct AlbumDetailView: View {
     @Environment(PlayerService.self) var player
     @Environment(FavoritesStore.self) var favorites
     @Environment(HiddenTracksStore.self) var hidden
+    @Environment(AuthStore.self) var auth
     @State private var album: Album?
     @State private var isLoading = true
     @State private var hoveredTrackID: String?
     @State private var showLightbox = false
     @State private var downloadingTrackID: String?
     @State private var downloadedIDs: Set<String> = []
+    @State private var addToPlaylistTrackId: String?
+    @State private var showAddToPlaylist = false
 
     var body: some View {
         ScrollView {
@@ -35,6 +38,11 @@ struct AlbumDetailView: View {
         }
         .background(Color.vgBg)
         .task { await load() }
+        .sheet(isPresented: $showAddToPlaylist) {
+            if let tid = addToPlaylistTrackId {
+                AddToPlaylistSheet(trackId: tid)
+            }
+        }
         .overlay {
             if showLightbox, let album {
                 CoverLightbox(
@@ -188,7 +196,11 @@ struct AlbumDetailView: View {
                     isPlaying: player.currentTrack?.id == track.id,
                     isDownloaded: downloadedIDs.contains(track.id),
                     isDownloading: downloadingTrackID == track.id,
-                    onDownload: { downloadTrack(track) }
+                    onDownload: { downloadTrack(track) },
+                    onAddToPlaylist: auth.isLoggedIn ? {
+                        addToPlaylistTrackId = track.id
+                        showAddToPlaylist = true
+                    } : nil
                 )
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
                 .onTapGesture(count: 2) {
@@ -570,6 +582,7 @@ private struct DetailTrackRow: View {
     let isDownloaded: Bool
     let isDownloading: Bool
     let onDownload: () -> Void
+    var onAddToPlaylist: (() -> Void)? = nil
     @Environment(FavoritesStore.self) var favorites
     @Environment(HiddenTracksStore.self) var hidden
     @Environment(PlayerService.self) var player
@@ -692,6 +705,21 @@ private struct DetailTrackRow: View {
         }
         .frame(height: VGLayout.trackRowHeight)
         .contentShape(Rectangle())
+        .contextMenu {
+            if let addFn = onAddToPlaylist {
+                Button { addFn() } label: {
+                    Label("Add to Playlist…", systemImage: "music.note.list")
+                }
+                Divider()
+            }
+            Button { player.playNext(track) } label: {
+                Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+            Button { favorites.toggle(track, album: album) } label: {
+                Label(isFav ? "Remove from Favorites" : "Add to Favorites",
+                      systemImage: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
+            }
+        }
         .gesture(
             DragGesture(minimumDistance: 12)
                 .onEnded { v in
