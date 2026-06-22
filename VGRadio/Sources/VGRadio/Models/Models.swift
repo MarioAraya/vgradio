@@ -201,6 +201,7 @@ struct FavoriteTrack: Codable, Identifiable {
     var platform: String
     var year: Int
     var durationSec: Int
+    var coverUrl: String?
 
     var durationFormatted: String {
         let m = durationSec / 60, s = durationSec % 60

@@ -24,7 +24,8 @@ final class FavoritesStore {
                 albumTitle: album.title,
                 platform: album.platform,
                 year: album.year,
-                durationSec: track.durationSec
+                durationSec: track.durationSec,
+                coverUrl: album.coverUrls.first
             ))
         }
         save()
@@ -48,22 +49,23 @@ final class FavoritesStore {
                 albumTitle: album.title,
                 platform: album.platform,
                 year: album.year,
-                durationSec: track.durationSec
+                durationSec: track.durationSec,
+                coverUrl: album.coverUrls.first
             ))
         }
         save()
     }
 
     /// Tracks grouped by album, preserving insertion order.
-    var grouped: [(albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])] {
+    var grouped: [(albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])] {
         var seen: [String: Int] = [:]
-        var groups: [(albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])] = []
+        var groups: [(albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])] = []
         for f in favorites {
             if let idx = seen[f.albumId] {
                 groups[idx].tracks.append(f)
             } else {
                 seen[f.albumId] = groups.count
-                groups.append((f.albumTitle, f.platform, f.year, [f]))
+                groups.append((f.albumTitle, f.platform, f.year, f.coverUrl ?? "", [f]))
             }
         }
         return groups

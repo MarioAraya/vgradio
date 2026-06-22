@@ -93,14 +93,20 @@ struct FavoritesView: View {
 // MARK: - Group
 
 private struct FavoriteGroupView: View {
-    let group: (albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])
+    let group: (albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Album header
             HStack(spacing: VGSpace.md) {
-                AlbumLetterArt(title: group.albumTitle, size: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                AsyncImage(url: AlbumCoverView.resolveURL(group.coverUrl)) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().aspectRatio(contentMode: .fill)
+                    default: AlbumLetterArt(title: group.albumTitle, size: 48)
+                    }
+                }
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(group.albumTitle)
                         .font(.system(size: 14, weight: .semibold))

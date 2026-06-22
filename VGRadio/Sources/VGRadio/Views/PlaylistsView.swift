@@ -11,7 +11,7 @@ struct LikedMusicView: View {
             LazyVStack(alignment: .leading, spacing: VGSpace.lg) {
                 // Hero header
                 HStack(alignment: .bottom, spacing: VGSpace.lg) {
-                    PlaylistMosaicView(coverURLs: [], size: 140)
+                    PlaylistMosaicView(coverURLs: favorites.grouped.prefix(4).compactMap { $0.coverUrl.isEmpty ? nil : $0.coverUrl }, size: 140)
                     VStack(alignment: .leading, spacing: 5) {
                         Text("AUTO PLAYLIST")
                             .font(VGFont.label(10))
@@ -581,12 +581,12 @@ struct AddToPlaylistSheet: View {
 // MARK: - FavoriteGroupView (reused from FavoritesView)
 
 private struct FavoriteGroupView: View {
-    let group: (albumTitle: String, platform: String, year: Int, tracks: [FavoriteTrack])
+    let group: (albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: VGSpace.md) {
-                AlbumLetterArt(title: group.albumTitle, size: 48)
+                AsyncCoverImage(url: AlbumCoverView.resolveURL(group.coverUrl), size: 48)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(group.albumTitle).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.vgText)

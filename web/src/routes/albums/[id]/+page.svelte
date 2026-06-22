@@ -463,9 +463,9 @@
     display: grid;
     grid-template-columns: 32px 1fr 64px 120px;
     align-items: center;
-    padding: 4px 8px;
+    padding: 2px 8px;
     border-radius: var(--r-sm);
-    height: 40px;
+    height: 32px;
     transition: background 0.1s;
   }
   .track-row:hover { background: rgba(255,255,255,0.04); }
