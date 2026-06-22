@@ -1,6 +1,7 @@
 import type {
   Album, AlbumSummary, CatalogConsole, CatalogPage,
-  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, Track, User
+  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, Track, User,
+  PlaylistSummary, PlaylistDetail
 } from './types';
 
 const BASE = () =>
@@ -16,6 +17,36 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
 async function del<T>(path: string): Promise<T> {
   const r = await fetch(BASE() + path, { method: 'DELETE', credentials: 'include' });
   if (!r.ok) throw new Error(`DELETE ${path} → ${r.status}`);
+  if (r.status === 204 || r.headers.get('content-length') === '0') return undefined as T;
+  return r.json();
+}
+
+async function patch<T>(path: string, body?: unknown): Promise<T> {
+  const r = await fetch(BASE() + path, {
+    method: 'PATCH',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }));
+    throw new Error(err.error ?? r.statusText);
+  }
+  if (r.status === 204 || r.headers.get('content-length') === '0') return undefined as T;
+  return r.json();
+}
+
+async function put<T>(path: string, body?: unknown): Promise<T> {
+  const r = await fetch(BASE() + path, {
+    method: 'PUT',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }));
+    throw new Error(err.error ?? r.statusText);
+  }
   if (r.status === 204 || r.headers.get('content-length') === '0') return undefined as T;
   return r.json();
 }
@@ -99,6 +130,21 @@ export const api = {
   toggleTrackFavorite: (trackId: string) =>
     post<{ favorited: boolean }>(`/favorites/tracks/${trackId}`),
   favoriteTracks: () => get<import('$lib/types').FavoriteTrack[]>('/favorites/tracks'),
+
+  // playlists
+  playlists: () => get<PlaylistSummary[]>('/playlists'),
+  playlist: (id: string) => get<PlaylistDetail>(`/playlists/${id}`),
+  createPlaylist: (name: string, description: string, isPublic: boolean) =>
+    post<PlaylistSummary>('/playlists', { name, description, isPublic }),
+  updatePlaylist: (id: string, data: Partial<{ name: string; description: string; isPublic: boolean }>) =>
+    patch<void>(`/playlists/${id}`, data),
+  deletePlaylist: (id: string) => del<void>(`/playlists/${id}`),
+  addTrackToPlaylist: (playlistId: string, trackId: string) =>
+    post<void>(`/playlists/${playlistId}/tracks`, { trackId }),
+  removeTrackFromPlaylist: (playlistId: string, trackId: string) =>
+    del<void>(`/playlists/${playlistId}/tracks/${trackId}`),
+  reorderPlaylistTracks: (playlistId: string, items: { trackId: string; position: number }[]) =>
+    put<void>(`/playlists/${playlistId}/tracks/reorder`, items),
 };
 
 export async function pollJob(jobId: string, onDone: (albumId: string) => void) {

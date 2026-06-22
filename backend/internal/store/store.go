@@ -171,6 +171,26 @@ func (s *Store) migrate() error {
 			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
 			PRIMARY KEY (user_id, track_id)
 		);
+
+		CREATE TABLE IF NOT EXISTS playlists (
+			id          TEXT PRIMARY KEY,
+			user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			name        TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			is_public   INTEGER NOT NULL DEFAULT 0,
+			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+			updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+		);
+		CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(user_id);
+
+		CREATE TABLE IF NOT EXISTS playlist_tracks (
+			playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+			track_id    TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+			position    INTEGER NOT NULL DEFAULT 0,
+			added_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+			PRIMARY KEY (playlist_id, track_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_playlist_tracks_list ON playlist_tracks(playlist_id, position);
 	`)
 	return err
 }

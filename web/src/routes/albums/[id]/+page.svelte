@@ -13,9 +13,18 @@
   import CoverLightbox from '$lib/components/CoverLightbox.svelte';
   import { fmtTime, fmtDuration } from '$lib/utils';
   import { addToast } from '$lib/stores/toasts';
+  import { currentUser } from '$lib/stores/auth';
+  import AddToPlaylistModal from '$lib/components/AddToPlaylistModal.svelte';
 
   let lightboxOpen = false;
   let lightboxIndex = 0;
+  let addToPlaylistTrackId = '';
+  let addToPlaylistOpen = false;
+
+  function openAddToPlaylist(trackId: string) {
+    addToPlaylistTrackId = trackId;
+    addToPlaylistOpen = true;
+  }
 
   let album: Album | null = null;
   let loading = true;
@@ -279,6 +288,9 @@
               on:click={() => toggleTrackFav(track)}>
               {isFav ? '★' : '☆'}
             </button>
+            {#if $currentUser}
+              <button class="act" title="Add to playlist" on:click={() => openAddToPlaylist(track.id)}>+</button>
+            {/if}
             <button class="act hide-btn" class:hide-active={isHid} title={isHid ? 'Unhide' : 'Hide'}
               on:click={() => {
                 hidden.toggle(track.id);
@@ -328,6 +340,8 @@
     />
   {/if}
 </div>
+
+<AddToPlaylistModal bind:open={addToPlaylistOpen} trackId={addToPlaylistTrackId} />
 
 <style>
   .page { padding: var(--sp-md); }

@@ -16,7 +16,7 @@ const track = (id = 'track-1') => ({
 });
 const album = (id = 'album-1') => ({
   id, title: `Album ${id}`, platform: 'SNES', year: 1993,
-  albumType: 'OST', trackCount: 10, coverUrls: ['/covers/album-1/cover_0.jpg'],
+  albumType: 'OST', trackCount: 10, totalDurationSec: 0, coverUrls: ['/covers/album-1/cover_0.jpg'],
 });
 
 describe('favorites store', () => {

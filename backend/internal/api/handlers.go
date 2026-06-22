@@ -64,6 +64,17 @@ type storer interface {
 	ToggleTrackFavorite(ctx context.Context, userID, trackID string) (bool, error)
 	GetFavoriteTracks(ctx context.Context, userID string) ([]store.TrackFavorite, error)
 	FavoriteTrackIDs(ctx context.Context, userID string) (map[string]bool, error)
+	// playlists
+	CreatePlaylist(ctx context.Context, id, userID, name, description string, isPublic bool) (*store.PlaylistSummary, error)
+	ListPlaylists(ctx context.Context, userID string) ([]store.PlaylistSummary, error)
+	GetPlaylist(ctx context.Context, id string) (*store.PlaylistDetail, error)
+	UpdatePlaylist(ctx context.Context, id, name, description string, isPublic bool) error
+	DeletePlaylist(ctx context.Context, id string) error
+	PlaylistOwner(ctx context.Context, id string) (string, error)
+	PlaylistIsPublic(ctx context.Context, id string) (bool, error)
+	AddTrackToPlaylist(ctx context.Context, playlistID, trackID string) error
+	RemoveTrackFromPlaylist(ctx context.Context, playlistID, trackID string) error
+	ReorderPlaylistTracks(ctx context.Context, playlistID string, items []store.ReorderItem) error
 }
 
 type trackFetcher interface {
@@ -151,6 +162,16 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /favorites", requireAuth(h.getFavorites))
 	mux.HandleFunc("POST /favorites/tracks/{id}", requireAuth(h.postTrackFavorite))
 	mux.HandleFunc("GET /favorites/tracks", requireAuth(h.getFavoriteTracks))
+
+	// playlists
+	mux.HandleFunc("GET /playlists", h.getPlaylists)
+	mux.HandleFunc("POST /playlists", requireAuth(h.postPlaylist))
+	mux.HandleFunc("GET /playlists/{id}", h.getPlaylist)
+	mux.HandleFunc("PATCH /playlists/{id}", requireAuth(h.patchPlaylist))
+	mux.HandleFunc("DELETE /playlists/{id}", requireAuth(h.deletePlaylist))
+	mux.HandleFunc("POST /playlists/{id}/tracks", requireAuth(h.postPlaylistTrack))
+	mux.HandleFunc("DELETE /playlists/{id}/tracks/{trackId}", requireAuth(h.deletePlaylistTrack))
+	mux.HandleFunc("PUT /playlists/{id}/tracks/reorder", requireAuth(h.putPlaylistReorder))
 
 	// admin
 	mux.HandleFunc("POST /admin/reset-password", h.postAdminResetPassword)

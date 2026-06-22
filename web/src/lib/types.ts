@@ -92,6 +92,37 @@ export interface FavoriteTrack {
   coverUrl?: string
 }
 
+export interface PlaylistSummary {
+  id: string
+  name: string
+  description: string
+  isPublic: boolean
+  trackCount: number
+  totalDurationSec: number
+  coverUrls: string[]
+  ownerId: string
+  ownerName: string
+  createdAt: string
+}
+
+export interface PlaylistTrack {
+  position: number
+  id: string
+  name: string
+  albumId: string
+  albumTitle: string
+  platform: string
+  year: number
+  durationSec: number
+  streamUrl: string
+  coverUrl?: string
+}
+
+export interface PlaylistDetail extends PlaylistSummary {
+  updatedAt: string
+  tracks: PlaylistTrack[]
+}
+
 export interface WishlistItem { url: string }
 
 export interface LibraryStats {
