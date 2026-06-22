@@ -1,7 +1,15 @@
 import SwiftUI
+import AppKit
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
 
 @main
 struct VGRadioApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var library = LibraryStore()
     @State private var favorites = FavoritesStore()
     @State private var player = PlayerService()

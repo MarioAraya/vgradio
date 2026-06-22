@@ -121,6 +121,76 @@ struct CatalogSyncProgress: Decodable {
     var consoles: Int
 }
 
+// MARK: - Auth
+
+struct UserProfile: Codable, Identifiable {
+    var id: String
+    var username: String
+    var email: String
+}
+
+// MARK: - Playlists
+
+struct PlaylistSummary: Codable, Identifiable {
+    var id: String
+    var name: String
+    var description: String
+    var isPublic: Bool
+    var trackCount: Int
+    var totalDurationSec: Int
+    var coverUrls: [String]
+    var ownerId: String
+    var ownerName: String
+    var createdAt: String
+}
+
+struct PlaylistTrack: Codable, Identifiable {
+    var position: Int
+    var id: String
+    var name: String
+    var albumId: String
+    var albumTitle: String
+    var platform: String
+    var year: Int
+    var durationSec: Int
+    var streamUrl: String
+    var coverUrl: String?
+
+    var durationFormatted: String {
+        let m = durationSec / 60, s = durationSec % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    func asTrack(index: Int) -> Track {
+        Track(id: id, index: index, name: name, durationSec: durationSec,
+              sizeBytes: 0, streamUrl: streamUrl,
+              downloadUrl: streamUrl.replacingOccurrences(of: "/stream", with: "/download"),
+              downloaded: false)
+    }
+}
+
+struct PlaylistDetail: Codable, Identifiable {
+    var id: String
+    var name: String
+    var description: String
+    var isPublic: Bool
+    var trackCount: Int
+    var totalDurationSec: Int
+    var coverUrls: [String]
+    var ownerId: String
+    var ownerName: String
+    var createdAt: String
+    var updatedAt: String
+    var tracks: [PlaylistTrack]
+
+    var totalDurationFormatted: String {
+        let h = totalDurationSec / 3600
+        let m = (totalDurationSec % 3600) / 60
+        if h > 0 { return "\(h)h \(m)m" }
+        return "\(m)m"
+    }
+}
+
 // MARK: - Favorites (local persistence)
 
 struct FavoriteTrack: Codable, Identifiable {

@@ -671,19 +671,14 @@ private struct DetailTrackRow: View {
                     .help("Download track")
                 }
 
-                // Favorite button (always visible)
+                // Favorite button
                 Button { favorites.toggle(track, album: album) } label: {
-                    Group {
-                        if isHovered || isFav {
-                            Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
-                                .font(.system(size: 12))
-                                .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
-                                .scaleEffect(isFav ? 1.1 : 1)
-                        } else {
-                            Color.clear
-                        }
-                    }
-                    .animation(.spring(response: 0.2), value: isFav)
+                    Image(systemName: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        .font(.system(size: 12))
+                        .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
+                        .scaleEffect(isFav ? 1.1 : 1)
+                        .opacity(isFav || isHovered ? 1 : (isDownloaded ? 0 : 0.25))
+                        .animation(.spring(response: 0.2), value: isFav)
                 }
                 .buttonStyle(.plain)
                 .frame(width: 40, alignment: .center)

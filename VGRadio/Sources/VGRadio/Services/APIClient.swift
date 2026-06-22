@@ -12,6 +12,9 @@ final class APIClient {
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = 30
+        cfg.httpCookieStorage = HTTPCookieStorage.shared
+        cfg.httpShouldSetCookies = true
+        cfg.httpCookieAcceptPolicy = .always
         return URLSession(configuration: cfg)
     }()
 
@@ -107,6 +110,102 @@ final class APIClient {
 
     func streamURL(for track: Track) -> URL? {
         URL(string: baseURL + track.streamUrl)
+    }
+
+    // MARK: - Auth
+
+    func me() async throws -> UserProfile? {
+        let (data, resp) = try await session.data(from: try url("/auth/me"))
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        return try? JSONDecoder().decode(UserProfile.self, from: data)
+    }
+
+    func login(email: String, password: String) async throws -> UserProfile {
+        var req = URLRequest(url: try url("/auth/login"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["email": email, "password": password])
+        let (data, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Login failed"
+            throw VGError.jobFailed(msg)
+        }
+        return try JSONDecoder().decode(UserProfile.self, from: data)
+    }
+
+    func logout() async throws {
+        var req = URLRequest(url: try url("/auth/logout"))
+        req.httpMethod = "POST"
+        _ = try await session.data(for: req)
+    }
+
+    // MARK: - Playlists
+
+    func playlists() async throws -> [PlaylistSummary] {
+        let (data, _) = try await session.data(from: try url("/playlists"))
+        return try JSONDecoder().decode([PlaylistSummary].self, from: data)
+    }
+
+    func playlist(id: String) async throws -> PlaylistDetail {
+        let (data, _) = try await session.data(from: try url("/playlists/\(id)"))
+        return try JSONDecoder().decode(PlaylistDetail.self, from: data)
+    }
+
+    func createPlaylist(name: String, description: String = "", isPublic: Bool = false) async throws -> PlaylistSummary {
+        var req = URLRequest(url: try url("/playlists"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "name": name, "description": description, "isPublic": isPublic
+        ])
+        let (data, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Error"
+            throw VGError.jobFailed(msg)
+        }
+        return try JSONDecoder().decode(PlaylistSummary.self, from: data)
+    }
+
+    func updatePlaylist(id: String, name: String, description: String, isPublic: Bool) async throws {
+        var req = URLRequest(url: try url("/playlists/\(id)"))
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "name": name, "description": description, "isPublic": isPublic
+        ])
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw VGError.jobFailed("Update failed (\(http.statusCode))")
+        }
+    }
+
+    func deletePlaylist(id: String) async throws {
+        var req = URLRequest(url: try url("/playlists/\(id)"))
+        req.httpMethod = "DELETE"
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw VGError.jobFailed("Delete failed (\(http.statusCode))")
+        }
+    }
+
+    func addTrackToPlaylist(playlistId: String, trackId: String) async throws {
+        var req = URLRequest(url: try url("/playlists/\(playlistId)/tracks"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["trackId": trackId])
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 && http.statusCode != 409 {
+            throw VGError.jobFailed("Add track failed (\(http.statusCode))")
+        }
+    }
+
+    func removeTrackFromPlaylist(playlistId: String, trackId: String) async throws {
+        var req = URLRequest(url: try url("/playlists/\(playlistId)/tracks/\(trackId)"))
+        req.httpMethod = "DELETE"
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw VGError.jobFailed("Remove track failed (\(http.statusCode))")
+        }
     }
 }
 

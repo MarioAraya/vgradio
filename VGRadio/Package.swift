@@ -8,6 +8,7 @@ let package = Package(
         .executableTarget(
             name: "VGRadio",
             path: "Sources/VGRadio",
+            resources: [.copy("Resources/AppIcon.icns")],
             linkerSettings: [.linkedFramework("MediaPlayer")]
         )
     ]

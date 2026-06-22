@@ -1,12 +1,18 @@
 import SwiftUI
 
-enum SidebarItem: String, Hashable {
-    case library, browse, favorites, recentlyPlayed
+enum SidebarItem: Hashable {
+    case library
+    case browse
+    case favorites
+    case recentlyPlayed
+    case playlistLiked
+    case playlist(id: String)
 }
 
 struct ContentView: View {
     @Environment(LibraryStore.self) var library
     @Environment(PlayerService.self) var player
+    @Environment(AuthStore.self) var auth
     @State private var selection: SidebarItem = .library
     @State private var showAddURL = false
     @State private var showSearch = false
@@ -17,16 +23,11 @@ struct ContentView: View {
         VStack(spacing: 0) {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView(selection: $selection, showAddURL: $showAddURL)
-                    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 180)
+                    .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 220)
             } detail: {
                 ZStack {
                     Color.vgBg.ignoresSafeArea()
-                    switch selection {
-                    case .library:       LibraryView()
-                    case .favorites:     FavoritesView()
-                    case .browse:        BrowseView()
-                    case .recentlyPlayed: RecentlyPlayedView()
-                    }
+                    detailView
                 }
                 .ignoresSafeArea(.all, edges: .top)
             }
@@ -46,16 +47,12 @@ struct ContentView: View {
                         .onTapGesture { showAddURL = false }
                     AddURLView(isPresented: $showAddURL)
                 }
-                .onAppear {
-                    NSApp.activate(ignoringOtherApps: true)
-                }
+                .onAppear { NSApp.activate(ignoringOtherApps: true) }
                 .onKeyPress(.escape) { showAddURL = false; return .handled }
             }
         }
         .overlay {
-            if showSearch {
-                SearchOverlay(isShowing: $showSearch)
-            }
+            if showSearch { SearchOverlay(isShowing: $showSearch) }
         }
         .overlay(alignment: .bottomTrailing) {
             if player.showQueue {
@@ -69,11 +66,9 @@ struct ContentView: View {
         .onAppear {
             Task { await library.load() }
             spaceKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                guard event.keyCode == 49 else { return event } // space
+                guard event.keyCode == 49 else { return event }
                 if let responder = NSApp.keyWindow?.firstResponder,
-                   responder is NSText || responder is NSTextView {
-                    return event
-                }
+                   responder is NSText || responder is NSTextView { return event }
                 player.togglePlay()
                 return nil
             }
@@ -87,10 +82,11 @@ struct ContentView: View {
         .keyboardShortcut("k", modifiers: .command)
         .background {
             Group {
-                Button("") { selection = .library   }.keyboardShortcut("1", modifiers: .command)
-                Button("") { selection = .browse    }.keyboardShortcut("2", modifiers: .command)
-                Button("") { selection = .favorites }.keyboardShortcut("3", modifiers: .command)
-                Button("") { showAddURL = true      }.keyboardShortcut("4", modifiers: .command)
+                Button("") { selection = .library        }.keyboardShortcut("1", modifiers: .command)
+                Button("") { selection = .browse         }.keyboardShortcut("2", modifiers: .command)
+                Button("") { selection = .favorites      }.keyboardShortcut("3", modifiers: .command)
+                Button("") { selection = .playlistLiked  }.keyboardShortcut("4", modifiers: .command)
+                Button("") { showAddURL = true           }.keyboardShortcut("5", modifiers: .command)
                 Button("") {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
@@ -99,6 +95,18 @@ struct ContentView: View {
                 Button("") { Task { await library.load() } }.keyboardShortcut("r", modifiers: .command)
             }
             .hidden()
+        }
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch selection {
+        case .library:       LibraryView()
+        case .favorites:     FavoritesView()
+        case .browse:        BrowseView()
+        case .recentlyPlayed: RecentlyPlayedView()
+        case .playlistLiked: LikedMusicView()
+        case .playlist(let id): PlaylistDetailView(playlistId: id)
         }
     }
 }
