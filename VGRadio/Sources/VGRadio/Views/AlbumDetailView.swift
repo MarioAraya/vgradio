@@ -18,25 +18,34 @@ struct AlbumDetailView: View {
     @State private var showAddToPlaylist = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Button { onBack() } label: {
-                    Label("Library", systemImage: "chevron.left")
-                        .font(VGFont.caption(12))
-                        .foregroundStyle(Color.vgTextSec)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 24)
-                .padding(.horizontal, 32)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Button { onBack() } label: {
+                        Label("Library", systemImage: "chevron.left")
+                            .font(VGFont.caption(12))
+                            .foregroundStyle(Color.vgTextSec)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 24)
+                    .padding(.horizontal, 32)
 
-                if isLoading {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
-                } else if let album {
-                    albumContent(album)
+                    if isLoading {
+                        ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
+                    } else if let album {
+                        albumContent(album)
+                    }
+                }
+            }
+            .background(Color.vgBg)
+            .onChange(of: player.currentTrack?.id) { _, id in
+                if let id {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
                 }
             }
         }
-        .background(Color.vgBg)
         .task { await load() }
         .sheet(isPresented: $showAddToPlaylist) {
             if let tid = addToPlaylistTrackId {
@@ -202,6 +211,7 @@ struct AlbumDetailView: View {
                         showAddToPlaylist = true
                     } : nil
                 )
+                .id(track.id)
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
                 .onTapGesture(count: 2) {
                     let playable = album.tracks.filter { !hidden.isHidden($0.id) }

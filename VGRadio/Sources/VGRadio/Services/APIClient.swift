@@ -139,6 +139,23 @@ final class APIClient {
         _ = try await session.data(for: req)
     }
 
+    // MARK: - Track Favorites
+
+    func favoriteTracks() async throws -> [FavoriteTrack] {
+        let (data, resp) = try await session.data(from: try url("/favorites/tracks"))
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return [] }
+        return try JSONDecoder().decode([FavoriteTrack].self, from: data)
+    }
+
+    @discardableResult
+    func toggleTrackFavorite(id trackID: String) async throws -> Bool {
+        var req = URLRequest(url: try url("/favorites/tracks/\(trackID)"))
+        req.httpMethod = "POST"
+        let (data, _) = try await session.data(for: req)
+        let result = try JSONDecoder().decode([String: Bool].self, from: data)
+        return result["favorited"] ?? false
+    }
+
     // MARK: - Playlists
 
     func playlists() async throws -> [PlaylistSummary] {

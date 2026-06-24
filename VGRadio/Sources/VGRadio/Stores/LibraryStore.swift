@@ -33,8 +33,18 @@ final class LibraryStore {
             case .failed:
                 throw VGError.jobFailed(job.error ?? "unknown error")
             case .pending, .running:
-                try await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+                try await Task.sleep(nanoseconds: 800_000_000)
             }
+        }
+    }
+
+    func importAlbum(url: String) async throws {
+        let job = try await addAlbum(url: url)
+        if let jobId = job.jobId {
+            _ = try await pollJob(jobId)
+        } else {
+            // album already in DB (POST returned 200 with status: "done", no jobId)
+            await load()
         }
     }
 }

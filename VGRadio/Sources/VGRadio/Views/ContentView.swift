@@ -13,6 +13,7 @@ struct ContentView: View {
     @Environment(LibraryStore.self) var library
     @Environment(PlayerService.self) var player
     @Environment(AuthStore.self) var auth
+    @Environment(FavoritesStore.self) var favorites
     @State private var selection: SidebarItem = .library
     @State private var showAddURL = false
     @State private var showSearch = false
@@ -63,8 +64,15 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: player.showQueue)
+        .onChange(of: auth.currentUser?.id) { _, userID in
+            Task {
+                if userID != nil { await favorites.load() }
+                else { favorites.clear() }
+            }
+        }
         .onAppear {
             Task { await library.load() }
+            Task { await favorites.load() }
             spaceKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 guard event.keyCode == 49 else { return event }
                 if let responder = NSApp.keyWindow?.firstResponder,

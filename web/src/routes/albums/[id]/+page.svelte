@@ -43,13 +43,22 @@
       if (activeId) {
         // wait one tick for DOM to render the track rows
         setTimeout(() => {
-          document.getElementById(`track-${activeId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          document.getElementById(`track-${activeId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }, 50);
       }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally { loading = false; }
   });
+
+  $: if (album) {
+    const activeId = $player.queue[$player.queueIndex]?.id;
+    if (activeId) {
+      setTimeout(() => {
+        document.getElementById(`track-${activeId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 0);
+    }
+  }
 
   function toSummary(a: Album): AlbumSummary {
     return { id: a.id, title: a.title, platform: a.platform, year: a.year,

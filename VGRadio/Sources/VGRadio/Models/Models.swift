@@ -78,7 +78,7 @@ struct Comment: Codable {
 // MARK: - Job
 
 struct ScrapeJob: Codable {
-    var jobId: String
+    var jobId: String?
     var albumId: String
     var status: JobStatus
     var error: String?
@@ -94,8 +94,16 @@ struct CatalogEntry: Decodable, Identifiable {
     var title: String
     var sourceUrl: String
     var platform: String
+    var albumType: String
     var year: Int
     var id: String { sourceUrl }
+
+    var slug: String { sourceUrl.split(separator: "/").last.map(String.init) ?? "" }
+    var thumbnailURL: String? {
+        let s = slug
+        guard !s.isEmpty else { return nil }
+        return "https://nu.vgmtreasurechest.com/soundtracks/\(s)/thumbs_small/folder_itemimage.png"
+    }
 }
 
 struct CatalogPage: Decodable {

@@ -8,8 +8,17 @@ struct LibraryView: View {
     @State private var hoveredID: String?
     @State private var importingURL: String?
     @State private var importError: String?
+    @State private var searchText = ""
+    @State private var searchFocused = false
+    @FocusState private var searchFieldFocused: Bool
 
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: VGSpace.md)]
+
+    private var filteredAlbums: [AlbumSummary] {
+        guard !searchText.isEmpty else { return library.albums }
+        let q = searchText.lowercased()
+        return library.albums.filter { $0.title.lowercased().contains(q) || $0.platform.lowercased().contains(q) }
+    }
 
     var body: some View {
         Group {
@@ -25,16 +34,56 @@ struct LibraryView: View {
                 library.pendingNavigation = nil
             }
         }
+        .onKeyPress(.init("f"), phases: .down) { press in
+            if press.modifiers.contains(.command) {
+                searchFieldFocused = true
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     private var libraryGrid: some View {
         ScrollView {
             VStack(alignment: .leading) {
-                Text("Library")
-                    .font(VGFont.title())
-                    .foregroundStyle(Color.vgText)
-                    .padding(.top, VGSpace.sm)
-                    .padding(.horizontal, VGSpace.xl)
+                HStack(spacing: VGSpace.sm) {
+                    Text("Library")
+                        .font(VGFont.title())
+                        .foregroundStyle(Color.vgText)
+
+                    Spacer()
+
+                    if searchFieldFocused || !searchText.isEmpty {
+                        HStack(spacing: VGSpace.xs) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(Color.vgTextMuted)
+                            TextField("Filter albums…", text: $searchText)
+                                .textFieldStyle(.plain)
+                                .font(VGFont.body())
+                                .focused($searchFieldFocused)
+                                .onKeyPress(.escape) {
+                                    searchText = ""
+                                    searchFieldFocused = false
+                                    return .handled
+                                }
+                            if !searchText.isEmpty {
+                                Button { searchText = "" } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(Color.vgTextMuted)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, VGSpace.sm)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .frame(maxWidth: 260)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .trailing)))
+                    }
+                }
+                .padding(.top, VGSpace.sm)
+                .padding(.horizontal, VGSpace.xl)
+                .animation(.easeOut(duration: 0.15), value: searchFieldFocused)
 
                 if library.isLoading {
                     ProgressView()
@@ -44,18 +93,26 @@ struct LibraryView: View {
                     emptyState
                 } else {
                     if !library.albums.isEmpty {
-                        LazyVGrid(columns: columns, spacing: VGSpace.md) {
-                            ForEach(library.albums) { album in
-                                AlbumCard(album: album, isHovered: hoveredID == album.id)
-                                    .onHover { hoveredID = $0 ? album.id : nil }
-                                    .onTapGesture { selected = album }
+                        if !searchText.isEmpty && filteredAlbums.isEmpty {
+                            Text("No results for \"\(searchText)\"")
+                                .font(VGFont.body())
+                                .foregroundStyle(Color.vgTextMuted)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 40)
+                        } else {
+                            LazyVGrid(columns: columns, spacing: VGSpace.md) {
+                                ForEach(filteredAlbums) { album in
+                                    AlbumCard(album: album, isHovered: hoveredID == album.id)
+                                        .onHover { hoveredID = $0 ? album.id : nil }
+                                        .onTapGesture { selected = album }
+                                }
                             }
+                            .padding(.horizontal, VGSpace.xl)
+                            .padding(.vertical, VGSpace.lg)
                         }
-                        .padding(.horizontal, VGSpace.xl)
-                        .padding(.vertical, VGSpace.lg)
                     }
 
-                    if !wishlist.items.isEmpty {
+                    if !wishlist.items.isEmpty && searchText.isEmpty {
                         wishlistSection
                     }
                 }
@@ -77,6 +134,13 @@ struct LibraryView: View {
             .padding(.horizontal, VGSpace.xl)
             .padding(.top, library.albums.isEmpty ? VGSpace.lg : 0)
 
+            if let err = importError {
+                Text(err)
+                    .font(VGFont.caption(11))
+                    .foregroundStyle(.red.opacity(0.85))
+                    .padding(.horizontal, VGSpace.xl)
+            }
+
             LazyVGrid(columns: columns, spacing: VGSpace.md) {
                 ForEach(wishlist.items) { item in
                     WishlistCard(
@@ -95,10 +159,10 @@ struct LibraryView: View {
     private func importItem(_ item: WishlistItem) {
         guard importingURL == nil else { return }
         importingURL = item.url
+        importError = nil
         Task {
             do {
-                let job = try await library.addAlbum(url: item.url)
-                _ = try await library.pollJob(job.jobId)
+                try await library.importAlbum(url: item.url)
                 wishlist.remove(url: item.url)
             } catch {
                 importError = error.localizedDescription

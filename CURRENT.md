@@ -1,56 +1,68 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-16
+Última sesión: 2026-06-24
 
 ## En progreso
 
-### macOS app UX polish (sin commitear)
+### CF clearance para resolver MP3 URLs de Einhander
 
-Varios refinamientos de UI/UX en la app macOS. Cambios sin commitear:
+Tracks 3+ de EINHÄNDER ORIGINAL SOUNDTRACK fallan al reproducir. Causa: `mp3_url` vacío en DB y khinsider retorna HTTP 404 al intentar resolver (Cloudflare bloquea sin `cf_clearance`). Tracks 1-2 funcionan porque ya tenían `mp3_url` cacheado de scrape anterior.
 
-**Archivos modificados:**
-- `DesignSystem.swift` — sidebar 220→180px, playerBar 72→56px
-- `PlayerBarView.swift` — layout 3-columnas (cover+info LEFT | transport CENTER | vol+acciones RIGHT)
-- `ContentView.swift` — Cmd+B toggle sidebar, Space key via `NSEvent.addLocalMonitorForEvents` (reemplaza `.onKeyPress` que no funcionaba bien), toolbar oculto, ignoresSafeArea top
-- `SidebarView.swift` — padding top 12→36 (espacio para titlebar sin toolbar), `maxWidth: .infinity`, ignoresSafeArea top
-- `PlayerService.swift` — `isEnabled = true` en remote commands, `playbackState` explícito en NowPlayingInfoCenter
-- `AlbumDetailView.swift` — botón "hide track" también llama `player.next()` si es el track actual
-- `web/src/routes/albums/[id]/+page.svelte` — misma lógica hide+skip en web
+**Estado DB (album_id = `9ee1fa540f28534f`):**
+- Tracks 1-2: `mp3_url` = `https://nu.vgmtreasurechest.com/...` ✅
+- Tracks 3+: `mp3_url` vacío, `page_url` = `https://downloads.khinsider.com/...%231...` → 404
 
-**Decisiones tomadas:**
-- `.toolbar(.hidden, for: .windowToolbar)` para quitar barra de título nativa y dar estilo borderless
-- Space key con `NSEvent.addLocalMonitorForEvents` en lugar de `.onKeyPress` porque `.onKeyPress` solo funciona si la vista tiene foco de teclado
-- PlayerBar a 3 columnas con `Color.clear + .overlay` para centrado real del transport
+**Pasos para resolver:**
+1. Obtener `cf_clearance` de khinsider (browser → DevTools → Application → Cookies, o Playwright CLI)
+2. `curl -X PUT http://localhost:8080/config/cf-clearance -d '{"value":"COOKIE_VALUE"}'`
+3. `curl -X POST http://localhost:8080/albums/9ee1fa540f28534f/scrape-tracks`
 
-**Preguntas pendientes:**
-1. ¿Compilar y verificar en Xcode antes de commitear? (Cambios no testeados en build real)
-2. ¿SearchModal tiene búsqueda implementada o solo es shell visual?
+**Notas CF clearance:**
+- Se puede set en runtime vía `PUT /config/cf-clearance` o via `VGRADIO_CF_CLEARANCE` env var al iniciar server
+- CF clearance cookies tienen TTL corto (~1h), necesitan renovarse
+- `cloudscraper` Python o Playwright Node son las opciones CLI para obtenerla sin abrir browser manualmente
 
 ## Completado esta sesión
 
-- [x] **macOS UX polish** — sidebar más angosta, player bar más compacta, layout 3-col, Cmd+B toggle sidebar, Space key fix, hide-track skip-if-current (Swift + Svelte)
-- [x] **NowPlayingInfo fix** — `playbackState` explícito + `isEnabled` en remote commands
-
-## Completado sesiones anteriores
-
-- [x] **Tests backend Go** — 29/29 pasan (`go test ./...`, ~8.7s)
-- [x] `61098e0` — favorites centralizados (`trackFavorites.ts`), SearchModal (`Cmd+K`), UX improvements
-- [x] `bacc002` — Spotify-style player bar + fullscreen
-- [x] `c77afba` — CORS fix (reflect Origin header)
-- [x] `6641da3` — frontend multi-user auth (lazy login, favorites, user menu)
-- [x] `945000c` — backend multi-user auth (sessions, favorites, enrichment)
+- [x] **Favorites sincronizados entre macOS y web** — `FavoritesStore.swift` reescrito: elimina `UserDefaults`, ahora usa `GET /favorites/tracks` + `POST /favorites/tracks/{id}`. Updates optimistas en local state. `ContentView` llama `favorites.load()` en `onAppear` y al cambiar `auth.currentUser`.
+- [x] **APIClient: métodos de track favorites** — `favoriteTracks()` y `toggleTrackFavorite(id:)` agregados a `APIClient.swift`.
+- [x] **Tuple `grouped` con `albumId`** — `FavoritesStore.grouped` ahora expone `albumId` en el tuple. Tipos en `FavoriteGroupView` y `LikedMusicGroupView` actualizados. Build limpio.
+- [x] **Diagnóstico Einhander** — confirmado que el problema es `mp3_url` vacío + khinsider 404 sin CF clearance. No es bug de código.
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Compilar y verificar** — abrir Xcode, build, probar Cmd+B, Space, player bar layout
-- [ ] **Commitear UX polish** — si build pasa, un commit limpio con todos los cambios Swift + Svelte
-- [ ] **Verificar SearchModal** — ¿tiene funcionalidad de búsqueda o solo shell visual?
-- [ ] **Merge `users` → `main`** — rama limpia, tests pasan, lista para merge
+- [ ] **Resolver Einhander tracks 3+** — necesita CF clearance válido. Ver pasos en "En progreso" arriba.
+- [ ] **Mega Man: The Power Battle** — álbum no está en DB. Agregar vía Add URL con URL de khinsider.
+- [ ] **Confirmar Rockman importa** — pendiente de sesión anterior (fix URL doble)
+- [ ] **Commitear esta sesión** — varios archivos modificados sin commitear (FavoritesStore, APIClient, ContentView, FavoritesView, PlaylistsView + archivos de sesión anterior)
+- [ ] **Filtro Library en web** — paridad con macOS (Ctrl+F o barra de búsqueda en `/library`)
+- [ ] **Merge `users` → `main`** — rama 2 commits adelante de origin
 - [ ] **Deploy VPS** — backend + frontend
-- [ ] **Re-sync letra S** — con fix del seen-map, S debería traer ~12k álbumes
-- [ ] **FTS5 para búsqueda** — `LIKE '%q%'` full scan, con >50k entries puede ser lento
 
 ## Notas
+
+### Por qué Einhander tracks 1-2 sí suenan y 3+ no
+
+Tracks 1-2 tienen `mp3_url` cacheado (CDN `nu.vgmtreasurechest.com`) de un scrape anterior con CF válido.
+Tracks 3+ tienen nombre con `#` (p.ej. `Stage1 #1-`). Sus `page_url` en khinsider incluyen `%23` (encoding correcto),
+pero al intentar resolver ahora sin `cf_clearance`, khinsider retorna 404. El `#` no es el bug — es la ausencia de CF cookie.
+
+### Favorites: arquitectura antes vs después
+
+**Antes:** `FavoritesStore` → `UserDefaults` (local, no sincronizado entre plataformas)
+**Ahora:** `FavoritesStore` → `GET/POST /favorites/tracks` (DB, sincronizado web↔macOS)
+Web ya usaba la API desde antes (trackFavorites.ts). El localStorage `favorites.ts` es código legacy en web — no lo usa "Liked Music".
+
+### Binary de producción: siempre reemplazar /Applications/VGRadio.app
+
+```bash
+swift build -c release
+pkill -x VGRadio 2>/dev/null; sleep 0.3
+cp .build/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
+open /Applications/VGRadio.app
+```
+
+La app corre desde `/Applications/VGRadio.app/Contents/MacOS/VGRadio`, NO desde el binary SPM directamente.
 
 ### Cómo matar y reiniciar backend correctamente
 
@@ -62,20 +74,9 @@ tail -f /tmp/vgradio.log
 
 `pkill -f "go run.*server"` NO funciona — mata el orquestador pero el binary hijo sigue en :8080.
 
-### Browse pages khinsider — NO están paginadas
+### sourceUrl en catalog = URL absoluta
 
-Todos los álbumes de una letra están en una sola URL (`/browse/S`). No hay `?page=2`.
-El fix del seen-map era el problema real: 22/409 ≈ 5% de álbumes por página.
-
-### cf_clearance — actualmente innecesaria
-
-khinsider no está desafiando con CF. Si vuelve a bloquear:
-- DevTools → Application → Cookies → `downloads.khinsider.com` → copiar `cf_clearance`
-- Settings → pegar → Guardar
-
-### VGMdb — no hay URL directa por catalog number
-
-Solo existe búsqueda: `https://vgmdb.net/search?q=CATALOG`. Las páginas de álbum usan IDs numéricos (`vgmdb.net/album/12345`). Para links directos habría que enriquecer la DB con IDs de vgmdb (opción futura).
+`GET /catalog` devuelve `sourceUrl` como URL completa. No agregar base URL al usarla.
 
 ### Comandos útiles
 
@@ -83,12 +84,18 @@ Solo existe búsqueda: `https://vgmdb.net/search?q=CATALOG`. Las páginas de ál
 # Tests backend
 cd /Users/maaya/dev/vgradio-app/backend && go test ./...
 
-# Stats backend
-curl -s http://localhost:8080/stats
+# Build macOS
+cd /Users/maaya/dev/vgradio-app/VGRadio && swift build -c release
 
 # Web dev
 cd /Users/maaya/dev/vgradio-app/web && npm run dev
 
-# Sync letra S
-curl -X POST http://localhost:8080/catalog/sync?letter=S
+# Stats backend
+curl -s http://localhost:8080/stats
+
+# Set CF clearance en runtime
+curl -X PUT http://localhost:8080/config/cf-clearance -H 'Content-Type: application/json' -d '{"value":"CF_COOKIE_AQUI"}'
+
+# Re-scrape tracks de un álbum (tras renovar CF)
+curl -X POST http://localhost:8080/albums/9ee1fa540f28534f/scrape-tracks
 ```

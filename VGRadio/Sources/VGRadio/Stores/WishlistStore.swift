@@ -15,6 +15,8 @@ struct WishlistItem: Codable, Identifiable {
 final class WishlistStore {
     private(set) var items: [WishlistItem] = []
     private let key = "vgradio.wishlist"
+    private let removedKey = "vgradio.wishlist.removed"
+    private var removedURLs: Set<String> = []
 
     private static let defaultURLs = [
         "https://downloads.khinsider.com/game-soundtracks/album/super-mario-world-snes-gamerip",
@@ -49,9 +51,10 @@ final class WishlistStore {
     ]
 
     init() {
+        loadRemoved()
         load()
         let existing = Set(items.map(\.url))
-        let missing = Self.defaultURLs.filter { !existing.contains($0) }.map { WishlistItem(url: $0) }
+        let missing = Self.defaultURLs.filter { !existing.contains($0) && !removedURLs.contains($0) }.map { WishlistItem(url: $0) }
         if !missing.isEmpty {
             items.append(contentsOf: missing)
             save()
@@ -61,24 +64,67 @@ final class WishlistStore {
     func add(url: String) {
         let normalized = url.trimmingCharacters(in: .whitespaces)
         guard !normalized.isEmpty, !items.contains(where: { $0.url == normalized }) else { return }
+        removedURLs.remove(normalized)
+        saveRemoved()
         items.append(WishlistItem(url: normalized))
         save()
     }
 
     func remove(url: String) {
         items.removeAll(where: { $0.url == url })
+        removedURLs.insert(url)
         save()
+        saveRemoved()
+    }
+
+    func contains(url: String) -> Bool {
+        items.contains(where: { $0.url == url })
     }
 
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([WishlistItem].self, from: data)
+              var decoded = try? JSONDecoder().decode([WishlistItem].self, from: data)
         else { return }
+        // Fix double-prefix URLs stored by old code (e.g. "https://downloads.khinsider.comhttps://...").
+        var needsSave = false
+        for i in decoded.indices {
+            let fixed = Self.normalizeURL(decoded[i].url)
+            if fixed != decoded[i].url {
+                decoded[i].url = fixed
+                needsSave = true
+            }
+        }
         items = decoded
+        if needsSave { save() }
+    }
+
+    private static func normalizeURL(_ url: String) -> String {
+        let base = "https://downloads.khinsider.com"
+        guard url.hasPrefix(base) else { return url }
+        let after = url[base.endIndex...]
+        guard !after.hasPrefix("/") else { return url }
+        // Double-prefix: find "downloads.khinsider.com" in the suffix and take its path.
+        let marker = "downloads.khinsider.com"
+        if let markerRange = after.range(of: marker) {
+            return base + String(after[markerRange.upperBound...])
+        }
+        return url
     }
 
     private func save() {
         guard let data = try? JSONEncoder().encode(items) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+
+    private func loadRemoved() {
+        guard let data = UserDefaults.standard.data(forKey: removedKey),
+              let decoded = try? JSONDecoder().decode(Set<String>.self, from: data)
+        else { return }
+        removedURLs = decoded
+    }
+
+    private func saveRemoved() {
+        guard let data = try? JSONEncoder().encode(removedURLs) else { return }
+        UserDefaults.standard.set(data, forKey: removedKey)
     }
 }

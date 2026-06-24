@@ -19,7 +19,12 @@ func (s *Store) migrateCatalog() {
 		);
 		CREATE INDEX IF NOT EXISTS idx_catalog_title    ON catalog_entries(title COLLATE NOCASE);
 		CREATE INDEX IF NOT EXISTS idx_catalog_platform ON catalog_entries(platform);
-		CREATE INDEX IF NOT EXISTS idx_catalog_year     ON catalog_entries(year);
+		CREATE INDEX IF NOT EXISTS idx_catalog_year     ON catalog_entries(year);`) //nolint:errcheck
+
+	// Add album_type column if not present (idempotent — SQLite errors are ignored).
+	s.db.Exec(`ALTER TABLE catalog_entries ADD COLUMN album_type TEXT NOT NULL DEFAULT ''`) //nolint:errcheck
+
+	s.db.Exec(`
 
 		CREATE TABLE IF NOT EXISTS consoles (
 			id          TEXT PRIMARY KEY,
@@ -42,12 +47,13 @@ func (s *Store) UpsertCatalogEntries(ctx context.Context, entries []scraper.Cata
 	defer tx.Rollback() //nolint:errcheck
 
 	stmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO catalog_entries (id, title, source_url, platform, year)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO catalog_entries (id, title, source_url, platform, album_type, year)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-			title    = excluded.title,
-			platform = excluded.platform,
-			year     = excluded.year
+			title      = excluded.title,
+			platform   = excluded.platform,
+			album_type = excluded.album_type,
+			year       = excluded.year
 	`)
 	if err != nil {
 		return err
@@ -56,7 +62,7 @@ func (s *Store) UpsertCatalogEntries(ctx context.Context, entries []scraper.Cata
 
 	for _, e := range entries {
 		id := AlbumID(e.SourceURL)
-		if _, err := stmt.ExecContext(ctx, id, e.Title, e.SourceURL, e.Platform, e.Year); err != nil {
+		if _, err := stmt.ExecContext(ctx, id, e.Title, e.SourceURL, e.Platform, e.AlbumType, e.Year); err != nil {
 			return err
 		}
 	}
@@ -121,7 +127,7 @@ func (s *Store) SearchCatalog(ctx context.Context, q, platform, letter string, o
 
 	args = append(args, limit, offset)
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT title, source_url, platform, year FROM catalog_entries
+		`SELECT title, source_url, platform, album_type, year FROM catalog_entries
 		 WHERE `+strings.Join(where, " AND ")+`
 		 ORDER BY title COLLATE NOCASE
 		 LIMIT ? OFFSET ?`,
@@ -135,7 +141,7 @@ func (s *Store) SearchCatalog(ctx context.Context, q, platform, letter string, o
 	var out []scraper.CatalogEntry
 	for rows.Next() {
 		var e scraper.CatalogEntry
-		if err := rows.Scan(&e.Title, &e.SourceURL, &e.Platform, &e.Year); err != nil {
+		if err := rows.Scan(&e.Title, &e.SourceURL, &e.Platform, &e.AlbumType, &e.Year); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

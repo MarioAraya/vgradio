@@ -668,11 +668,12 @@ func (h *handler) getCatalog(w http.ResponseWriter, r *http.Request) {
 		Title     string `json:"title"`
 		SourceURL string `json:"sourceUrl"`
 		Platform  string `json:"platform"`
+		AlbumType string `json:"albumType"`
 		Year      int    `json:"year"`
 	}
 	items := make([]item, len(entries))
 	for i, e := range entries {
-		items[i] = item{e.Title, e.SourceURL, e.Platform, e.Year}
+		items[i] = item{e.Title, e.SourceURL, e.Platform, e.AlbumType, e.Year}
 	}
 	jsonOK(w, map[string]any{
 		"total":  total,

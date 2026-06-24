@@ -146,7 +146,7 @@ struct BrowseView: View {
                 CatalogEntryRow(entry: entry)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                    .listRowInsets(.init(top: 1, leading: VGSpace.md, bottom: 1, trailing: VGSpace.md))
+                    .listRowInsets(.init(top: 2, leading: VGSpace.md, bottom: 2, trailing: VGSpace.md))
                     .onAppear {
                         if entry.id == catalog.entries.last?.id {
                             catalog.loadMore()
@@ -214,70 +214,104 @@ struct BrowseView: View {
 
 private struct CatalogEntryRow: View {
     let entry: CatalogEntry
+    @Environment(WishlistStore.self) var wishlist
     @State private var isHovered = false
-    @State private var isImporting = false
-    @State private var imported = false
+
+    private var inWishlist: Bool { wishlist.contains(url: entry.sourceUrl) }
 
     var body: some View {
-        HStack(spacing: VGSpace.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .font(VGFont.body())
-                    .foregroundStyle(Color.vgText)
-                    .lineLimit(1)
-                HStack(spacing: VGSpace.xs) {
-                    if !entry.platform.isEmpty {
-                        Text(entry.platform)
-                            .font(VGFont.caption())
-                            .foregroundStyle(Color.vgTextMuted)
-                    }
-                    if entry.year > 0 {
-                        Text("·")
-                            .font(VGFont.caption())
-                            .foregroundStyle(Color.vgTextMuted)
-                        Text(String(entry.year))
-                            .font(VGFont.caption())
-                            .foregroundStyle(Color.vgTextMuted)
-                    }
-                }
-            }
-            Spacer()
-            importBadge
+        HStack(spacing: 0) {
+            // Col 1: Add / saved indicator (44px)
+            addButton
+                .frame(width: 44)
+
+            // Col 2: Cover thumbnail (44x44)
+            coverImage
+                .padding(.trailing, VGSpace.sm)
+
+            // Col 3: Title (flexible)
+            Text(entry.title)
+                .font(VGFont.body())
+                .foregroundStyle(Color.vgText)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Col 4: Platform (~90px)
+            Text(entry.platform)
+                .font(VGFont.caption(11))
+                .foregroundStyle(Color.vgTextMuted)
+                .lineLimit(1)
+                .frame(width: 90, alignment: .leading)
+
+            // Col 5: Type (~80px)
+            Text(entry.albumType)
+                .font(VGFont.caption(11))
+                .foregroundStyle(Color.vgTextMuted)
+                .lineLimit(1)
+                .frame(width: 80, alignment: .leading)
+
+            // Col 6: Year (45px)
+            Text(entry.year > 0 ? String(entry.year) : "")
+                .font(VGFont.caption(11))
+                .foregroundStyle(Color.vgTextMuted)
+                .frame(width: 45, alignment: .trailing)
         }
-        .frame(height: 40)
+        .frame(height: 52)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
     }
 
     @ViewBuilder
-    private var importBadge: some View {
-        if imported {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green.opacity(0.8))
-                .font(.system(size: 14))
-        } else if isImporting {
-            ProgressView().controlSize(.small)
+    private var addButton: some View {
+        if inWishlist {
+            Image(systemName: "bookmark.fill")
+                .foregroundStyle(Color.vgAccent.opacity(0.8))
+                .font(.system(size: 12))
+                .frame(width: 44)
         } else if isHovered {
-            Button(action: importAlbum) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 14))
+            Button(action: { wishlist.add(url: entry.sourceUrl) }) {
+                Text("Add")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color.vgAccent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.vgAccentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
-            .help("Import album to library")
+            .help("Add to Library")
+        } else {
+            Color.clear.frame(width: 44)
         }
     }
 
-    private func importAlbum() {
-        isImporting = true
-        Task {
-            do {
-                let fullURL = "https://downloads.khinsider.com" + entry.sourceUrl
-                try await APIClient.shared.addAlbum(url: fullURL)
-                imported = true
-            } catch {}
-            isImporting = false
+    @ViewBuilder
+    private var coverImage: some View {
+        if let urlStr = entry.thumbnailURL, let url = URL(string: urlStr) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable().aspectRatio(contentMode: .fill)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                default:
+                    placeholderCover
+                }
+            }
+        } else {
+            placeholderCover
         }
+    }
+
+    private var placeholderCover: some View {
+        RoundedRectangle(cornerRadius: 5)
+            .fill(Color.white.opacity(0.04))
+            .frame(width: 44, height: 44)
+            .overlay(
+                Image(systemName: "music.note")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.vgTextMuted)
+            )
     }
 }
 

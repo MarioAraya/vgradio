@@ -1,0 +1,40 @@
+services:
+  backend:
+    image: registry.lab/vgradio/backend:latest
+    container_name: vgradio-backend
+    restart: unless-stopped
+    environment:
+      VGRADIO_DATA_DIR: /data
+      VGRADIO_ADDR: :8080
+    volumes:
+      - vgradio-data:/data
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vgradio-api.rule=Host(`api.vgradio.lab`)"
+      - "traefik.http.routers.vgradio-api.entrypoints=websecure"
+      - "traefik.http.routers.vgradio-api.tls=true"
+      - "traefik.http.services.vgradio-api.loadbalancer.server.port=8080"
+
+  web:
+    image: registry.lab/vgradio/web:latest
+    container_name: vgradio-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vgradio-web.rule=Host(`vgradio.lab`)"
+      - "traefik.http.routers.vgradio-web.entrypoints=websecure"
+      - "traefik.http.routers.vgradio-web.tls=true"
+      - "traefik.http.services.vgradio-web.loadbalancer.server.port=80"
+
+volumes:
+  vgradio-data:
+
+networks:
+  traefik-net:
+    external: true

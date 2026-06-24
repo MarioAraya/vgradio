@@ -581,7 +581,7 @@ struct AddToPlaylistSheet: View {
 // MARK: - FavoriteGroupView (reused from FavoritesView)
 
 private struct FavoriteGroupView: View {
-    let group: (albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
+    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

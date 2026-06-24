@@ -6,6 +6,7 @@ import type {
 
 const BASE = () =>
   localStorage.getItem('vgradio.backendURL') ??
+  (import.meta.env.VITE_API_URL as string | undefined) ??
   `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8080`;
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {

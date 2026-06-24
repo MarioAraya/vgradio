@@ -15,6 +15,7 @@ type CatalogEntry struct {
 	Title     string
 	SourceURL string // absolute URL to the album page
 	Platform  string
+	AlbumType string
 	Year      int
 }
 
@@ -112,28 +113,28 @@ func extractCatalogEntries(doc *goquery.Document, base *url.URL) []CatalogEntry 
 		}
 		seen[abs] = true
 
-		// Try to read platform and year from sibling <td> cells.
-		platform, year := "", 0
+		// Try to read platform, type and year from sibling <td> cells.
+		platform, albumType, year := "", "", 0
 		row := s.Closest("tr")
 		if row.Length() > 0 {
 			cells := row.Find("td")
-			platform, year = extractPlatformYear(cells, title)
+			platform, albumType, year = extractPlatformYearType(cells, title)
 		}
 
 		entries = append(entries, CatalogEntry{
 			Title:     title,
 			SourceURL: abs,
 			Platform:  platform,
+			AlbumType: albumType,
 			Year:      year,
 		})
 	})
 	return entries
 }
 
-// extractPlatformYear heuristically reads platform and year from table row cells.
+// extractPlatformYearType heuristically reads platform, albumType and year from table row cells.
 // khinsider browse rows: [#] [icon] [title] [platform] [tracks] [type] [year]
-// We skip cells that contain the title and look for the platform and a 4-digit year.
-func extractPlatformYear(cells *goquery.Selection, title string) (platform string, year int) {
+func extractPlatformYearType(cells *goquery.Selection, title string) (platform, albumType string, year int) {
 	var texts []string
 	cells.Each(func(_ int, td *goquery.Selection) {
 		t := strings.TrimSpace(td.Text())
@@ -141,20 +142,27 @@ func extractPlatformYear(cells *goquery.Selection, title string) (platform strin
 			texts = append(texts, t)
 		}
 	})
-	// Walk right-to-left: last numeric-looking cell ≥ 1980 is the year.
+	// Walk right-to-left: last cell that parses as 1980–2035 is the year.
 	for i := len(texts) - 1; i >= 0; i-- {
-		if y, err := strconv.Atoi(texts[i]); err == nil && y >= 1980 && y <= 2035 {
-			year = y
-			// Platform is usually the cell just after the title cell — heuristic: shortest text before year.
-			if i > 0 {
-				candidate := texts[i-1]
-				// Skip if it looks like a track count (pure number) or album type.
-				if _, err := strconv.Atoi(candidate); err != nil && len(candidate) < 60 {
-					platform = candidate
-				}
-			}
-			break
+		y, err := strconv.Atoi(texts[i])
+		if err != nil || y < 1980 || y > 2035 {
+			continue
 		}
+		year = y
+		// i-1: album type (Gamerip, Soundtrack, Compilation…)
+		if i >= 1 {
+			if _, e := strconv.Atoi(texts[i-1]); e != nil && len(texts[i-1]) < 40 {
+				albumType = texts[i-1]
+			}
+		}
+		// i-2: track count (numeric) — skip. Scan left for first non-numeric = platform.
+		for j := i - 2; j >= 0; j-- {
+			if _, e := strconv.Atoi(texts[j]); e != nil && len(texts[j]) < 60 {
+				platform = texts[j]
+				break
+			}
+		}
+		break
 	}
 	return
 }

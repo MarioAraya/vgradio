@@ -140,8 +140,7 @@ struct AddURLView: View {
         fakeProgress = 0
         phase = .loading
         do {
-            let job = try await library.addAlbum(url: url)
-            _ = try await library.pollJob(job.jobId)
+            try await library.importAlbum(url: url)
             fakeProgress = 1.0
             try? await Task.sleep(nanoseconds: 300_000_000)
             phase = .done

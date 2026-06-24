@@ -1,15 +1,14 @@
 kind: pipeline
 type: docker
-name: backend
+name: ci-deploy
 
-# Solo corre cuando cambia algo en backend/ o este archivo
 trigger:
   branch:
     - main
-    - develop
 
 steps:
-  - name: test
+  # ── Backend ────────────────────────────────────────────────────────
+  - name: backend-test
     image: golang:1.22-alpine
     environment:
       CGO_ENABLED: "0"
@@ -18,12 +17,47 @@ steps:
       - go mod download
       - go build ./...
       - go test -v -count=1 ./...
-
-  - name: vet
-    image: golang:1.22-alpine
-    commands:
-      - cd backend
       - go vet ./...
+
+  - name: backend-image
+    image: plugins/docker
+    settings:
+      registry: registry.lab
+      repo: registry.lab/vgradio/backend
+      tags: ["latest", "${DRONE_COMMIT_SHA:0:7}"]
+      context: backend
+      dockerfile: backend/Dockerfile
+      insecure: true
+    when:
+      status:
+        - success
+
+  # ── Web ────────────────────────────────────────────────────────────
+  - name: web-image
+    image: plugins/docker
+    settings:
+      registry: registry.lab
+      repo: registry.lab/vgradio/web
+      tags: ["latest", "${DRONE_COMMIT_SHA:0:7}"]
+      context: web
+      dockerfile: web/Dockerfile
+      insecure: true
+    when:
+      status:
+        - success
+
+  # ── Deploy ─────────────────────────────────────────────────────────
+  - name: deploy
+    image: appleboy/drone-ssh
+    settings:
+      host: 192.168.0.103
+      username: maaya
+      key:
+        from_secret: ssh_private_key
+      script:
+        - cd /srv/vgradio
+        - docker compose pull
+        - docker compose up -d --remove-orphans
     when:
       status:
         - success
