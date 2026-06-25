@@ -22,14 +22,12 @@ steps:
   - name: backend-image
     image: plugins/docker
     settings:
-      registry: registry.lab
-      repo: registry.lab/vgradio/backend
+      registry: 192.168.0.103:5000
+      repo: 192.168.0.103:5000/vgradio/backend
       tags: ["latest", "${DRONE_COMMIT_SHA:0:7}"]
       context: backend
       dockerfile: backend/Dockerfile
       insecure: true
-    extra_hosts:
-      - registry.lab:192.168.0.103
     when:
       status:
         - success
@@ -38,16 +36,14 @@ steps:
   - name: web-image
     image: plugins/docker
     settings:
-      registry: registry.lab
-      repo: registry.lab/vgradio/web
+      registry: 192.168.0.103:5000
+      repo: 192.168.0.103:5000/vgradio/web
       tags: ["latest", "${DRONE_COMMIT_SHA:0:7}"]
       context: web
       dockerfile: web/Dockerfile
       insecure: true
       build_args:
         - VITE_API_URL=https://api.vgradio.lab
-    extra_hosts:
-      - registry.lab:192.168.0.103
     when:
       status:
         - success

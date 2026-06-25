@@ -1,6 +1,6 @@
 services:
   backend:
-    image: registry.lab/vgradio/backend:latest
+    image: 192.168.0.103:5000/vgradio/backend:latest
     container_name: vgradio-backend
     restart: unless-stopped
     environment:
@@ -18,7 +18,7 @@ services:
       - "traefik.http.services.vgradio-api.loadbalancer.server.port=8080"
 
   web:
-    image: registry.lab/vgradio/web:latest
+    image: 192.168.0.103:5000/vgradio/web:latest
     container_name: vgradio-web
     restart: unless-stopped
     depends_on:
