@@ -12,7 +12,7 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vgradio-api.rule=Host(`api.vgradio.lab`)"
+      - "traefik.http.routers.vgradio-api.rule=Host(`vgradio-api.lab`)"
       - "traefik.http.routers.vgradio-api.entrypoints=websecure"
       - "traefik.http.routers.vgradio-api.tls=true"
       - "traefik.http.services.vgradio-api.loadbalancer.server.port=8080"

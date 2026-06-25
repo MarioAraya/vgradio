@@ -43,7 +43,7 @@ steps:
       dockerfile: web/Dockerfile
       insecure: true
       build_args:
-        - VITE_API_URL=https://api.vgradio.lab
+        - VITE_API_URL=https://vgradio-api.lab
     when:
       status:
         - success
