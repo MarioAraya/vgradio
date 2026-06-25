@@ -9,7 +9,7 @@ trigger:
 steps:
   # ── Backend ────────────────────────────────────────────────────────
   - name: backend-test
-    image: golang:1.22-alpine
+    image: golang:1.26-alpine
     environment:
       CGO_ENABLED: "0"
     commands:
