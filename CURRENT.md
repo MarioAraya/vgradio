@@ -1,101 +1,108 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-24
+Última sesión: 2026-06-25
 
 ## En progreso
 
-### CF clearance para resolver MP3 URLs de Einhander
+### Verificar app en homelab
 
-Tracks 3+ de EINHÄNDER ORIGINAL SOUNDTRACK fallan al reproducir. Causa: `mp3_url` vacío en DB y khinsider retorna HTTP 404 al intentar resolver (Cloudflare bloquea sin `cf_clearance`). Tracks 1-2 funcionan porque ya tenían `mp3_url` cacheado de scrape anterior.
+Pipeline CI/CD completo y corriendo. Backend + web desplegados en `192.168.0.104`. DB migrada (39 albums, 1903 tracks). Falta confirmar que el browser accede correctamente a `https://vgradio.lab`.
 
-**Estado DB (album_id = `9ee1fa540f28534f`):**
-- Tracks 1-2: `mp3_url` = `https://nu.vgmtreasurechest.com/...` ✅
-- Tracks 3+: `mp3_url` vacío, `page_url` = `https://downloads.khinsider.com/...%231...` → 404
+**Pendiente confirmar:**
+- `mkcert -install` en Mac (CA ya instalado según output, pero Chrome da `ERR_CERT_COMMON_NAME_INVALID` — posible cache)
+- Agregar a `/etc/hosts`: `192.168.0.104  vgradio.lab vgradio-api.lab` (ya está `vgradio-api.lab` renombrado a `vgradio-api.lab`)
+- Login con `arayaromero@gmail.com` en `https://vgradio.lab`
 
-**Pasos para resolver:**
-1. Obtener `cf_clearance` de khinsider (browser → DevTools → Application → Cookies, o Playwright CLI)
-2. `curl -X PUT http://localhost:8080/config/cf-clearance -d '{"value":"COOKIE_VALUE"}'`
-3. `curl -X POST http://localhost:8080/albums/9ee1fa540f28534f/scrape-tracks`
-
-**Notas CF clearance:**
-- Se puede set en runtime vía `PUT /config/cf-clearance` o via `VGRADIO_CF_CLEARANCE` env var al iniciar server
-- CF clearance cookies tienen TTL corto (~1h), necesitan renovarse
-- `cloudscraper` Python o Playwright Node son las opciones CLI para obtenerla sin abrir browser manualmente
+**Decisiones tomadas:**
+- API en `vgradio-api.lab` (no `api.vgradio.lab`) — cert `*.lab` no cubre segundo nivel
+- Registry en `192.168.0.103:5000` (IP directa, no hostname)
+- Deploy target: `192.168.0.104` (donde está Traefik), build en `192.168.0.103` (donde está Drone/Gitea)
+- `docker cp` / `docker run alpine` para escribir al volumen sin sudo
 
 ## Completado esta sesión
 
-- [x] **Favorites sincronizados entre macOS y web** — `FavoritesStore.swift` reescrito: elimina `UserDefaults`, ahora usa `GET /favorites/tracks` + `POST /favorites/tracks/{id}`. Updates optimistas en local state. `ContentView` llama `favorites.load()` en `onAppear` y al cambiar `auth.currentUser`.
-- [x] **APIClient: métodos de track favorites** — `favoriteTracks()` y `toggleTrackFavorite(id:)` agregados a `APIClient.swift`.
-- [x] **Tuple `grouped` con `albumId`** — `FavoritesStore.grouped` ahora expone `albumId` en el tuple. Tipos en `FavoriteGroupView` y `LikedMusicGroupView` actualizados. Build limpio.
-- [x] **Diagnóstico Einhander** — confirmado que el problema es `mp3_url` vacío + khinsider 404 sin CF clearance. No es bug de código.
+- [x] **Drone CI/CD funcional** — build #8 success: backend-test → backend-image → web-image → deploy (todos ✅)
+- [x] **Repo Gitea activado y trusted** — `maaya` promovido a admin en Drone DB para poder marcar repo trusted (necesario para `extra_hosts`)
+- [x] **Secret `ssh_private_key` en Drone** — agregado vía API usando token de DB SQLite
+- [x] **Deploy path corregido** — `/srv/vgradio` → `~/srv/vgradio` (sin sudo passwordless)
+- [x] **Registry corregido** — `registry.lab` → `192.168.0.103:5000` (puerto 5000, no 80)
+- [x] **Deploy a host correcto** — `192.168.0.103` → `192.168.0.104` (donde vive Traefik)
+- [x] **`traefik-net` creada en `.104`** — ya existía, solo faltaba verificar
+- [x] **Dominio renombrado** — `api.vgradio.lab` → `vgradio-api.lab` (wildcard `*.lab` cubre solo un nivel)
+- [x] **Migración de datos** — 39 albums + 1903 tracks + archivos de audio copiados al volumen Docker en `.104`
+- [x] **WAL conflict resuelto** — `vgradio.db-wal` del DB vacío eliminado; backend sirve 39 albums
+- [x] **DEPLOY.md creado** — guía completa para nuevos proyectos en homelab
+- [x] **`scripts/migrate-to-homelab.sh`** — script reutilizable para migraciones futuras
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Resolver Einhander tracks 3+** — necesita CF clearance válido. Ver pasos en "En progreso" arriba.
-- [ ] **Mega Man: The Power Battle** — álbum no está en DB. Agregar vía Add URL con URL de khinsider.
-- [ ] **Confirmar Rockman importa** — pendiente de sesión anterior (fix URL doble)
-- [ ] **Commitear esta sesión** — varios archivos modificados sin commitear (FavoritesStore, APIClient, ContentView, FavoritesView, PlaylistsView + archivos de sesión anterior)
-- [ ] **Filtro Library en web** — paridad con macOS (Ctrl+F o barra de búsqueda en `/library`)
-- [ ] **Merge `users` → `main`** — rama 2 commits adelante de origin
-- [ ] **Deploy VPS** — backend + frontend
+- [ ] **Verificar `https://vgradio.lab` en browser** — agregar a `/etc/hosts` y confirmar TLS OK
+- [ ] **Login en homelab** — `arayaromero@gmail.com` con contraseña del backend local
+- [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`)
+- [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas abajo)
+- [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
+- [ ] **Sincronizar catalog en homelab** — `POST /catalog/sync` para poblar la tabla de búsqueda
 
 ## Notas
 
-### Por qué Einhander tracks 1-2 sí suenan y 3+ no
+### Infraestructura homelab
 
-Tracks 1-2 tienen `mp3_url` cacheado (CDN `nu.vgmtreasurechest.com`) de un scrape anterior con CF válido.
-Tracks 3+ tienen nombre con `#` (p.ej. `Stage1 #1-`). Sus `page_url` en khinsider incluyen `%23` (encoding correcto),
-pero al intentar resolver ahora sin `cf_clearance`, khinsider retorna 404. El `#` no es el bug — es la ausencia de CF cookie.
+| Servicio    | Host            | URL                              |
+|-------------|-----------------|----------------------------------|
+| Gitea       | 192.168.0.103   | http://192.168.0.103:3000        |
+| Drone CI    | 192.168.0.103   | https://drone.lab                |
+| Registry    | 192.168.0.103   | 192.168.0.103:5000 (HTTP)        |
+| Traefik     | 192.168.0.104   | 192.168.0.104:8888 (dashboard)   |
+| VGRadio web | 192.168.0.104   | https://vgradio.lab              |
+| VGRadio API | 192.168.0.104   | https://vgradio-api.lab          |
 
-### Favorites: arquitectura antes vs después
+**Drone token** (para API): `ZBnZ9g6QuAZDp3GUzDyL6H2NwSU63oT4`  
+Obtener con: `sqlite3 /var/lib/docker/volumes/cicd_drone_data/_data/database.sqlite "SELECT user_login, user_hash FROM users;"`  
+(copiar DB local primero: `docker cp drone:/data/database.sqlite /tmp/drone.sqlite`)
 
-**Antes:** `FavoritesStore` → `UserDefaults` (local, no sincronizado entre plataformas)
-**Ahora:** `FavoritesStore` → `GET/POST /favorites/tracks` (DB, sincronizado web↔macOS)
-Web ya usaba la API desde antes (trackFavorites.ts). El localStorage `favorites.ts` es código legacy en web — no lo usa "Liked Music".
+### `/etc/hosts` local (Mac) — entradas necesarias
 
-### Binary de producción: siempre reemplazar /Applications/VGRadio.app
-
-```bash
-swift build -c release
-pkill -x VGRadio 2>/dev/null; sleep 0.3
-cp .build/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
-open /Applications/VGRadio.app
+```
+192.168.0.104  vgradio.lab vgradio-api.lab
 ```
 
-La app corre desde `/Applications/VGRadio.app/Contents/MacOS/VGRadio`, NO desde el binary SPM directamente.
+Agregar con: `sudo sh -c 'echo "192.168.0.104  vgradio.lab vgradio-api.lab" >> /etc/hosts'`
 
-### Cómo matar y reiniciar backend correctamente
+### CF clearance para Einhander
+
+Tracks 3+ de EINHÄNDER ORIGINAL SOUNDTRACK fallan (mp3_url vacío, khinsider 404 sin CF cookie).
 
 ```bash
-kill $(lsof -t -i :8080) 2>/dev/null; sleep 1
-cd /Users/maaya/dev/vgradio-app/backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
-tail -f /tmp/vgradio.log
+# 1. Obtener cf_clearance del browser (DevTools → Application → Cookies → downloads.khinsider.com)
+# 2. Setear en backend homelab:
+curl -X PUT https://vgradio-api.lab/config/cf-clearance \
+  -H 'Content-Type: application/json' \
+  -d '{"value":"CF_COOKIE_AQUI"}'
+# 3. Re-scrape:
+curl -X POST https://vgradio-api.lab/albums/9ee1fa540f28534f/scrape-tracks
 ```
-
-`pkill -f "go run.*server"` NO funciona — mata el orquestador pero el binary hijo sigue en :8080.
-
-### sourceUrl en catalog = URL absoluta
-
-`GET /catalog` devuelve `sourceUrl` como URL completa. No agregar base URL al usarla.
 
 ### Comandos útiles
 
 ```bash
-# Tests backend
-cd /Users/maaya/dev/vgradio-app/backend && go test ./...
+# Retrigger build en Drone
+curl -sk -X POST "https://drone.lab/api/repos/maaya/vgradio-app/builds/<N>" \
+  -H "Authorization: Bearer ZBnZ9g6QuAZDp3GUzDyL6H2NwSU63oT4"
 
-# Build macOS
+# Ver logs de build
+curl -sk "https://drone.lab/api/repos/maaya/vgradio-app/builds/<N>/logs/1/<step>" \
+  -H "Authorization: Bearer ZBnZ9g6QuAZDp3GUzDyL6H2NwSU63oT4"
+
+# Backend local
+kill $(lsof -t -i :8080) 2>/dev/null; sleep 1
+cd /Users/maaya/dev/vgradio-app/backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
+
+# Build macOS app
 cd /Users/maaya/dev/vgradio-app/VGRadio && swift build -c release
+pkill -x VGRadio 2>/dev/null; sleep 0.3
+cp .build/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
+open /Applications/VGRadio.app
 
-# Web dev
-cd /Users/maaya/dev/vgradio-app/web && npm run dev
-
-# Stats backend
-curl -s http://localhost:8080/stats
-
-# Set CF clearance en runtime
-curl -X PUT http://localhost:8080/config/cf-clearance -H 'Content-Type: application/json' -d '{"value":"CF_COOKIE_AQUI"}'
-
-# Re-scrape tracks de un álbum (tras renovar CF)
-curl -X POST http://localhost:8080/albums/9ee1fa540f28534f/scrape-tracks
+# Migración de datos (si se necesita re-migrar)
+bash scripts/migrate-to-homelab.sh
 ```
