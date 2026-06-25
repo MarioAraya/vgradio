@@ -28,6 +28,8 @@ steps:
       context: backend
       dockerfile: backend/Dockerfile
       insecure: true
+    extra_hosts:
+      - registry.lab:192.168.0.103
     when:
       status:
         - success
@@ -44,6 +46,8 @@ steps:
       insecure: true
       build_args:
         - VITE_API_URL=https://api.vgradio.lab
+    extra_hosts:
+      - registry.lab:192.168.0.103
     when:
       status:
         - success
