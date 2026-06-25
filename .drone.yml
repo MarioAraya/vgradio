@@ -52,7 +52,7 @@ steps:
   - name: deploy
     image: appleboy/drone-ssh
     settings:
-      host: 192.168.0.103
+      host: 192.168.0.104
       username: maaya
       key:
         from_secret: ssh_private_key
