@@ -42,6 +42,8 @@ steps:
       context: web
       dockerfile: web/Dockerfile
       insecure: true
+      build_args:
+        - VITE_API_URL=https://api.vgradio.lab
     when:
       status:
         - success
@@ -55,7 +57,7 @@ steps:
       key:
         from_secret: ssh_private_key
       script:
-        - cd /srv/vgradio
+        - cd ~/srv/vgradio
         - docker compose pull
         - docker compose up -d --remove-orphans
     when:

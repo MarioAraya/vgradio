@@ -9,6 +9,16 @@
   export let onAddURL: () => void = () => {};
 
   let editOpen = false;
+  let collapsed = false;
+
+  onMount(() => {
+    collapsed = localStorage.getItem('vgradio.sidebar.collapsed') === '1';
+  });
+
+  function toggleCollapse() {
+    collapsed = !collapsed;
+    localStorage.setItem('vgradio.sidebar.collapsed', collapsed ? '1' : '0');
+  }
 
   const nav = [
     { href: '/',          label: 'Library',   icon: '♫' },
@@ -29,18 +39,29 @@
   }
 </script>
 
-<aside class="sidebar">
-  <div class="logo">VGRadio</div>
+<aside class="sidebar" class:collapsed>
+  <div class="header">
+    <button class="hamburger" on:click={toggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand' : 'Collapse'}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <rect y="2"  width="16" height="1.5" rx="0.75"/>
+        <rect y="7"  width="16" height="1.5" rx="0.75"/>
+        <rect y="12" width="16" height="1.5" rx="0.75"/>
+      </svg>
+    </button>
+    {#if !collapsed}
+      <span class="logo-text">VGRadio</span>
+    {/if}
+  </div>
   <nav>
     {#each nav as item}
-      <a href={item.href} class="nav-item" class:active={isActive(item.href)}>
+      <a href={item.href} class="nav-item" class:active={isActive(item.href)} title={collapsed ? item.label : undefined}>
         <span class="icon">{item.icon}</span>
-        <span>{item.label}</span>
+        {#if !collapsed}<span>{item.label}</span>{/if}
       </a>
     {/each}
   </nav>
 
-  {#if $currentUser}
+  {#if $currentUser && !collapsed}
     <div class="playlists-section">
       <div class="section-header">
         <span class="section-label">Playlists</span>
@@ -73,9 +94,21 @@
     </div>
   {/if}
 
-  <div class="bottom">
-    <slot name="user" />
-    <button class="add-btn" on:click={onAddURL}>+ Add URL</button>
+  {#if $currentUser && collapsed}
+    <div class="collapsed-playlists">
+      <a href="/playlists/liked" class="nav-item" class:active={$page.url.pathname === '/playlists/liked'} title="Liked Music">
+        <span class="icon">★</span>
+      </a>
+    </div>
+  {/if}
+
+  <div class="bottom" class:bottom-collapsed={collapsed}>
+    {#if !collapsed}
+      <slot name="user" />
+      <button class="add-btn" on:click={onAddURL}>+ Add URL</button>
+    {:else}
+      <slot name="user" />
+    {/if}
   </div>
 </aside>
 
@@ -93,14 +126,38 @@
     flex-direction: column;
     flex-shrink: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease;
   }
-  .logo {
-    padding: 20px 16px 12px;
+  .sidebar.collapsed {
+    width: 48px;
+    min-width: 48px;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 12px 10px;
+    flex-shrink: 0;
+  }
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--r-sm);
+    color: var(--text-sec);
+    flex-shrink: 0;
+    transition: background 0.1s, color 0.1s;
+  }
+  .hamburger:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+  .logo-text {
     font-size: 16px;
     font-weight: 700;
     color: var(--accent);
     letter-spacing: 0.05em;
-    flex-shrink: 0;
+    white-space: nowrap;
   }
   nav {
     display: flex;
@@ -108,6 +165,7 @@
     gap: 2px;
     padding: 4px 8px;
   }
+  .sidebar.collapsed nav { padding: 4px 6px; }
   .nav-item {
     display: flex;
     align-items: center;
@@ -117,7 +175,9 @@
     font-size: 13px;
     color: var(--text-sec);
     transition: background 0.1s, color 0.1s;
+    white-space: nowrap;
   }
+  .sidebar.collapsed .nav-item { justify-content: center; padding: 8px 6px; gap: 0; }
   .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
   .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
@@ -174,6 +234,13 @@
   }
   .new-pl-btn:hover { background: rgba(255,255,255,0.04); color: var(--text); }
 
+  .collapsed-playlists {
+    padding: 4px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px solid var(--separator);
+  }
   .bottom {
     padding: 12px;
     border-top: 1px solid var(--separator);
@@ -181,6 +248,10 @@
     flex-direction: column;
     gap: 8px;
     flex-shrink: 0;
+  }
+  .bottom-collapsed {
+    padding: 8px 6px;
+    align-items: center;
   }
   .add-btn {
     width: 100%;
