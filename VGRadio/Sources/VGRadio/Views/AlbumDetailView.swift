@@ -38,11 +38,9 @@ struct AlbumDetailView: View {
                 }
             }
             .background(Color.vgBg)
-            .onChange(of: player.currentTrack?.id) { _, id in
-                if let id {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        proxy.scrollTo(id, anchor: .center)
-                    }
+            .onAppear {
+                if let id = player.currentTrack?.id {
+                    proxy.scrollTo(id, anchor: .center)
                 }
             }
         }
