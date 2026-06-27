@@ -20,6 +20,7 @@
 - [x] **Favoritos funcionando** en homelab
 - [x] **DEPLOY.md** — guía reutilizable para nuevos proyectos en homelab
 - [x] **`scripts/migrate-to-homelab.sh`** — script para migraciones futuras
+- [x] **Fix auto-scroll Album view** — `onChange` → `onAppear`: scroll a track actual solo al abrir, no en cada cambio de pista (impedía scrollear manualmente)
 
 ## Pendiente (próximos pasos inmediatos)
 
@@ -27,6 +28,7 @@
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync` para poblar búsqueda
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
+- [ ] **origin push pendiente** — `main` adelantado 1 commit respecto a `origin/main` (GitHub/Vercel)
 
 ## Notas
 
