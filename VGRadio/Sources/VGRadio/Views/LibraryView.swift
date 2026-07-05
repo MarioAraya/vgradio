@@ -4,7 +4,12 @@ struct LibraryView: View {
     @Environment(LibraryStore.self) var library
     @Environment(WishlistStore.self) var wishlist
     @Environment(PlayerService.self) var player
-    @State private var selected: AlbumSummary?
+    // Browser-style navigation history: nil = grid, non-nil = album detail
+    @State private var history: [AlbumSummary?] = [nil]
+    @State private var historyIndex = 0
+    @State private var swipeAccumX: CGFloat = 0
+    @State private var swipeAccumY: CGFloat = 0
+    @State private var scrollMonitor: Any?
     @State private var hoveredID: String?
     @State private var importingURL: String?
     @State private var importError: String?
@@ -14,23 +19,42 @@ struct LibraryView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: VGSpace.md)]
 
+    private var selected: AlbumSummary? { history[historyIndex] }
+
     private var filteredAlbums: [AlbumSummary] {
         guard !searchText.isEmpty else { return library.albums }
         let q = searchText.lowercased()
         return library.albums.filter { $0.title.lowercased().contains(q) || $0.platform.lowercased().contains(q) }
     }
 
+    private func navigate(to album: AlbumSummary?) {
+        guard history[historyIndex] != album else { return }
+        history.removeSubrange((historyIndex + 1)...)
+        history.append(album)
+        historyIndex = history.count - 1
+    }
+
+    private func goBack() {
+        guard historyIndex > 0 else { return }
+        DispatchQueue.main.async { historyIndex -= 1 }
+    }
+
+    private func goForward() {
+        guard historyIndex < history.count - 1 else { return }
+        DispatchQueue.main.async { historyIndex += 1 }
+    }
+
     var body: some View {
         Group {
             if let album = selected {
-                AlbumDetailView(summary: album, onBack: { DispatchQueue.main.async { selected = nil } })
+                AlbumDetailView(summary: album, onBack: goBack)
             } else {
                 libraryGrid
             }
         }
         .onChange(of: library.pendingNavigation) { _, album in
             if let album {
-                selected = album
+                navigate(to: album)
                 library.pendingNavigation = nil
             }
         }
@@ -40,6 +64,38 @@ struct LibraryView: View {
                 return .handled
             }
             return .ignored
+        }
+        .background {
+            Group {
+                Button("") { goBack() }.keyboardShortcut(.leftArrow, modifiers: .command)
+                Button("") { goForward() }.keyboardShortcut(.rightArrow, modifiers: .command)
+            }
+            .hidden()
+        }
+        .onAppear {
+            // Two-finger trackpad swipe, like browser back/forward navigation.
+            scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                guard event.hasPreciseScrollingDeltas else { return event }
+                switch event.phase {
+                case .began:
+                    swipeAccumX = 0
+                    swipeAccumY = 0
+                case .changed:
+                    swipeAccumX += event.scrollingDeltaX
+                    swipeAccumY += event.scrollingDeltaY
+                case .ended, .cancelled:
+                    if abs(swipeAccumX) > 80 && abs(swipeAccumX) > abs(swipeAccumY) * 2 {
+                        if swipeAccumX > 0 { goBack() } else { goForward() }
+                    }
+                    swipeAccumX = 0
+                    swipeAccumY = 0
+                default: break
+                }
+                return event
+            }
+        }
+        .onDisappear {
+            if let monitor = scrollMonitor { NSEvent.removeMonitor(monitor) }
         }
     }
 
@@ -104,7 +160,7 @@ struct LibraryView: View {
                                 ForEach(filteredAlbums) { album in
                                     AlbumCard(album: album, isHovered: hoveredID == album.id)
                                         .onHover { hoveredID = $0 ? album.id : nil }
-                                        .onTapGesture { selected = album }
+                                        .onTapGesture { navigate(to: album) }
                                 }
                             }
                             .padding(.horizontal, VGSpace.xl)

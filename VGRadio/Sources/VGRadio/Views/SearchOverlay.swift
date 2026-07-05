@@ -4,6 +4,7 @@ struct SearchOverlay: View {
     @Binding var isShowing: Bool
     @Environment(LibraryStore.self) var library
     @State private var query = ""
+    @FocusState private var isFocused: Bool
 
     private var results: [AlbumSummary] {
         guard !query.isEmpty else { return [] }
@@ -28,6 +29,7 @@ struct SearchOverlay: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 18))
                         .foregroundStyle(Color.vgText)
+                        .focused($isFocused)
                 }
                 .padding(VGSpace.md)
 
@@ -53,7 +55,10 @@ struct SearchOverlay: View {
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             ForEach(results) { album in
-                                SearchResultRow(album: album) { isShowing = false }
+                                SearchResultRow(album: album) {
+                                    library.pendingNavigation = album
+                                    isShowing = false
+                                }
                             }
                         }
                     }
@@ -72,6 +77,10 @@ struct SearchOverlay: View {
             .padding(.top, 120)
         }
         .onKeyPress(.escape) { isShowing = false; return .handled }
+        .onAppear {
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.async { isFocused = true }
+        }
     }
 }
 
@@ -93,6 +102,7 @@ private struct SearchResultRow: View {
         .padding(.horizontal, VGSpace.md)
         .padding(.vertical, VGSpace.sm)
         .background(isHovered ? Color.vgSurfaceHi : Color.clear)
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .onTapGesture { onSelect() }
     }

@@ -320,6 +320,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 		SizeBytes   int64  `json:"sizeBytes"`
 		StreamURL   string `json:"streamUrl"`
 		DownloadURL string `json:"downloadUrl"`
+		PageURL     string `json:"pageUrl"`
 		Scraped     bool   `json:"scraped"`
 		Downloaded  bool   `json:"downloaded"`
 		IsFavorite  bool   `json:"isFavorite"`
@@ -343,6 +344,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 			SizeBytes:   t.SizeBytes,
 			StreamURL:   "/tracks/" + t.ID + "/stream",
 			DownloadURL: "/tracks/" + t.ID + "/download",
+			PageURL:     t.PageURL,
 			Scraped:     t.MP3URL != "",
 			Downloaded:  t.LocalPath != "",
 			IsFavorite:  trackFavs[t.ID],

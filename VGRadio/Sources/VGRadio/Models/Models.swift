@@ -52,6 +52,7 @@ struct Track: Codable, Identifiable, Hashable {
     var sizeBytes: Int
     var streamUrl: String
     var downloadUrl: String
+    var pageUrl: String = ""
     var downloaded: Bool = false
 
     var durationFormatted: String {

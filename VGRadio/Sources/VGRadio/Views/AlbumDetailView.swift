@@ -722,6 +722,12 @@ private struct DetailTrackRow: View {
                 Label(isFav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
             }
+            if !track.pageUrl.isEmpty, let url = URL(string: track.pageUrl) {
+                Divider()
+                Button { NSWorkspace.shared.open(url) } label: {
+                    Label("Open on khinsider", systemImage: "arrow.up.right.square")
+                }
+            }
         }
         .gesture(
             DragGesture(minimumDistance: 12)
