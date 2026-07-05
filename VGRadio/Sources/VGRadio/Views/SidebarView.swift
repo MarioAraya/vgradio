@@ -61,6 +61,7 @@ struct SidebarView: View {
                     }
                     .padding(.horizontal, 10)
                     .frame(height: 28)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 4)
@@ -131,6 +132,7 @@ struct SidebarView: View {
                 .frame(minHeight: 34)
                 .background(selection == .playlistLiked ? Color.vgAccentSoft : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 4)
@@ -161,6 +163,7 @@ struct SidebarView: View {
                     .frame(minHeight: 34)
                     .background(selection == .playlist(id: pl.id) ? Color.vgAccentSoft : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 4)
@@ -180,6 +183,7 @@ struct SidebarView: View {
                 }
                 .padding(.horizontal, 10)
                 .frame(height: 28)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 4)
@@ -213,13 +217,14 @@ struct SidebarView: View {
                     Image(systemName: "person.circle")
                         .font(.system(size: 16))
                         .foregroundStyle(Color.vgTextSec)
-                    Text("Sign in")
+    Text("Sign in")
                         .font(VGFont.caption(12))
                         .foregroundStyle(Color.vgTextSec)
                     Spacer()
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -280,6 +285,7 @@ private struct SidebarRow: View {
             .frame(height: 28)
             .background(isSelected ? Color.vgAccentSoft : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 5))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 4)

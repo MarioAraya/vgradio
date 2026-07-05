@@ -1,34 +1,44 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-06-25
+Última sesión: 2026-07-05
 
-## Estado general
+## En progreso
 
-**Homelab deploy completo y funcional.** VGRadio corre en `https://vgradio.lab` con CI/CD automático vía Gitea + Drone. Auth, albums, favoritos — todo funcionando.
+### Fixes UI macOS: área de click en Sidebar + doble-click en Favorites
+
+**Contexto recopilado:**
+- Bug 1: en `SidebarView.swift` solo el texto/icono de cada row respondía al click, no toda el área (ancho/alto). Causa: SwiftUI no cuenta como tappable un fondo `Color.clear` — falta `.contentShape(Rectangle())`.
+- Bug 2: en `FavoritesView.swift`, `FavoriteTrackRow` no tenía ningún gesto de doble-click — solo el botón "Play all" reproducía. Patrón correcto ya existía en `AlbumDetailView.swift` (`DetailTrackRow` + `.onTapGesture(count: 2)`).
+- Toolchain: `xcode-select` apuntaba a CommandLineTools (sin SDK completo) → build fallaba con símbolos de `PackageDescription` no encontrados. Se resolvió apuntando a `/Volumes/ExtDevDisk/Xcode.app/Contents/Developer` (disco externo debe estar montado).
+
+**Decisiones tomadas (implementadas):**
+- `.contentShape(Rectangle())` agregado en todos los rows/botones de `SidebarView.swift`: Library/Browse/Favorites/Recently Played, Liked Music, playlists, New playlist, Add URL, Sign in.
+- `FavoriteTrackRow` ahora recibe `group` (tupla del álbum) para armar el queue completo al hacer doble-click, igual que `AlbumDetailView`.
+
+**Preguntas pendientes antes de continuar:**
+1. Ninguna — falta solo probar interactivamente en la app corriendo (ver Pendiente).
 
 ## Completado esta sesión
 
-- [x] **Drone CI/CD end-to-end** — build #9 success: test → backend image → web image → deploy SSH
-- [x] **Gitea repo activado** — `maaya/vgradio-app`, `maaya` promovido a admin en Drone (SQLite directo), repo marcado `trusted=true`
-- [x] **Secret `ssh_private_key`** — agregado vía Drone API con clave `~/.ssh/drone_ci` del servidor
-- [x] **Registry corregido** — `192.168.0.103:5000` (no hostname, puerto 5000)
-- [x] **Deploy target correcto** — `192.168.0.104` (donde vive Traefik, no `.103`)
-- [x] **Dominio API** — `vgradio-api.lab` (no `api.vgradio.lab` — cert `*.lab` no cubre segundo nivel)
-- [x] **Migración de datos** — 39 albums + 1903 tracks + audio copiados al volumen Docker en `.104`
-- [x] **Fix WAL conflict** — `vgradio.db-wal` del DB vacío eliminado; 39 albums OK
-- [x] **Cookie cross-origin** — `SameSite=None; Secure=true` para que la sesión funcione entre `vgradio.lab` y `vgradio-api.lab`
-- [x] **Favoritos funcionando** en homelab
-- [x] **DEPLOY.md** — guía reutilizable para nuevos proyectos en homelab
-- [x] **`scripts/migrate-to-homelab.sh`** — script para migraciones futuras
-- [x] **Fix auto-scroll Album view** — `onChange` → `onAppear`: scroll a track actual solo al abrir, no en cada cambio de pista (impedía scrollear manualmente)
+- [x] Fix área de click en `SidebarView.swift` (todo el row, no solo el texto)
+- [x] Fix doble-click en `FavoritesView.swift` → reproduce track + arma queue del álbum
+- [x] Build release compila limpio (`swift build -c release`), sin warnings nuevos
+- [x] Resuelto `xcode-select` apuntando a Xcode.app del disco externo (ya no requiere `DEVELOPER_DIR=` manual)
 
 ## Pendiente (próximos pasos inmediatos)
 
+- [ ] **Copiar binario nuevo al `.app` bundle** (dock apunta a `/Applications/VGRadio.app`, desactualizado del 24 jun):
+  ```bash
+  pkill -x VGRadio 2>/dev/null; sleep 0.3
+  cp /Users/maaya/dev/vgradio-app/VGRadio/.build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
+  open /Applications/VGRadio.app
+  ```
+- [ ] **Probar interactivamente**: click en cualquier parte de los textos del sidebar, doble-click en un track de Favorites
+- [ ] **Commitear cambios** si prueba OK — `VGRadio/Sources/VGRadio/Views/{FavoritesView,SidebarView}.swift` sin commitear
 - [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`, Ctrl+F)
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync` para poblar búsqueda
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
-- [ ] **origin push pendiente** — `main` adelantado 1 commit respecto a `origin/main` (GitHub/Vercel)
 
 ## Notas
 

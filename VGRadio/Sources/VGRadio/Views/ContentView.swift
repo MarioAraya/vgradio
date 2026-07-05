@@ -87,9 +87,9 @@ struct ContentView: View {
         .onChange(of: library.pendingNavigation) { _, album in
             if album != nil { selection = .library }
         }
-        .keyboardShortcut("k", modifiers: .command)
         .background {
             Group {
+                Button("") { showSearch = true           }.keyboardShortcut("k", modifiers: .command)
                 Button("") { selection = .library        }.keyboardShortcut("1", modifiers: .command)
                 Button("") { selection = .browse         }.keyboardShortcut("2", modifiers: .command)
                 Button("") { selection = .favorites      }.keyboardShortcut("3", modifiers: .command)

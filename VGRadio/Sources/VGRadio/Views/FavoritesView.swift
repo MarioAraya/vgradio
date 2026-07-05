@@ -137,7 +137,7 @@ private struct FavoriteGroupView: View {
                 Divider().overlay(Color.vgSeparator)
 
                 ForEach(group.tracks) { track in
-                    FavoriteTrackRow(track: track)
+                    FavoriteTrackRow(track: track, group: group)
                 }
             }
             .background(Color.vgSurface)
@@ -150,7 +150,9 @@ private struct FavoriteGroupView: View {
 
 private struct FavoriteTrackRow: View {
     let track: FavoriteTrack
+    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
     @Environment(FavoritesStore.self) var favorites
+    @Environment(PlayerService.self) var player
     @State private var isHovered = false
 
     var body: some View {
@@ -190,9 +192,26 @@ private struct FavoriteTrackRow: View {
         .padding(.horizontal, VGSpace.md)
         .padding(.vertical, 10)
         .background(isHovered ? Color.vgSurfaceHi : Color.clear)
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .onTapGesture(count: 2) { play() }
 
         Divider().overlay(Color.vgSeparator).padding(.horizontal, VGSpace.md)
+    }
+
+    private func play() {
+        let tracks = group.tracks.enumerated().map { i, f in
+            Track(id: f.id, index: i + 1, name: f.name,
+                  durationSec: f.durationSec, sizeBytes: 0,
+                  streamUrl: "/tracks/\(f.id)/stream",
+                  downloadUrl: "/tracks/\(f.id)/download",
+                  downloaded: true)
+        }
+        guard let current = tracks.first(where: { $0.id == track.id }) else { return }
+        let album = AlbumSummary(id: group.albumId, title: group.albumTitle,
+                                 platform: group.platform, year: group.year,
+                                 albumType: "", trackCount: tracks.count, totalDurationSec: 0, coverUrls: [group.coverUrl])
+        player.play(track: current, in: album, queue: tracks)
     }
 }
 

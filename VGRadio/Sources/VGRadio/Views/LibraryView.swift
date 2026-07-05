@@ -23,7 +23,7 @@ struct LibraryView: View {
     var body: some View {
         Group {
             if let album = selected {
-                AlbumDetailView(summary: album, onBack: { selected = nil })
+                AlbumDetailView(summary: album, onBack: { DispatchQueue.main.async { selected = nil } })
             } else {
                 libraryGrid
             }
