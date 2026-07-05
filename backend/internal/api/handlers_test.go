@@ -214,6 +214,274 @@ func TestStreamTrack_RedirectsToMP3URL(t *testing.T) {
 	}
 }
 
+func TestResolveTrackURL_NotFound(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/tracks/9999/resolve", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestResolveTrackURL_ReturnsCachedURL(t *testing.T) {
+	router, s, _ := setup(t)
+	album := &scraper.Album{
+		SourceURL: "https://downloads.khinsider.com/album/resolve-test",
+		Title:     "Resolve Test",
+		Platform:  "PS1",
+		Tracks: []scraper.Track{
+			{Index: 1, Name: "Song", DurationSec: 60, PageURL: "https://x.com/song.mp3", MP3URL: "https://cdn.example.com/cached.mp3"},
+		},
+	}
+	albumID, _ := s.SaveAlbum(context.Background(), album)
+	a, _ := s.Album(context.Background(), albumID)
+	trackID := a.Tracks[0].ID
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/tracks/"+trackID+"/resolve", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["url"] != "https://cdn.example.com/cached.mp3" {
+		t.Errorf("url = %q, want cached mp3 url", resp["url"])
+	}
+}
+
+func TestDownloadTrack_NotDownloaded(t *testing.T) {
+	router, s, _ := setup(t)
+	album := &scraper.Album{
+		SourceURL: "https://downloads.khinsider.com/album/download-test",
+		Title:     "Download Test",
+		Platform:  "PS1",
+		Tracks:    []scraper.Track{{Index: 1, Name: "Song", PageURL: "https://x.com/song.mp3"}},
+	}
+	albumID, _ := s.SaveAlbum(context.Background(), album)
+	a, _ := s.Album(context.Background(), albumID)
+	trackID := a.Tracks[0].ID
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/tracks/"+trackID+"/download", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusConflict {
+		t.Errorf("status = %d, want 409", w.Code)
+	}
+}
+
+func TestFetchTrackLocal_NotFound(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/tracks/9999/fetch", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestScrapeAlbumTracks_NotFound(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/albums/nonexistent/scrape-tracks", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestScrapeAllPending_NoTracks(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/scrape/pending", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var resp map[string]int
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["total"] != 0 {
+		t.Errorf("total = %d, want 0", resp["total"])
+	}
+}
+
+func TestGetCatalog_EmptyAndFilters(t *testing.T) {
+	router, s, _ := setup(t)
+	if err := s.UpsertCatalogEntries(context.Background(), []scraper.CatalogEntry{
+		{Title: "Chrono Trigger", SourceURL: "https://x.com/ct", Platform: "SNES", AlbumType: "Soundtrack", Year: 1995},
+		{Title: "Doom", SourceURL: "https://x.com/doom", Platform: "PC", AlbumType: "Soundtrack", Year: 1993},
+	}); err != nil {
+		t.Fatalf("seed catalog: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/catalog?platform=SNES", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var resp struct {
+		Total int              `json:"total"`
+		Items []map[string]any `json:"items"`
+	}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Total != 1 {
+		t.Errorf("total = %d, want 1", resp.Total)
+	}
+	if len(resp.Items) != 1 || resp.Items[0]["title"] != "Chrono Trigger" {
+		t.Errorf("items = %v, want Chrono Trigger only", resp.Items)
+	}
+}
+
+func TestGetCatalogConsoles(t *testing.T) {
+	router, s, _ := setup(t)
+	if err := s.UpsertConsoles(context.Background(), []scraper.Console{
+		{Name: "Super Nintendo", Slug: "nintendo-snes", URL: "https://x.com/snes", AlbumCount: 10},
+	}); err != nil {
+		t.Fatalf("seed consoles: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/catalog/consoles", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var resp []map[string]any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if len(resp) != 1 || resp[0]["name"] != "Super Nintendo" {
+		t.Errorf("resp = %v, want Super Nintendo console", resp)
+	}
+}
+
+func TestPutCFClearance_MissingValue(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPut, "/config/cf-clearance", strings.NewReader(`{}`))
+	r.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestPutCFClearance_OK(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPut, "/config/cf-clearance", strings.NewReader(`{"value":"abc123"}`))
+	r.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestPostHistory_MissingFields(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/history", strings.NewReader(`{}`))
+	r.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestPostHistory_ThenGetHistory_AnonymousEmpty(t *testing.T) {
+	router, _, _ := setup(t)
+	// Anonymous users have no persisted history: recording is a no-op, GET returns empty.
+	body := `{"trackId":"t1","albumId":"a1"}`
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/history", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want 204", w.Code)
+	}
+
+	w2 := httptest.NewRecorder()
+	r2 := httptest.NewRequest(http.MethodGet, "/history", nil)
+	router.ServeHTTP(w2, r2)
+	if w2.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w2.Code)
+	}
+	var resp []any
+	json.NewDecoder(w2.Body).Decode(&resp)
+	if len(resp) != 0 {
+		t.Errorf("history = %v, want empty for anonymous user", resp)
+	}
+}
+
+func TestGetStats(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/stats", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestGetDownloadedAlbums_Empty(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/albums/downloaded", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var resp []any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp == nil {
+		t.Error("expected empty JSON array, got null")
+	}
+}
+
+func TestDeleteAlbumLocal_NoLocalFiles(t *testing.T) {
+	router, s, _ := setup(t)
+	album := &scraper.Album{
+		SourceURL: "https://downloads.khinsider.com/album/delete-local-test",
+		Title:     "Delete Local Test",
+		Platform:  "PS1",
+	}
+	albumID, _ := s.SaveAlbum(context.Background(), album)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodDelete, "/albums/"+albumID+"/local", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var resp map[string]int
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["deleted"] != 0 {
+		t.Errorf("deleted = %d, want 0", resp["deleted"])
+	}
+}
+
+func TestGetCoversZip_NotFound(t *testing.T) {
+	router, _, _ := setup(t)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/albums/nonexistent/covers.zip", nil)
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestPostAlbums_InvalidURLScheme(t *testing.T) {
+	router, _, _ := setup(t)
+	body := `{"url":"ftp://example.com/file"}`
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/albums", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, r)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Errorf("status = %d, want 422", w.Code)
+	}
+}
+
 func waitStatus(t *testing.T, router http.Handler, jobID string, timeout time.Duration) string {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
