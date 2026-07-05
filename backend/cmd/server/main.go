@@ -46,7 +46,7 @@ func main() {
 	q := jobs.NewQueue(s, f, cfg.dataDir, cfg.workers)
 
 	// Catalog syncer.
-	syn := catalog.New(s, f, log)
+	syn := catalog.New(s, log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

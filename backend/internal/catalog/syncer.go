@@ -28,19 +28,14 @@ var browseLetters = func() []string {
 
 // SyncProgress describes the current state of a catalog sync.
 type SyncProgress struct {
-	Running   bool      `json:"running"`
-	Total     int       `json:"total"`
-	Done      int       `json:"done"`
-	Errors    int       `json:"errors"`
-	Entries   int       `json:"entries"`  // total catalog entries in DB
-	Consoles  int       `json:"consoles"` // total console rows in DB
-	StartedAt time.Time `json:"startedAt,omitempty"`
+	Running    bool       `json:"running"`
+	Total      int        `json:"total"`
+	Done       int        `json:"done"`
+	Errors     int        `json:"errors"`
+	Entries    int        `json:"entries"`  // total catalog entries in DB
+	Consoles   int        `json:"consoles"` // total console rows in DB
+	StartedAt  time.Time  `json:"startedAt,omitempty"`
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-}
-
-// fetcher is the subset of fetcher.Fetcher used by the syncer.
-type fetcher interface {
-	Get(ctx context.Context, url string) ([]byte, error)
 }
 
 // catalogStore is the subset of store.Store used by the syncer.
@@ -53,9 +48,13 @@ type catalogStore interface {
 
 // Syncer orchestrates the catalog scrape.
 type Syncer struct {
-	store   catalogStore
-	fetcher fetcher
-	log     *slog.Logger
+	store catalogStore
+	log   *slog.Logger
+
+	// httpGet fetches a page's raw HTML. Defaults to curlGet (bypasses Go's TLS
+	// fingerprint, which Cloudflare blocks on browse/catalog pages). Overridable
+	// in tests to avoid real network calls.
+	httpGet func(ctx context.Context, cfClearance, url string) ([]byte, error)
 
 	mu          sync.Mutex
 	progress    SyncProgress
@@ -63,8 +62,8 @@ type Syncer struct {
 }
 
 // New creates a Syncer.
-func New(st catalogStore, f fetcher, log *slog.Logger) *Syncer {
-	return &Syncer{store: st, fetcher: f, log: log}
+func New(st catalogStore, log *slog.Logger) *Syncer {
+	return &Syncer{store: st, log: log, httpGet: curlGet}
 }
 
 // SetCFClearance updates the Cloudflare clearance cookie used for catalog page fetches.
@@ -122,7 +121,9 @@ func (s *Syncer) StartLetter(ctx context.Context, letter string) bool {
 		}()
 		if err := s.syncBrowseLetterAllPages(ctx, letter); err != nil {
 			s.log.Warn("catalog: letter sync failed", "letter", letter, "err", err)
-			s.mu.Lock(); s.progress.Errors++; s.mu.Unlock()
+			s.mu.Lock()
+			s.progress.Errors++
+			s.mu.Unlock()
 		}
 		s.log.Info("catalog: letter sync complete", "letter", letter)
 	}()
@@ -146,10 +147,15 @@ func (s *Syncer) run(ctx context.Context) {
 		url := fmt.Sprintf("%s/game-soundtracks/browse/%s", baseURL, letter)
 		if err := s.syncBrowsePage(ctx, url); err != nil {
 			s.log.Warn("catalog: browse page failed", "letter", letter, "err", err)
-			s.mu.Lock(); s.progress.Errors++; s.mu.Unlock()
+			s.mu.Lock()
+			s.progress.Errors++
+			s.mu.Unlock()
 		}
 		n, _ := s.store.CountCatalog(ctx, "", "", "")
-		s.mu.Lock(); s.progress.Done++; s.progress.Entries = n; s.mu.Unlock()
+		s.mu.Lock()
+		s.progress.Done++
+		s.progress.Entries = n
+		s.mu.Unlock()
 	}
 
 	// 2. Console list — get console names + URLs.
@@ -159,9 +165,13 @@ func (s *Syncer) run(ctx context.Context) {
 	var consoleList []scraper.Console
 	if err := s.syncConsoleList(ctx, &consoleList); err != nil {
 		s.log.Warn("catalog: console list failed", "err", err)
-		s.mu.Lock(); s.progress.Errors++; s.mu.Unlock()
+		s.mu.Lock()
+		s.progress.Errors++
+		s.mu.Unlock()
 	}
-	s.mu.Lock(); s.progress.Done++; s.mu.Unlock()
+	s.mu.Lock()
+	s.progress.Done++
+	s.mu.Unlock()
 
 	// 3. Per-console pages — scrape each console to get accurate platform data.
 	if len(consoleList) > 0 {
@@ -174,9 +184,13 @@ func (s *Syncer) run(ctx context.Context) {
 			}
 			if err := s.syncConsolePage(ctx, c); err != nil {
 				s.log.Warn("catalog: console page failed", "console", c.Name, "err", err)
-				s.mu.Lock(); s.progress.Errors++; s.mu.Unlock()
+				s.mu.Lock()
+				s.progress.Errors++
+				s.mu.Unlock()
 			}
-			s.mu.Lock(); s.progress.Done++; s.mu.Unlock()
+			s.mu.Lock()
+			s.progress.Done++
+			s.mu.Unlock()
 		}
 	}
 
@@ -213,7 +227,7 @@ func curlGet(ctx context.Context, cfClearance, url string) ([]byte, error) {
 }
 
 func (s *Syncer) syncBrowsePage(ctx context.Context, pageURL string) error {
-	html, err := curlGet(ctx, s.cfClearance, pageURL)
+	html, err := s.httpGet(ctx, s.cfClearance, pageURL)
 	if err != nil {
 		return err
 	}
@@ -235,7 +249,7 @@ func (s *Syncer) syncBrowseLetterAllPages(ctx context.Context, letter string) er
 		if page > 1 {
 			pageURL = fmt.Sprintf("%s?page=%d", pageURL, page)
 		}
-		html, err := curlGet(ctx, s.cfClearance, pageURL)
+		html, err := s.httpGet(ctx, s.cfClearance, pageURL)
 		if err != nil {
 			return fmt.Errorf("page %d: %w", page, err)
 		}
@@ -267,7 +281,7 @@ func (s *Syncer) syncBrowseLetterAllPages(ctx context.Context, letter string) er
 }
 
 func (s *Syncer) syncConsoleList(ctx context.Context, out *[]scraper.Console) error {
-	html, err := curlGet(ctx, s.cfClearance, consoleList)
+	html, err := s.httpGet(ctx, s.cfClearance, consoleList)
 	if err != nil {
 		return err
 	}
@@ -283,7 +297,7 @@ func (s *Syncer) syncConsoleList(ctx context.Context, out *[]scraper.Console) er
 }
 
 func (s *Syncer) syncConsolePage(ctx context.Context, c scraper.Console) error {
-	html, err := curlGet(ctx, s.cfClearance, c.URL)
+	html, err := s.httpGet(ctx, s.cfClearance, c.URL)
 	if err != nil {
 		return err
 	}
