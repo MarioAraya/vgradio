@@ -91,7 +91,18 @@ private struct SearchResultRow: View {
 
     var body: some View {
         HStack(spacing: VGSpace.md) {
-            AlbumLetterArt(title: album.title, size: 36)
+            if !album.coverThumbUrl.isEmpty, let url = AlbumCoverView.resolveURL(album.coverThumbUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().aspectRatio(contentMode: .fill)
+                    default: AlbumLetterArt(title: album.title, size: 36)
+                    }
+                }
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                AlbumLetterArt(title: album.title, size: 36)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(album.title).font(VGFont.body()).foregroundStyle(Color.vgText)
                 Text("\(album.platform) · \(album.year)").font(VGFont.caption()).foregroundStyle(Color.vgTextSec)

@@ -16,6 +16,13 @@ struct AlbumDetailView: View {
     @State private var downloadedIDs: Set<String> = []
     @State private var addToPlaylistTrackId: String?
     @State private var showAddToPlaylist = false
+    @State private var trackSearchText = ""
+    @FocusState private var trackSearchFocused: Bool
+
+    private func filteredTracks(_ tracks: [Track]) -> [Track] {
+        guard !trackSearchText.isEmpty else { return tracks }
+        return tracks.filter { $0.name.localizedCaseInsensitiveContains(trackSearchText) }
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -59,6 +66,11 @@ struct AlbumDetailView: View {
                     onClose: { showLightbox = false }
                 )
             }
+        }
+        .background {
+            Button("") { trackSearchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
         }
     }
 
@@ -179,6 +191,33 @@ struct AlbumDetailView: View {
 
         // Tracklist
         VStack(spacing: 0) {
+            if trackSearchFocused || !trackSearchText.isEmpty {
+                HStack(spacing: VGSpace.xs) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Color.vgTextMuted)
+                    TextField("Filter tracks…", text: $trackSearchText)
+                        .textFieldStyle(.plain)
+                        .font(VGFont.body())
+                        .focused($trackSearchFocused)
+                        .onKeyPress(.escape) {
+                            trackSearchText = ""
+                            trackSearchFocused = false
+                            return .handled
+                        }
+                    if !trackSearchText.isEmpty {
+                        Button { trackSearchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Color.vgTextMuted)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, VGSpace.sm)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.04))
+                .padding(.horizontal, 32)
+                .padding(.bottom, 8)
+            }
+
             HStack(spacing: 0) {
                 Text("#").frame(width: 40, alignment: .center)
                 Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
@@ -194,7 +233,15 @@ struct AlbumDetailView: View {
             .padding(.horizontal, 12)
             .background(Color.white.opacity(0.02))
 
-            ForEach(Array(album.tracks.enumerated()), id: \.element.id) { idx, track in
+            if !trackSearchText.isEmpty && filteredTracks(album.tracks).isEmpty {
+                Text("No results for \"\(trackSearchText)\"")
+                    .font(VGFont.body())
+                    .foregroundStyle(Color.vgTextMuted)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 24)
+            }
+
+            ForEach(Array(filteredTracks(album.tracks).enumerated()), id: \.element.id) { idx, track in
                 DetailTrackRow(
                     track: track,
                     album: summary,

@@ -101,7 +101,11 @@ func parseCovers(doc *goquery.Document, base *url.URL) []Cover {
 		if !ok || href == "" {
 			return
 		}
-		covers = append(covers, Cover{URL: absURL(base, href)})
+		c := Cover{URL: absURL(base, href)}
+		if thumb, ok := s.Find("img").Attr("src"); ok && thumb != "" {
+			c.ThumbURL = absURL(base, thumb)
+		}
+		covers = append(covers, c)
 	})
 	return covers
 }

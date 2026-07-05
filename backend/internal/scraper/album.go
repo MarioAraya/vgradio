@@ -23,9 +23,10 @@ type Album struct {
 
 // Cover is an album artwork image.
 type Cover struct {
-	URL    string
-	Width  int
-	Height int
+	URL      string
+	Width    int
+	Height   int
+	ThumbURL string // small preview image, for search/browse listings
 }
 
 // Track is a single song within an album.

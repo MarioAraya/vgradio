@@ -281,6 +281,7 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 		AlbumType        string   `json:"albumType"`
 		TrackCount       int      `json:"trackCount"`
 		TotalDurationSec int      `json:"totalDurationSec"`
+		CoverThumbURL    string   `json:"coverThumbUrl"`
 		CoverURLs        []string `json:"coverUrls"`
 		IsFavorite       bool     `json:"isFavorite"`
 	}
@@ -290,7 +291,7 @@ func (h *handler) getAlbums(w http.ResponseWriter, r *http.Request) {
 		if urls == nil {
 			urls = []string{}
 		}
-		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, a.TotalDurationSec, urls, favs[a.ID]}
+		out[i] = item{a.ID, a.Title, a.Platform, a.Year, a.AlbumType, a.TrackCount, a.TotalDurationSec, a.CoverThumbURL, urls, favs[a.ID]}
 	}
 	jsonOK(w, out, http.StatusOK)
 }
@@ -308,9 +309,10 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type cover struct {
-		URL    string `json:"url"`
-		Width  int    `json:"width"`
-		Height int    `json:"height"`
+		URL      string `json:"url"`
+		Width    int    `json:"width"`
+		Height   int    `json:"height"`
+		ThumbURL string `json:"thumbUrl"`
 	}
 	type track struct {
 		ID          string `json:"id"`
@@ -352,7 +354,7 @@ func (h *handler) getAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 	covers := make([]cover, len(a.Covers))
 	for i, c := range a.Covers {
-		covers[i] = cover{c.URL, c.Width, c.Height}
+		covers[i] = cover{c.URL, c.Width, c.Height, c.ThumbURL}
 	}
 	comments := make([]comment, len(a.Comments))
 	for i, c := range a.Comments {

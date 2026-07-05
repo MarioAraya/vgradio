@@ -14,9 +14,11 @@ struct ContentView: View {
     @Environment(PlayerService.self) var player
     @Environment(AuthStore.self) var auth
     @Environment(FavoritesStore.self) var favorites
+    @Environment(HiddenTracksStore.self) var hidden
     @State private var selection: SidebarItem = .library
     @State private var showAddURL = false
     @State private var showSearch = false
+    @State private var showSettings = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var spaceKeyMonitor: Any?
 
@@ -54,6 +56,9 @@ struct ContentView: View {
         }
         .overlay {
             if showSearch { SearchOverlay(isShowing: $showSearch) }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
         .overlay(alignment: .bottomTrailing) {
             if player.showQueue {
@@ -101,6 +106,16 @@ struct ContentView: View {
                     }
                 }.keyboardShortcut("b", modifiers: .command)
                 Button("") { Task { await library.load() } }.keyboardShortcut("r", modifiers: .command)
+                Button("") {
+                    guard let track = player.currentTrack else { return }
+                    hidden.toggle(track.id)
+                    player.next()
+                }.keyboardShortcut(.delete, modifiers: .command)
+                Button("") {
+                    guard let track = player.currentTrack, let album = player.currentAlbum else { return }
+                    favorites.toggle(track, album: album)
+                }.keyboardShortcut("f", modifiers: [.command, .shift])
+                Button("") { showSettings = true }.keyboardShortcut(",", modifiers: .command)
             }
             .hidden()
         }

@@ -74,6 +74,7 @@ func (s *Store) migrate() error {
 	s.db.Exec(`ALTER TABLE albums ADD COLUMN catalog_number TEXT NOT NULL DEFAULT ''`)  //nolint:errcheck
 	s.db.Exec(`ALTER TABLE tracks ADD COLUMN local_path TEXT NOT NULL DEFAULT ''`)      //nolint:errcheck
 	s.db.Exec(`ALTER TABLE play_history ADD COLUMN user_id TEXT`)                       //nolint:errcheck
+	s.db.Exec(`ALTER TABLE covers ADD COLUMN thumb_url TEXT NOT NULL DEFAULT ''`)       //nolint:errcheck
 
 	s.migrateCatalog()
 
@@ -110,11 +111,12 @@ func (s *Store) migrate() error {
 		);
 
 		CREATE TABLE IF NOT EXISTS covers (
-			id       INTEGER PRIMARY KEY AUTOINCREMENT,
-			album_id TEXT NOT NULL REFERENCES albums(id),
-			url      TEXT NOT NULL,
-			width    INTEGER NOT NULL DEFAULT 0,
-			height   INTEGER NOT NULL DEFAULT 0
+			id        INTEGER PRIMARY KEY AUTOINCREMENT,
+			album_id  TEXT NOT NULL REFERENCES albums(id),
+			url       TEXT NOT NULL,
+			width     INTEGER NOT NULL DEFAULT 0,
+			height    INTEGER NOT NULL DEFAULT 0,
+			thumb_url TEXT NOT NULL DEFAULT ''
 		);
 
 		CREATE TABLE IF NOT EXISTS comments (
@@ -304,8 +306,8 @@ func insertChildren(ctx context.Context, tx *sql.Tx, albumID string, a *scraper.
 	}
 	for _, c := range a.Covers {
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO covers (album_id, url, width, height) VALUES (?,?,?,?)`,
-			albumID, c.URL, c.Width, c.Height,
+			INSERT INTO covers (album_id, url, width, height, thumb_url) VALUES (?,?,?,?,?)`,
+			albumID, c.URL, c.Width, c.Height, c.ThumbURL,
 		)
 		if err != nil {
 			return fmt.Errorf("insert cover: %w", err)
@@ -397,6 +399,7 @@ type AlbumSummary struct {
 	AlbumType        string
 	TrackCount       int
 	TotalDurationSec int
+	CoverThumbURL    string   // small preview image of the first cover, for list/search UI
 	CoverURLs        []string // all cover URLs for this album, in insertion order
 }
 
@@ -405,7 +408,8 @@ func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT a.id, a.title, a.platform, a.year, a.album_type, COUNT(t.id),
 		       COALESCE(SUM(t.duration_sec), 0),
-		       (SELECT GROUP_CONCAT(url, '|') FROM covers WHERE album_id = a.id)
+		       (SELECT GROUP_CONCAT(url, '|') FROM covers WHERE album_id = a.id),
+		       COALESCE((SELECT thumb_url FROM covers WHERE album_id = a.id AND thumb_url != '' ORDER BY id LIMIT 1), '')
 		FROM albums a LEFT JOIN tracks t ON t.album_id = a.id
 		GROUP BY a.id ORDER BY a.title`)
 	if err != nil {
@@ -416,7 +420,7 @@ func (s *Store) Albums(ctx context.Context) ([]AlbumSummary, error) {
 	for rows.Next() {
 		var sum AlbumSummary
 		var coverConcat sql.NullString
-		if err := rows.Scan(&sum.ID, &sum.Title, &sum.Platform, &sum.Year, &sum.AlbumType, &sum.TrackCount, &sum.TotalDurationSec, &coverConcat); err != nil {
+		if err := rows.Scan(&sum.ID, &sum.Title, &sum.Platform, &sum.Year, &sum.AlbumType, &sum.TrackCount, &sum.TotalDurationSec, &coverConcat, &sum.CoverThumbURL); err != nil {
 			return nil, err
 		}
 		if coverConcat.Valid && coverConcat.String != "" {
@@ -458,14 +462,14 @@ func (s *Store) SetTrackMP3URL(ctx context.Context, trackID, mp3URL string) erro
 
 func (s *Store) loadCovers(ctx context.Context, albumID string, a *scraper.Album) error {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT url, width, height FROM covers WHERE album_id = ?`, albumID)
+		SELECT url, width, height, thumb_url FROM covers WHERE album_id = ?`, albumID)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var c scraper.Cover
-		if err := rows.Scan(&c.URL, &c.Width, &c.Height); err != nil {
+		if err := rows.Scan(&c.URL, &c.Width, &c.Height, &c.ThumbURL); err != nil {
 			return err
 		}
 		a.Covers = append(a.Covers, c)

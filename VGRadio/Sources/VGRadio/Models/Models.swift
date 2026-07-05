@@ -30,6 +30,7 @@ struct AlbumSummary: Codable, Identifiable, Hashable {
     var albumType: String
     var trackCount: Int
     var totalDurationSec: Int
+    var coverThumbUrl: String = ""
     var coverUrls: [String]
 
     var covers: [Cover] { coverUrls.map { Cover(url: $0, width: 0, height: 0) } }
@@ -41,6 +42,32 @@ struct AlbumSummary: Codable, Identifiable, Hashable {
         let s = totalDurationSec % 60
         if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
         return String(format: "%d:%02d", m, s)
+    }
+
+    init(id: String, title: String, platform: String, year: Int, albumType: String,
+         trackCount: Int, totalDurationSec: Int, coverUrls: [String], coverThumbUrl: String = "") {
+        self.id = id
+        self.title = title
+        self.platform = platform
+        self.year = year
+        self.albumType = albumType
+        self.trackCount = trackCount
+        self.totalDurationSec = totalDurationSec
+        self.coverUrls = coverUrls
+        self.coverThumbUrl = coverThumbUrl
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        platform = try c.decode(String.self, forKey: .platform)
+        year = try c.decode(Int.self, forKey: .year)
+        albumType = try c.decode(String.self, forKey: .albumType)
+        trackCount = try c.decode(Int.self, forKey: .trackCount)
+        totalDurationSec = try c.decode(Int.self, forKey: .totalDurationSec)
+        coverUrls = try c.decode([String].self, forKey: .coverUrls)
+        coverThumbUrl = try c.decodeIfPresent(String.self, forKey: .coverThumbUrl) ?? ""
     }
 }
 
@@ -60,6 +87,32 @@ struct Track: Codable, Identifiable, Hashable {
         return String(format: "%d:%02d", m, s)
     }
 
+    init(id: String, index: Int, name: String, durationSec: Int, sizeBytes: Int,
+         streamUrl: String, downloadUrl: String, pageUrl: String = "", downloaded: Bool = false) {
+        self.id = id
+        self.index = index
+        self.name = name
+        self.durationSec = durationSec
+        self.sizeBytes = sizeBytes
+        self.streamUrl = streamUrl
+        self.downloadUrl = downloadUrl
+        self.pageUrl = pageUrl
+        self.downloaded = downloaded
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        index = try c.decode(Int.self, forKey: .index)
+        name = try c.decode(String.self, forKey: .name)
+        durationSec = try c.decode(Int.self, forKey: .durationSec)
+        sizeBytes = try c.decode(Int.self, forKey: .sizeBytes)
+        streamUrl = try c.decode(String.self, forKey: .streamUrl)
+        downloadUrl = try c.decode(String.self, forKey: .downloadUrl)
+        pageUrl = try c.decodeIfPresent(String.self, forKey: .pageUrl) ?? ""
+        downloaded = try c.decodeIfPresent(Bool.self, forKey: .downloaded) ?? false
+    }
+
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (l: Track, r: Track) -> Bool { l.id == r.id }
 }
@@ -68,6 +121,22 @@ struct Cover: Codable {
     var url: String
     var width: Int
     var height: Int
+    var thumbUrl: String = ""
+
+    init(url: String, width: Int, height: Int, thumbUrl: String = "") {
+        self.url = url
+        self.width = width
+        self.height = height
+        self.thumbUrl = thumbUrl
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        url = try c.decode(String.self, forKey: .url)
+        width = try c.decode(Int.self, forKey: .width)
+        height = try c.decode(Int.self, forKey: .height)
+        thumbUrl = try c.decodeIfPresent(String.self, forKey: .thumbUrl) ?? ""
+    }
 }
 
 struct Comment: Codable {

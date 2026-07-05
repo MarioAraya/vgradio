@@ -44,13 +44,39 @@ struct LibraryView: View {
         DispatchQueue.main.async { historyIndex += 1 }
     }
 
+    private var backSwipeProgress: CGFloat {
+        guard historyIndex > 0 else { return 0 }
+        return min(max(swipeAccumX, 0) / 120, 1)
+    }
+
+    private var forwardSwipeProgress: CGFloat {
+        guard historyIndex < history.count - 1 else { return 0 }
+        return min(max(-swipeAccumX, 0) / 120, 1)
+    }
+
     var body: some View {
-        Group {
-            if let album = selected {
-                AlbumDetailView(summary: album, onBack: goBack)
-            } else {
-                libraryGrid
+        ZStack {
+            Group {
+                if let album = selected {
+                    AlbumDetailView(summary: album, onBack: goBack)
+                } else {
+                    libraryGrid
+                }
             }
+
+            HStack {
+                Image(systemName: "chevron.left.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.white.opacity(Double(backSwipeProgress) * 0.7))
+                    .scaleEffect(0.5 + backSwipeProgress * 0.5)
+                Spacer()
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.white.opacity(Double(forwardSwipeProgress) * 0.7))
+                    .scaleEffect(0.5 + forwardSwipeProgress * 0.5)
+            }
+            .padding(.horizontal, 24)
+            .allowsHitTesting(false)
         }
         .onChange(of: library.pendingNavigation) { _, album in
             if let album {
@@ -58,17 +84,13 @@ struct LibraryView: View {
                 library.pendingNavigation = nil
             }
         }
-        .onKeyPress(.init("f"), phases: .down) { press in
-            if press.modifiers.contains(.command) {
-                searchFieldFocused = true
-                return .handled
-            }
-            return .ignored
-        }
         .background {
             Group {
                 Button("") { goBack() }.keyboardShortcut(.leftArrow, modifiers: .command)
                 Button("") { goForward() }.keyboardShortcut(.rightArrow, modifiers: .command)
+                if selected == nil {
+                    Button("") { searchFieldFocused = true }.keyboardShortcut("f", modifiers: .command)
+                }
             }
             .hidden()
         }
@@ -110,29 +132,35 @@ struct LibraryView: View {
                     Spacer()
 
                     if searchFieldFocused || !searchText.isEmpty {
-                        HStack(spacing: VGSpace.xs) {
-                            Image(systemName: "magnifyingglass").foregroundStyle(Color.vgTextMuted)
-                            TextField("Filter albums…", text: $searchText)
-                                .textFieldStyle(.plain)
-                                .font(VGFont.body())
-                                .focused($searchFieldFocused)
-                                .onKeyPress(.escape) {
-                                    searchText = ""
-                                    searchFieldFocused = false
-                                    return .handled
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("FILTER")
+                                .font(VGFont.label(10))
+                                .tracking(1.2)
+                                .foregroundStyle(Color.vgTextMuted)
+                            HStack(spacing: VGSpace.xs) {
+                                Image(systemName: "magnifyingglass").foregroundStyle(Color.vgTextMuted)
+                                TextField("Filter albums…", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                    .font(VGFont.body())
+                                    .focused($searchFieldFocused)
+                                    .onKeyPress(.escape) {
+                                        searchText = ""
+                                        searchFieldFocused = false
+                                        return .handled
+                                    }
+                                if !searchText.isEmpty {
+                                    Button { searchText = "" } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(Color.vgTextMuted)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                            if !searchText.isEmpty {
-                                Button { searchText = "" } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(Color.vgTextMuted)
-                                }
-                                .buttonStyle(.plain)
                             }
+                            .padding(.horizontal, VGSpace.sm)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
                         }
-                        .padding(.horizontal, VGSpace.sm)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
                         .frame(maxWidth: 260)
                         .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .trailing)))
                     }
