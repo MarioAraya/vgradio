@@ -174,6 +174,21 @@
     requireAuth(doToggleAlbumFav);
   }
 
+  let deleting = false;
+  async function deleteAlbum() {
+    if (!album || deleting) return;
+    if (!confirm(`Eliminar "${album.title}" de tu library? Esto borra el álbum, sus tracks y descargas locales.`)) return;
+    deleting = true;
+    try {
+      await api.deleteAlbum(album.id);
+      addToast('Álbum eliminado', 'info');
+      goto('/');
+    } catch (e) {
+      addToast('Error al eliminar: ' + (e instanceof Error ? e.message : String(e)), 'error');
+      deleting = false;
+    }
+  }
+
   async function doToggleTrackFav(track: import('$lib/types').Track) {
     try {
       const res = await api.toggleTrackFavorite(track.id);
@@ -241,6 +256,9 @@
           {#if album.sourceUrl}
             <a class="source-link" href={album.sourceUrl} target="_blank" rel="noopener noreferrer" title="Visit source">↗</a>
           {/if}
+          <button class="btn-danger" on:click={deleteAlbum} disabled={deleting} title="Eliminar de la library">
+            {deleting ? '⟳' : '🗑'} Eliminar
+          </button>
         </div>
       </div>
     </div>
@@ -419,6 +437,15 @@
     transition: color 0.15s, background 0.15s;
   }
   .source-link:hover { color: var(--text-sec); background: var(--surface-hi); }
+  .btn-danger {
+    padding: 7px 14px;
+    background: var(--surface-hi);
+    color: var(--text-muted);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+  }
+  .btn-danger:hover { color: var(--red); }
+  .btn-danger:disabled { opacity: 0.6; cursor: default; }
 
   .filter-wrap { display: flex; align-items: center; width: 100%; }
   .filter-icon {

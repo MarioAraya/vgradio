@@ -125,6 +125,36 @@ func (s *Store) Album(ctx context.Context, albumID string) (*scraper.Album, erro
 	return a, nil
 }
 
+// DeleteAlbum removes an album and all its rows (tracks, covers, comments,
+// scrape jobs, play history). Favorites and playlist entries referencing it
+// cascade automatically via FK constraints. Returns ErrNotFound if absent.
+// Caller is responsible for removing the album's files on disk.
+func (s *Store) DeleteAlbum(ctx context.Context, albumID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	for _, table := range []string{"tracks", "covers", "comments", "scrape_jobs", "play_history"} {
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE album_id = ?`, table), albumID); err != nil {
+			return err
+		}
+	}
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM albums WHERE id = ?`, albumID)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrNotFound
+	}
+
+	return tx.Commit()
+}
+
 func (s *Store) loadTracks(ctx context.Context, albumID string, a *scraper.Album) error {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, idx, name, duration_sec, size_bytes, page_url, song_id, mp3_url, local_path

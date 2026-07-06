@@ -25,6 +25,17 @@ final class APIClient {
         return u
     }
 
+    // MARK: - Health
+
+    func healthCheck() async -> Bool {
+        guard let u = try? url("/health") else { return false }
+        var req = URLRequest(url: u)
+        req.timeoutInterval = 5
+        guard let (_, resp) = try? await session.data(for: req),
+              let http = resp as? HTTPURLResponse else { return false }
+        return http.statusCode == 200
+    }
+
     // MARK: - Albums
 
     func albums() async throws -> [AlbumSummary] {
@@ -49,6 +60,15 @@ final class APIClient {
             throw VGError.ssrf(err?["error"] ?? "URL not allowed")
         }
         return try JSONDecoder().decode(ScrapeJob.self, from: data)
+    }
+
+    func deleteAlbum(_ id: String) async throws {
+        var req = URLRequest(url: try url("/albums/\(id)"))
+        req.httpMethod = "DELETE"
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw VGError.jobFailed("Delete failed (\(http.statusCode))")
+        }
     }
 
     // MARK: - Jobs
@@ -104,6 +124,11 @@ final class APIClient {
     func catalogConsoles() async throws -> [CatalogConsole] {
         let (data, _) = try await session.data(from: try url("/catalog/consoles"))
         return try JSONDecoder().decode([CatalogConsole].self, from: data)
+    }
+
+    func top40() async throws -> [Top40Entry] {
+        let (data, _) = try await session.data(from: try url("/catalog/top40"))
+        return try JSONDecoder().decode([Top40Entry].self, from: data)
     }
 
     // MARK: - Stream URL

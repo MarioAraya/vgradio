@@ -109,6 +109,7 @@ export const api = {
   stats: () => get<LibraryStats>('/stats'),
   downloadedAlbums: () => get<DownloadedAlbum[]>('/albums/downloaded'),
   deleteAlbumLocal: (albumId: string) => del<{ deleted: number }>(`/albums/${albumId}/local`),
+  deleteAlbum: (albumId: string) => del<{ status: string }>(`/albums/${albumId}`),
   scrapeAllPending: () => post<{ resolved: number; failed: number; total: number }>('/scrape/pending'),
 
   streamURL: (track: Track) => BASE() + track.streamUrl,

@@ -32,6 +32,7 @@ type storer interface {
 	LibraryStats(ctx context.Context) (store.LibraryStats, error)
 	AlbumsWithDownloads(ctx context.Context) ([]store.DownloadedAlbum, error)
 	ClearAlbumLocalPaths(ctx context.Context, albumID string) ([]string, error)
+	DeleteAlbum(ctx context.Context, albumID string) error
 	PendingTracks(ctx context.Context) ([]store.PendingTrack, error)
 	SearchCatalog(ctx context.Context, q, platform, letter string, offset, limit int) ([]scraper.CatalogEntry, error)
 	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
@@ -79,6 +80,7 @@ type catalogSyncer interface {
 	StartLetter(ctx context.Context, letter string) bool
 	SetCFClearance(v string)
 	Progress() catalog.SyncProgress
+	Top40(ctx context.Context) ([]scraper.Top40Entry, error)
 }
 
 type handler struct {
@@ -133,13 +135,16 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /catalog/sync", h.getCatalogSync)
 	mux.HandleFunc("GET /catalog", h.getCatalog)
 	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
+	mux.HandleFunc("GET /catalog/top40", h.getTop40)
 	mux.HandleFunc("PUT /config/cf-clearance", h.putCFClearance)
 	mux.HandleFunc("POST /history", h.postHistory)
 	mux.HandleFunc("GET /history", h.getHistory)
 	mux.HandleFunc("GET /albums/{id}/covers.zip", h.getCoversZip)
 	mux.HandleFunc("GET /stats", h.getStats)
+	mux.HandleFunc("GET /health", h.getHealth)
 	mux.HandleFunc("GET /albums/downloaded", h.getDownloadedAlbums)
 	mux.HandleFunc("DELETE /albums/{id}/local", h.deleteAlbumLocal)
+	mux.HandleFunc("DELETE /albums/{id}", h.deleteAlbum)
 	mux.HandleFunc("POST /scrape/pending", h.scrapeAllPending)
 
 	// auth routes (public)

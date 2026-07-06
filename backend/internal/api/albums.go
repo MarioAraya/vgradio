@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/arayama/vgradio-app/backend/internal/store"
@@ -204,4 +205,19 @@ func (h *handler) deleteAlbumLocal(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	jsonOK(w, map[string]int{"deleted": deleted}, http.StatusOK)
+}
+
+// DELETE /albums/{id} — removes the album entirely: DB rows (tracks, covers,
+// comments, scrape jobs, history) and its files on disk (covers, downloaded mp3s).
+func (h *handler) deleteAlbum(w http.ResponseWriter, r *http.Request) {
+	albumID := r.PathValue("id")
+	if err := h.store.DeleteAlbum(r.Context(), albumID); errors.Is(err, store.ErrNotFound) {
+		jsonError(w, "album not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(h.dataDir, albumID))
+	jsonOK(w, map[string]string{"status": "deleted"}, http.StatusOK)
 }

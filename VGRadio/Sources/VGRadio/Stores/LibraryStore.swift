@@ -38,7 +38,10 @@ final class LibraryStore {
         }
     }
 
-    func importAlbum(url: String) async throws {
+    /// Imports (or reuses, if already scraped) the album at `url` and returns its summary
+    /// once available in `albums`, so callers can navigate straight to it.
+    @discardableResult
+    func importAlbum(url: String) async throws -> AlbumSummary? {
         let job = try await addAlbum(url: url)
         if let jobId = job.jobId {
             _ = try await pollJob(jobId)
@@ -46,5 +49,11 @@ final class LibraryStore {
             // album already in DB (POST returned 200 with status: "done", no jobId)
             await load()
         }
+        return albums.first { $0.id == job.albumId }
+    }
+
+    func deleteAlbum(_ id: String) async throws {
+        try await APIClient.shared.deleteAlbum(id)
+        albums.removeAll { $0.id == id }
     }
 }

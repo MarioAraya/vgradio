@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarItem: Hashable {
     case library
     case browse
+    case top40
     case favorites
     case recentlyPlayed
     case playlistLiked
@@ -57,8 +58,18 @@ struct ContentView: View {
         .overlay {
             if showSearch { SearchOverlay(isShowing: $showSearch) }
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
+        .overlay {
+            if showSettings {
+                ZStack {
+                    Color.black.opacity(0.55)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { showSettings = false }
+                    SettingsView(isPresented: $showSettings)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .onKeyPress(.escape) { showSettings = false; return .handled }
+            }
         }
         .overlay(alignment: .bottomTrailing) {
             if player.showQueue {
@@ -127,6 +138,7 @@ struct ContentView: View {
         case .library:       LibraryView()
         case .favorites:     FavoritesView()
         case .browse:        BrowseView()
+        case .top40:         Top40View()
         case .recentlyPlayed: RecentlyPlayedView()
         case .playlistLiked: LikedMusicView()
         case .playlist(let id): PlaylistDetailView(playlistId: id)

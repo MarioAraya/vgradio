@@ -15,7 +15,10 @@ struct LibraryView: View {
     @State private var importError: String?
     @State private var searchText = ""
     @State private var searchFocused = false
+    @State private var pendingDeleteAlbum: AlbumSummary?
+    @State private var isDeletingAlbum = false
     @FocusState private var searchFieldFocused: Bool
+    @AppStorage("vgradio.libraryListView") private var isListView = false
 
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: VGSpace.md)]
 
@@ -23,8 +26,9 @@ struct LibraryView: View {
 
     private var filteredAlbums: [AlbumSummary] {
         guard !searchText.isEmpty else { return library.albums }
-        let q = searchText.lowercased()
-        return library.albums.filter { $0.title.lowercased().contains(q) || $0.platform.lowercased().contains(q) }
+        return library.albums.filter {
+            matchesSearchQuery($0.title, searchText) || matchesSearchQuery($0.platform, searchText)
+        }
     }
 
     private func navigate(to album: AlbumSummary?) {
@@ -78,6 +82,12 @@ struct LibraryView: View {
             .padding(.horizontal, 24)
             .allowsHitTesting(false)
         }
+        .onAppear {
+            if let album = library.pendingNavigation {
+                navigate(to: album)
+                library.pendingNavigation = nil
+            }
+        }
         .onChange(of: library.pendingNavigation) { _, album in
             if let album {
                 navigate(to: album)
@@ -119,6 +129,27 @@ struct LibraryView: View {
         .onDisappear {
             if let monitor = scrollMonitor { NSEvent.removeMonitor(monitor) }
         }
+        .confirmationDialog(
+            "¿Eliminar \"\(pendingDeleteAlbum?.title ?? "")\" de tu library?",
+            isPresented: Binding(
+                get: { pendingDeleteAlbum != nil },
+                set: { if !$0 { pendingDeleteAlbum = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) {
+                guard let album = pendingDeleteAlbum else { return }
+                isDeletingAlbum = true
+                Task {
+                    try? await library.deleteAlbum(album.id)
+                    isDeletingAlbum = false
+                    pendingDeleteAlbum = nil
+                }
+            }
+            Button("Cancelar", role: .cancel) { pendingDeleteAlbum = nil }
+        } message: {
+            Text("Esto borra el álbum, sus tracks y descargas locales. No se puede deshacer.")
+        }
     }
 
     private var libraryGrid: some View {
@@ -131,43 +162,60 @@ struct LibraryView: View {
 
                     Spacer()
 
-                    if searchFieldFocused || !searchText.isEmpty {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("FILTER")
-                                .font(VGFont.label(10))
-                                .tracking(1.2)
-                                .foregroundStyle(Color.vgTextMuted)
-                            HStack(spacing: VGSpace.xs) {
-                                Image(systemName: "magnifyingglass").foregroundStyle(Color.vgTextMuted)
-                                TextField("Filter albums…", text: $searchText)
-                                    .textFieldStyle(.plain)
-                                    .font(VGFont.body())
-                                    .focused($searchFieldFocused)
-                                    .onKeyPress(.escape) {
-                                        searchText = ""
-                                        searchFieldFocused = false
-                                        return .handled
-                                    }
-                                if !searchText.isEmpty {
-                                    Button { searchText = "" } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(Color.vgTextMuted)
-                                    }
-                                    .buttonStyle(.plain)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("FILTER")
+                            .font(VGFont.label(10))
+                            .tracking(1.2)
+                            .foregroundStyle(Color.vgTextMuted)
+                        HStack(spacing: VGSpace.xs) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(Color.vgTextMuted)
+                            TextField("Filter albums…", text: $searchText)
+                                .textFieldStyle(.plain)
+                                .font(VGFont.body())
+                                .focused($searchFieldFocused)
+                                .onKeyPress(.escape) {
+                                    searchText = ""
+                                    searchFieldFocused = false
+                                    return .handled
                                 }
+                            if !searchText.isEmpty {
+                                Button { searchText = "" } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(Color.vgTextMuted)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, VGSpace.sm)
-                            .padding(.vertical, 5)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
                         }
-                        .frame(maxWidth: 260)
-                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .trailing)))
+                        .padding(.horizontal, VGSpace.sm)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
+                    .frame(width: 220)
+
+                    HStack(spacing: 2) {
+                        Button { isListView = false } label: {
+                            Image(systemName: "square.grid.2x2")
+                                .foregroundStyle(isListView ? Color.vgTextMuted : Color.vgAccent)
+                                .frame(width: 26, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Grid view")
+
+                        Button { isListView = true } label: {
+                            Image(systemName: "list.bullet")
+                                .foregroundStyle(isListView ? Color.vgAccent : Color.vgTextMuted)
+                                .frame(width: 26, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help("List view")
+                    }
+                    .padding(2)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
                 }
                 .padding(.top, VGSpace.sm)
                 .padding(.horizontal, VGSpace.xl)
-                .animation(.easeOut(duration: 0.15), value: searchFieldFocused)
 
                 if library.isLoading {
                     ProgressView()
@@ -183,12 +231,32 @@ struct LibraryView: View {
                                 .foregroundStyle(Color.vgTextMuted)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.top, 40)
+                        } else if isListView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(filteredAlbums) { album in
+                                    AlbumListRow(album: album, isHovered: hoveredID == album.id)
+                                        .onHover { hoveredID = $0 ? album.id : nil }
+                                        .onTapGesture { navigate(to: album) }
+                                        .contextMenu {
+                                            Button(role: .destructive) { pendingDeleteAlbum = album } label: {
+                                                Label("Eliminar de la library", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                            .padding(.horizontal, VGSpace.xl)
+                            .padding(.top, VGSpace.md)
                         } else {
                             LazyVGrid(columns: columns, spacing: VGSpace.md) {
                                 ForEach(filteredAlbums) { album in
                                     AlbumCard(album: album, isHovered: hoveredID == album.id)
                                         .onHover { hoveredID = $0 ? album.id : nil }
                                         .onTapGesture { navigate(to: album) }
+                                        .contextMenu {
+                                            Button(role: .destructive) { pendingDeleteAlbum = album } label: {
+                                                Label("Eliminar de la library", systemImage: "trash")
+                                            }
+                                        }
                                 }
                             }
                             .padding(.horizontal, VGSpace.xl)
@@ -326,6 +394,57 @@ private struct AlbumCard: View {
         .background(isHovered ? Color.vgSurfaceHi : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .animation(.easeOut(duration: 0.15), value: isHovered)
+    }
+}
+
+// MARK: - Album List Row
+
+private struct AlbumListRow: View {
+    let album: AlbumSummary
+    let isHovered: Bool
+
+    var body: some View {
+        HStack(spacing: VGSpace.md) {
+            AlbumCoverView(
+                covers: album.covers,
+                title: album.title,
+                size: 48,
+                initialIndex: CoverPrefsStore.shared.index(for: album.id),
+                enableHoverControls: false
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(album.title)
+                    .font(VGFont.body())
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.vgText)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    let firstPlatform = album.platform.split(separator: ",").first.map(String.init) ?? album.platform
+                    PlatformPill(platform: firstPlatform.trimmingCharacters(in: .whitespaces))
+                    Text("·").foregroundStyle(Color.vgTextMuted)
+                    Text(String(album.year)).font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
+                }
+            }
+
+            Spacer()
+
+            Text(album.totalDurationFormatted)
+                .font(VGFont.mono(12))
+                .foregroundStyle(Color.vgTextSec)
+                .frame(width: 70, alignment: .trailing)
+
+            Text("\(album.trackCount) tracks")
+                .font(VGFont.caption())
+                .foregroundStyle(Color.vgTextMuted)
+                .frame(width: 80, alignment: .trailing)
+        }
+        .padding(.horizontal, VGSpace.sm)
+        .padding(.vertical, 4)
+        .background(isHovered ? Color.vgSurfaceHi : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
     }
 }
 

@@ -8,6 +8,7 @@ struct AlbumDetailView: View {
     @Environment(FavoritesStore.self) var favorites
     @Environment(HiddenTracksStore.self) var hidden
     @Environment(AuthStore.self) var auth
+    @Environment(LibraryStore.self) var library
     @State private var album: Album?
     @State private var isLoading = true
     @State private var hoveredTrackID: String?
@@ -17,11 +18,13 @@ struct AlbumDetailView: View {
     @State private var addToPlaylistTrackId: String?
     @State private var showAddToPlaylist = false
     @State private var trackSearchText = ""
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
     @FocusState private var trackSearchFocused: Bool
 
     private func filteredTracks(_ tracks: [Track]) -> [Track] {
         guard !trackSearchText.isEmpty else { return tracks }
-        return tracks.filter { $0.name.localizedCaseInsensitiveContains(trackSearchText) }
+        return tracks.filter { matchesSearchQuery($0.name, trackSearchText) }
     }
 
     var body: some View {
@@ -182,12 +185,48 @@ struct AlbumDetailView: View {
                         .font(VGFont.body())
                         .foregroundStyle(Color.vgTextMuted)
                         .padding(.leading, 4)
+
+                    Spacer()
+
+                    Button {
+                        showDeleteConfirm = true
+                    } label: {
+                        Image(systemName: isDeleting ? "arrow.triangle.2.circlepath" : "trash")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.vgTextSec)
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeleting)
+                    .help("Eliminar de la library")
                 }
             }
         }
         .padding(.horizontal, 32)
         .padding(.top, 24)
         .padding(.bottom, 32)
+        .confirmationDialog(
+            "¿Eliminar \"\(album.title)\" de tu library?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) {
+                Task {
+                    isDeleting = true
+                    do {
+                        try await library.deleteAlbum(summary.id)
+                        onBack()
+                    } catch {
+                        isDeleting = false
+                    }
+                }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Esto borra el álbum, sus tracks y descargas locales. No se puede deshacer.")
+        }
 
         // Tracklist
         VStack(spacing: 0) {
@@ -514,7 +553,7 @@ private struct CoverLightbox: View {
             process.waitUntilExit()
         }
 
-        await MainActor.run {
+        _ = await MainActor.run {
             NSWorkspace.shared.selectFile(outURL.path, inFileViewerRootedAtPath: "")
         }
     }
