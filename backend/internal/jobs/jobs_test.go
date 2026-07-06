@@ -58,7 +58,7 @@ func TestEnqueue_ReturnsPendingJob(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	q := jobs.NewQueue(s, f, t.TempDir(), 2)
+	q := jobs.NewQueue(s, f, t.TempDir(), 2, nil)
 	go q.Start(ctx)
 
 	jobID, err := q.Enqueue(context.Background(), srv.URL+"/album")
@@ -85,7 +85,7 @@ func TestWorker_JobCompletes(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	q := jobs.NewQueue(s, f, t.TempDir(), 2)
+	q := jobs.NewQueue(s, f, t.TempDir(), 2, nil)
 	go q.Start(ctx)
 
 	jobID, err := q.Enqueue(context.Background(), srv.URL+"/album")
@@ -118,7 +118,7 @@ func TestWorker_SkipsExistingAlbum(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	q := jobs.NewQueue(s, f, t.TempDir(), 2)
+	q := jobs.NewQueue(s, f, t.TempDir(), 2, nil)
 	go q.Start(ctx)
 
 	// First job populates cache.
@@ -147,7 +147,7 @@ func TestWorker_FailsOnBadURL(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	q := jobs.NewQueue(s, f, t.TempDir(), 1)
+	q := jobs.NewQueue(s, f, t.TempDir(), 1, nil)
 	go q.Start(ctx)
 
 	jobID, err := q.Enqueue(context.Background(), "http://127.0.0.1:1/unreachable")

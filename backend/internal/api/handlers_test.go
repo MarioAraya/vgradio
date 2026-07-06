@@ -22,7 +22,7 @@ func setup(t *testing.T) (http.Handler, *store.Store, *jobs.Queue) {
 	t.Helper()
 	s := store.NewTestStore(t)
 	f := fetcher.New(fetcher.Options{Delay: 0, MaxConcurrent: 2})
-	q := jobs.NewQueue(s, f, t.TempDir(), 2)
+	q := jobs.NewQueue(s, f, t.TempDir(), 2, nil)
 	syn := catalog.New(s, slog.Default())
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

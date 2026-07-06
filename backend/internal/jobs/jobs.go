@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"time"
@@ -55,20 +56,25 @@ type Queue struct {
 	store   storing
 	fetcher fetching
 	dataDir string
+	log     *slog.Logger
 	ch      chan *Job
 	mu      sync.RWMutex
 	jobs    map[string]*Job
 }
 
 // NewQueue creates a Queue. workers controls the worker pool size.
-func NewQueue(s storing, f fetching, dataDir string, workers int) *Queue {
+func NewQueue(s storing, f fetching, dataDir string, workers int, log *slog.Logger) *Queue {
 	if workers <= 0 {
 		workers = 4
+	}
+	if log == nil {
+		log = slog.Default()
 	}
 	return &Queue{
 		store:   s,
 		fetcher: f,
 		dataDir: dataDir,
+		log:     log,
 		ch:      make(chan *Job, 64),
 		jobs:    make(map[string]*Job),
 	}
@@ -121,16 +127,19 @@ func (q *Queue) Get(_ context.Context, jobID string) (*Job, error) {
 
 func (q *Queue) process(ctx context.Context, j *Job) {
 	q.setStatus(j.ID, StatusRunning, "", time.Now(), time.Time{})
+	q.log.Info("job started", "job_id", j.ID, "album_url", j.AlbumURL)
 
 	albumID, err := q.run(ctx, j.AlbumURL)
 	if err != nil {
 		q.setStatus(j.ID, StatusFailed, err.Error(), time.Time{}, time.Now())
+		q.log.Error("job failed", "job_id", j.ID, "album_url", j.AlbumURL, "err", err)
 		return
 	}
 	q.mu.Lock()
 	q.jobs[j.ID].AlbumID = albumID
 	q.mu.Unlock()
 	q.setStatus(j.ID, StatusDone, "", time.Time{}, time.Now())
+	q.log.Info("job done", "job_id", j.ID, "album_id", albumID)
 }
 
 // run does the actual work for one job. Returns the albumID on success.
@@ -166,12 +175,12 @@ func (q *Queue) run(ctx context.Context, albumURL string) (string, error) {
 		dispPath := filepath.Join(coverDir, dispName)
 
 		if dlErr := q.fetcher.Download(ctx, c.URL, origPath); dlErr != nil {
-			_ = dlErr
+			q.log.Warn("cover download failed", "album_id", albumID, "url", c.URL, "err", dlErr)
 			continue
 		}
 		if resErr := imageutil.ResizeToDisplay(origPath, dispPath); resErr != nil {
 			// Fallback: serve original as display if resize fails.
-			_ = resErr
+			q.log.Warn("cover resize failed, using original", "album_id", albumID, "path", origPath, "err", resErr)
 			_ = imageutil.CopyIfMissing(origPath, dispPath)
 		}
 		album.Covers[i].URL = "/covers/" + albumID + "/" + dispName

@@ -43,7 +43,7 @@ func main() {
 	})
 
 	// Jobs queue.
-	q := jobs.NewQueue(s, f, cfg.dataDir, cfg.workers)
+	q := jobs.NewQueue(s, f, cfg.dataDir, cfg.workers, log)
 
 	// Catalog syncer.
 	syn := catalog.New(s, log)
