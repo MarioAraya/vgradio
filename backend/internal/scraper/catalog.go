@@ -167,6 +167,49 @@ func extractPlatformYearType(cells *goquery.Selection, title string) (platform, 
 	return
 }
 
+// Top40Entry is a ranked album entry from the /top40 weekly chart page.
+type Top40Entry struct {
+	Rank      int
+	Title     string
+	SourceURL string
+	ThumbURL  string
+}
+
+// ParseTop40 parses the /top40 page and returns the ranked chart entries.
+func ParseTop40(html []byte, sourceURL string) ([]Top40Entry, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(html))
+	if err != nil {
+		return nil, err
+	}
+	base, _ := url.Parse(sourceURL)
+	var out []Top40Entry
+	doc.Find("table#top40 tr").Each(func(_ int, row *goquery.Selection) {
+		cells := row.Find("td")
+		if cells.Length() < 3 {
+			return
+		}
+		rankText := strings.TrimSuffix(strings.TrimSpace(cells.Eq(1).Text()), ".")
+		rank, err := strconv.Atoi(rankText)
+		if err != nil {
+			return
+		}
+		link := cells.Eq(2).Find("a").First()
+		title := strings.TrimSpace(link.Text())
+		href, _ := link.Attr("href")
+		if title == "" || href == "" {
+			return
+		}
+		thumb, _ := cells.Eq(0).Find("img").Attr("src")
+		out = append(out, Top40Entry{
+			Rank:      rank,
+			Title:     title,
+			SourceURL: absURL(base, href),
+			ThumbURL:  absURL(base, thumb),
+		})
+	})
+	return out, nil
+}
+
 // parseNameCount extracts name and count from strings like "Nintendo SNES (3266)" or "Nintendo SNES".
 func parseNameCount(text, slug string) (name string, count int) {
 	if m := reParenCount.FindStringSubmatch(text); len(m) == 2 {

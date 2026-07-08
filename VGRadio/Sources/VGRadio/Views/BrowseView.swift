@@ -5,6 +5,7 @@ private let allLetters: [String] = [""] + ["0-9"] + (65...90).map { String(Unico
 struct BrowseView: View {
     @State private var catalog = CatalogStore()
     @State private var searchText = ""
+    @FocusState private var searchFocused: Bool
     @Environment(LibraryStore.self) var library
 
     var body: some View {
@@ -24,6 +25,11 @@ struct BrowseView: View {
             catalog.reload()
         }
         .onChange(of: searchText) { _, v in catalog.searchQuery = v }
+        .background {
+            Button("") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
+        }
     }
 
     // MARK: - Toolbar
@@ -36,6 +42,7 @@ struct BrowseView: View {
                     TextField("Search albums…", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(VGFont.body())
+                        .focused($searchFocused)
                 }
                 .padding(.horizontal, VGSpace.sm)
                 .padding(.vertical, 6)
@@ -215,26 +222,42 @@ struct BrowseView: View {
 private struct CatalogEntryRow: View {
     let entry: CatalogEntry
     @Environment(WishlistStore.self) var wishlist
+    @Environment(LibraryStore.self) var library
     @State private var isHovered = false
+    @State private var isOpening = false
+    @State private var openError: String?
 
     private var inWishlist: Bool { wishlist.contains(url: entry.sourceUrl) }
 
     var body: some View {
         HStack(spacing: 0) {
             // Col 1: Add / saved indicator (44px)
-            addButton
-                .frame(width: 44)
+            Group {
+                if isOpening {
+                    ProgressView().scaleEffect(0.5)
+                } else {
+                    addButton
+                }
+            }
+            .frame(width: 44)
 
             // Col 2: Cover thumbnail (44x44)
             coverImage
                 .padding(.trailing, VGSpace.sm)
 
             // Col 3: Title (flexible)
-            Text(entry.title)
-                .font(VGFont.body())
-                .foregroundStyle(Color.vgText)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title)
+                    .font(VGFont.body())
+                    .foregroundStyle(Color.vgText)
+                    .lineLimit(1)
+                if let openError {
+                    Text(openError)
+                        .font(VGFont.caption(10))
+                        .foregroundStyle(.red.opacity(0.85))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Col 4: Platform (~90px)
             Text(entry.platform)
@@ -259,6 +282,39 @@ private struct CatalogEntryRow: View {
         .frame(height: 52)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .onTapGesture(count: 2) { Task { await openAlbum() } }
+        .contextMenu {
+            Button { Task { await openAlbum() } } label: {
+                Label("Open Album", systemImage: "play.rectangle")
+            }
+            if !inWishlist {
+                Button { wishlist.add(url: entry.sourceUrl) } label: {
+                    Label("Add to Library", systemImage: "plus.circle")
+                }
+            }
+            Divider()
+            if let url = URL(string: entry.sourceUrl) {
+                Button { NSWorkspace.shared.open(url) } label: {
+                    Label("Open on khinsider", systemImage: "arrow.up.right.square")
+                }
+            }
+        }
+    }
+
+    private func openAlbum() async {
+        guard !isOpening else { return }
+        isOpening = true
+        openError = nil
+        do {
+            if let summary = try await library.importAlbum(url: entry.sourceUrl) {
+                library.pendingNavigation = summary
+            } else {
+                openError = "Not found after import"
+            }
+        } catch {
+            openError = error.localizedDescription
+        }
+        isOpening = false
     }
 
     @ViewBuilder

@@ -11,3 +11,8 @@ func (h *handler) getStats(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOK(w, st, http.StatusOK)
 }
+
+// GET /health — liveness probe, no auth required.
+func (h *handler) getHealth(w http.ResponseWriter, r *http.Request) {
+	jsonOK(w, map[string]string{"status": "ok"}, http.StatusOK)
+}

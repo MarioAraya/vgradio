@@ -4,41 +4,44 @@
 
 ## En progreso
 
-### Fixes UI macOS: área de click en Sidebar + doble-click en Favorites
+### Búsqueda multi-palabra (token match) + Cmd+F en Browse + limpieza warning build
 
 **Contexto recopilado:**
-- Bug 1: en `SidebarView.swift` solo el texto/icono de cada row respondía al click, no toda el área (ancho/alto). Causa: SwiftUI no cuenta como tappable un fondo `Color.clear` — falta `.contentShape(Rectangle())`.
-- Bug 2: en `FavoritesView.swift`, `FavoriteTrackRow` no tenía ningún gesto de doble-click — solo el botón "Play all" reproducía. Patrón correcto ya existía en `AlbumDetailView.swift` (`DetailTrackRow` + `.onTapGesture(count: 2)`).
-- Toolchain: `xcode-select` apuntaba a CommandLineTools (sin SDK completo) → build fallaba con símbolos de `PackageDescription` no encontrados. Se resolvió apuntando a `/Volumes/ExtDevDisk/Xcode.app/Contents/Developer` (disco externo debe estar montado).
+- Búsqueda anterior era substring simple (`contains(query)`) — falla con "rockman forte" contra "Rockman & Forte FC" si el orden/puntuación no calza exacto.
+- Se agregó `matchesSearchQuery(haystack, query)` en `Models.swift`: parte el query por espacios y exige que cada palabra aparezca en el haystack (orden libre, case-insensitive).
+- Aplicado en `LibraryView.swift` (título+plataforma) y `SearchOverlay.swift` (título+plataforma).
+- `BrowseView.swift` ahora tiene `Cmd+F` para foco en su search field (`@FocusState searchFocused`), igual patrón que `AlbumDetailView`.
+- Backend (`catalog.go`, `SearchCatalog`/`CountCatalog`): antes un solo `LIKE '%q%'`; ahora itera `strings.Fields(q)` y agrega un `LIKE` por palabra — mismo espíritu multi-token pero server-side, para `/catalog`.
+- Warning de build resuelto: `AlbumDetailView.swift:517` — `await MainActor.run { ... }` con retorno de `NSWorkspace.shared.selectFile` (Bool) sin usar. Fix: `_ = await MainActor.run { ... }` (dos ocurrencias, líneas 351 y 517-518, ambas iguales — mismo patrón de descarga de covers ZIP).
 
 **Decisiones tomadas (implementadas):**
-- `.contentShape(Rectangle())` agregado en todos los rows/botones de `SidebarView.swift`: Library/Browse/Favorites/Recently Played, Liked Music, playlists, New playlist, Add URL, Sign in.
-- `FavoriteTrackRow` ahora recibe `group` (tupla del álbum) para armar el queue completo al hacer doble-click, igual que `AlbumDetailView`.
+- Un solo helper `matchesSearchQuery` en `Models.swift`, reusado por Library/SearchOverlay (evita duplicar lógica de tokenización).
+- Backend usa `LIKE` por palabra en vez de regex/FTS — simple, consistente con lo ya existente.
 
 **Preguntas pendientes antes de continuar:**
-1. Ninguna — falta solo probar interactivamente en la app corriendo (ver Pendiente).
+1. Ninguna bloqueante — falta probar build+run interactivo y decidir si commitear junto o separar macOS/backend.
 
 ## Completado esta sesión
 
-- [x] Fix área de click en `SidebarView.swift` (todo el row, no solo el texto)
-- [x] Fix doble-click en `FavoritesView.swift` → reproduce track + arma queue del álbum
-- [x] Build release compila limpio (`swift build -c release`), sin warnings nuevos
-- [x] Resuelto `xcode-select` apuntando a Xcode.app del disco externo (ya no requiere `DEVELOPER_DIR=` manual)
+- [x] `matchesSearchQuery` en `Models.swift` (búsqueda tokenizada)
+- [x] `LibraryView.swift` y `SearchOverlay.swift` usan el nuevo matcher
+- [x] `BrowseView.swift`: Cmd+F enfoca el campo de búsqueda
+- [x] `catalog.go`: `SearchCatalog`/`CountCatalog` con `LIKE` multi-palabra
+- [x] Fix warning `MainActor.run` result unused en `AlbumDetailView.swift` (líneas 351 y 517)
+- [x] `./scripts/build-mac.sh` corrió OK, warning limpio confirmado por usuario
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Copiar binario nuevo al `.app` bundle** (dock apunta a `/Applications/VGRadio.app`, desactualizado del 24 jun):
-  ```bash
-  pkill -x VGRadio 2>/dev/null; sleep 0.3
-  cp /Users/maaya/dev/vgradio-app/VGRadio/.build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
-  open /Applications/VGRadio.app
-  ```
-- [ ] **Probar interactivamente**: click en cualquier parte de los textos del sidebar, doble-click en un track de Favorites
-- [ ] **Commitear cambios** si prueba OK — `VGRadio/Sources/VGRadio/Views/{FavoritesView,SidebarView}.swift` sin commitear
-- [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`, Ctrl+F)
+- [ ] **Probar interactivamente**: búsqueda multi-palabra en Library, SearchOverlay y Browse (Cmd+F debe enfocar)
+- [ ] **Commitear cambios** — sin commitear: `Models.swift`, `AlbumDetailView.swift`, `BrowseView.swift`, `LibraryView.swift`, `SearchOverlay.swift`, `backend/internal/store/catalog.go`
+- [ ] **Push pendiente** — rama `main` está 6 commits adelante de `origin/main`, sin pushear
+- [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`, Ctrl+F) — sigue pendiente de sesión anterior
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync` para poblar búsqueda
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
+- [ ] **Cover en Now Playing (notification center widget)** — popup de la barra de menú (ícono ▶ en menu bar) muestra placeholder gris en vez del cover del álbum
+- [ ] **feat: scrapear por año/consola/todo el catálogo khinsider** — 3 modos: (1) endpoint para escrapear por consola (ya existe letra/consola parcial, revisar `catalog/syncer.go`), (2) por año (`/game-soundtracks/year/2026`), (3) full catalog (`/game-soundtracks`, 102971 álbumes, 206 páginas). Necesita: ir a la letra del álbum o buscarlo por Cmd+K en Library, o sección "por descargar/scrapear" (similar a wishlist) para trackear qué falta bajar.
+- [ ] **Mini-covers en Browse/catalog search** — `/catalog` (Browse macOS+web) es texto solo. `CatalogEntry` (`backend/internal/scraper/catalog.go:14`) no tiene campo cover — el scraper de browse/console pages (`extractCatalogEntries`) nunca capturó thumb URL, solo el album detail page trae covers. Para paridad visual con búsqueda original de khinsider (grid con mini-cover + título + plataforma/tipo/año): agregar `CoverThumbURL` a `CatalogEntry`, parsear `<img>` thumb en `extractCatalogEntries`, columna nueva en tabla `catalog`, actualizar `SearchCatalog`/`CountCatalog`, y grid UI en Browse (macOS/web).
 
 ## Notas
 
@@ -75,11 +78,8 @@ curl -X POST https://vgradio-api.lab/albums/9ee1fa540f28534f/scrape-tracks
 ### Comandos útiles
 
 ```bash
-# Build macOS
-cd VGRadio && swift build -c release
-pkill -x VGRadio 2>/dev/null; sleep 0.3
-cp .build/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
-open /Applications/VGRadio.app
+# Build macOS (usar el script, no manual)
+./scripts/build-mac.sh
 
 # Backend local
 kill $(lsof -t -i :8080) 2>/dev/null; sleep 1

@@ -59,6 +59,10 @@ type Syncer struct {
 	mu          sync.Mutex
 	progress    SyncProgress
 	cfClearance string
+
+	top40Mu        sync.Mutex
+	top40Cache     []scraper.Top40Entry
+	top40FetchedAt time.Time
 }
 
 // New creates a Syncer.
@@ -71,6 +75,37 @@ func (s *Syncer) SetCFClearance(v string) {
 	s.mu.Lock()
 	s.cfClearance = v
 	s.mu.Unlock()
+}
+
+// Top40 returns the weekly Top 40 chart, cached for 15 minutes to avoid
+// hammering the origin site on every sidebar visit.
+func (s *Syncer) Top40(ctx context.Context) ([]scraper.Top40Entry, error) {
+	s.top40Mu.Lock()
+	if len(s.top40Cache) > 0 && time.Since(s.top40FetchedAt) < 15*time.Minute {
+		cached := s.top40Cache
+		s.top40Mu.Unlock()
+		return cached, nil
+	}
+	s.top40Mu.Unlock()
+
+	s.mu.Lock()
+	cf := s.cfClearance
+	s.mu.Unlock()
+
+	html, err := s.httpGet(ctx, cf, baseURL+"/top40")
+	if err != nil {
+		return nil, err
+	}
+	entries, err := scraper.ParseTop40(html, baseURL+"/top40")
+	if err != nil {
+		return nil, err
+	}
+
+	s.top40Mu.Lock()
+	s.top40Cache = entries
+	s.top40FetchedAt = time.Now()
+	s.top40Mu.Unlock()
+	return entries, nil
 }
 
 // Progress returns a snapshot of the current sync state.

@@ -108,9 +108,9 @@ func (s *Store) SearchCatalog(ctx context.Context, q, platform, letter string, o
 	}
 	where, args := []string{"1=1"}, []any{}
 
-	if q != "" {
+	for _, word := range strings.Fields(q) {
 		where = append(where, "title LIKE ?")
-		args = append(args, "%"+q+"%")
+		args = append(args, "%"+word+"%")
 	}
 	if platform != "" {
 		where = append(where, "platform LIKE ?")
@@ -152,9 +152,9 @@ func (s *Store) SearchCatalog(ctx context.Context, q, platform, letter string, o
 // CountCatalog returns the total count matching the same filters as SearchCatalog.
 func (s *Store) CountCatalog(ctx context.Context, q, platform, letter string) (int, error) {
 	where, args := []string{"1=1"}, []any{}
-	if q != "" {
+	for _, word := range strings.Fields(q) {
 		where = append(where, "title LIKE ?")
-		args = append(args, "%"+q+"%")
+		args = append(args, "%"+word+"%")
 	}
 	if platform != "" {
 		where = append(where, "platform LIKE ?")

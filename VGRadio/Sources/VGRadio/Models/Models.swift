@@ -1,5 +1,16 @@
 import Foundation
 
+// MARK: - Search helper
+
+/// Token-based match: every whitespace-separated word in `query` must appear
+/// somewhere in `haystack`, regardless of order or punctuation between them.
+/// e.g. query "rockman forte" matches haystack "Rockman & Forte FC".
+func matchesSearchQuery(_ haystack: String, _ query: String) -> Bool {
+    let words = query.split(separator: " ").map(String.init)
+    guard !words.isEmpty else { return true }
+    return words.allSatisfy { haystack.localizedCaseInsensitiveContains($0) }
+}
+
 // MARK: - API response models (mirror backend JSON)
 
 struct Album: Codable, Identifiable, Hashable {
@@ -188,6 +199,14 @@ struct CatalogConsole: Decodable, Identifiable {
     var name: String
     var url: String
     var albumCount: Int
+}
+
+struct Top40Entry: Decodable, Identifiable {
+    var rank: Int
+    var title: String
+    var sourceUrl: String
+    var coverThumbUrl: String
+    var id: String { sourceUrl }
 }
 
 struct CatalogSyncProgress: Decodable {

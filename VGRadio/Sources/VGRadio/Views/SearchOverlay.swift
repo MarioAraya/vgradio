@@ -5,12 +5,32 @@ struct SearchOverlay: View {
     @Environment(LibraryStore.self) var library
     @State private var query = ""
     @FocusState private var isFocused: Bool
+    @State private var catalogResults: [CatalogEntry] = []
+    @State private var catalogSearchTask: Task<Void, Never>?
 
     private var results: [AlbumSummary] {
         guard !query.isEmpty else { return [] }
         return library.albums.filter {
-            $0.title.localizedCaseInsensitiveContains(query) ||
-            $0.platform.localizedCaseInsensitiveContains(query)
+            matchesSearchQuery($0.title, query) || matchesSearchQuery($0.platform, query)
+        }
+    }
+
+    /// Catalog (not-yet-imported) matches, minus anything already shown from the library.
+    private var extraCatalogResults: [CatalogEntry] {
+        let libraryTitles = Set(results.map { $0.title.lowercased() })
+        return catalogResults.filter { !libraryTitles.contains($0.title.lowercased()) }
+    }
+
+    private func scheduleCatalogSearch() {
+        catalogSearchTask?.cancel()
+        guard !query.isEmpty else { catalogResults = []; return }
+        let q = query
+        catalogSearchTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            guard let page = try? await APIClient.shared.catalog(q: q, limit: 8) else { return }
+            guard !Task.isCancelled, q == query else { return }
+            catalogResults = page.items
         }
     }
 
@@ -30,10 +50,11 @@ struct SearchOverlay: View {
                         .font(.system(size: 18))
                         .foregroundStyle(Color.vgText)
                         .focused($isFocused)
+                        .onChange(of: query) { _, _ in scheduleCatalogSearch() }
                 }
                 .padding(VGSpace.md)
 
-                if results.isEmpty && query.isEmpty {
+                if results.isEmpty && extraCatalogResults.isEmpty && query.isEmpty {
                     HStack(spacing: VGSpace.md) {
                         Text("Type to search").font(VGFont.caption())
                         Text("·").font(VGFont.caption())
@@ -50,7 +71,7 @@ struct SearchOverlay: View {
                     .foregroundStyle(Color.vgTextMuted)
                     .padding(.horizontal, VGSpace.md)
                     .padding(.bottom, VGSpace.md)
-                } else if !results.isEmpty {
+                } else if !results.isEmpty || !extraCatalogResults.isEmpty {
                     Divider().overlay(Color.vgSeparator)
                     ScrollView {
                         LazyVStack(spacing: 0) {
@@ -58,6 +79,20 @@ struct SearchOverlay: View {
                                 SearchResultRow(album: album) {
                                     library.pendingNavigation = album
                                     isShowing = false
+                                }
+                            }
+                            if !extraCatalogResults.isEmpty {
+                                if !results.isEmpty {
+                                    Text("FROM KHINSIDER")
+                                        .font(VGFont.label(10))
+                                        .tracking(1.2)
+                                        .foregroundStyle(Color.vgTextMuted)
+                                        .padding(.horizontal, VGSpace.md)
+                                        .padding(.top, VGSpace.sm)
+                                        .padding(.bottom, 4)
+                                }
+                                ForEach(extraCatalogResults) { entry in
+                                    CatalogSearchResultRow(entry: entry, onOpened: { isShowing = false })
                                 }
                             }
                         }
@@ -116,6 +151,62 @@ private struct SearchResultRow: View {
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .onTapGesture { onSelect() }
+    }
+}
+
+private struct CatalogSearchResultRow: View {
+    let entry: CatalogEntry
+    let onOpened: () -> Void
+    @Environment(LibraryStore.self) var library
+    @State private var isHovered = false
+    @State private var isOpening = false
+    @State private var openError: String?
+
+    var body: some View {
+        HStack(spacing: VGSpace.md) {
+            if isOpening {
+                ProgressView().scaleEffect(0.6).frame(width: 36, height: 36)
+            } else {
+                AlbumLetterArt(title: entry.title, size: 36)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title).font(VGFont.body()).foregroundStyle(Color.vgText)
+                if let openError {
+                    Text(openError).font(VGFont.caption(10)).foregroundStyle(.red.opacity(0.85))
+                } else {
+                    Text("\(entry.platform) · \(entry.year > 0 ? String(entry.year) : "—")")
+                        .font(VGFont.caption()).foregroundStyle(Color.vgTextSec)
+                }
+            }
+            Spacer()
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.vgTextMuted)
+        }
+        .padding(.horizontal, VGSpace.md)
+        .padding(.vertical, VGSpace.sm)
+        .background(isHovered ? Color.vgSurfaceHi : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .onTapGesture { Task { await open() } }
+    }
+
+    private func open() async {
+        guard !isOpening else { return }
+        isOpening = true
+        openError = nil
+        do {
+            if let summary = try await library.importAlbum(url: entry.sourceUrl) {
+                library.pendingNavigation = summary
+                onOpened()
+            } else {
+                openError = "Not found after import"
+                isOpening = false
+            }
+        } catch {
+            openError = error.localizedDescription
+            isOpening = false
+        }
     }
 }
 
