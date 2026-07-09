@@ -129,6 +129,12 @@ struct AlbumDetailView: View {
                             .font(VGFont.body())
                             .foregroundStyle(Color.vgTextSec)
                     }
+                    if !album.totalDurationFormatted.isEmpty {
+                        Text("·").foregroundStyle(Color.vgTextMuted)
+                        Text(album.totalDurationFormatted)
+                            .font(VGFont.body())
+                            .foregroundStyle(Color.vgTextSec)
+                    }
                 }
 
                 metaRow(album)
@@ -302,6 +308,18 @@ struct AlbumDetailView: View {
                     player.play(track: track, in: summary, queue: playable, covers: album.covers)
                     player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
                 }
+            }
+
+            if !album.totalDurationFormatted.isEmpty {
+                HStack {
+                    Spacer()
+                    Text("\(album.tracks.count) tracks, \(album.totalDurationFormatted)")
+                        .font(VGFont.caption(11))
+                        .foregroundStyle(Color.vgTextMuted)
+                    Spacer()
+                }
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.02))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))

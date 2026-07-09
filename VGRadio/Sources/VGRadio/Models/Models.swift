@@ -29,6 +29,17 @@ struct Album: Codable, Identifiable, Hashable {
     var tracks: [Track]
     var comments: [Comment]
 
+    var totalDurationSec: Int { tracks.reduce(0) { $0 + $1.durationSec } }
+
+    var totalDurationFormatted: String {
+        guard totalDurationSec > 0 else { return "" }
+        let h = totalDurationSec / 3600
+        let m = (totalDurationSec % 3600) / 60
+        let s = totalDurationSec % 60
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+        return String(format: "%d:%02d", m, s)
+    }
+
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (l: Album, r: Album) -> Bool { l.id == r.id }
 }
