@@ -316,3 +316,22 @@ struct FavoriteTrack: Codable, Identifiable {
         return String(format: "%d:%02d", m, s)
     }
 }
+
+// MARK: - Offline downloads (local persistence)
+
+struct DownloadedTrack: Codable, Identifiable {
+    var id: String        // trackId
+    var index: Int
+    var name: String
+    var albumId: String
+    var albumTitle: String
+    var platform: String
+    var year: Int
+    var durationSec: Int
+    var coverUrl: String?
+
+    var durationFormatted: String {
+        let m = durationSec / 60, s = durationSec % 60
+        return String(format: "%d:%02d", m, s)
+    }
+}

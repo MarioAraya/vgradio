@@ -1,49 +1,82 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-07-05
+Última sesión: 2026-07-17
 
 ## En progreso
 
-### Búsqueda multi-palabra (token match) + Cmd+F en Browse + limpieza warning build
+### Offline downloads + badges "Descargado" (solo macOS)
+
+Feature pedida: distintivo visual pa tracks/álbumes descargados + nuevo menú "Descargado" (como Favoritos). Alcance acotado a macOS (web queda sin tocar — no hay filesystem real en browser).
 
 **Contexto recopilado:**
-- Búsqueda anterior era substring simple (`contains(query)`) — falla con "rockman forte" contra "Rockman & Forte FC" si el orden/puntuación no calza exacto.
-- Se agregó `matchesSearchQuery(haystack, query)` en `Models.swift`: parte el query por espacios y exige que cada palabra aparezca en el haystack (orden libre, case-insensitive).
-- Aplicado en `LibraryView.swift` (título+plataforma) y `SearchOverlay.swift` (título+plataforma).
-- `BrowseView.swift` ahora tiene `Cmd+F` para foco en su search field (`@FocusState searchFocused`), igual patrón que `AlbumDetailView`.
-- Backend (`catalog.go`, `SearchCatalog`/`CountCatalog`): antes un solo `LIKE '%q%'`; ahora itera `strings.Fields(q)` y agrega un `LIKE` por palabra — mismo espíritu multi-token pero server-side, para `/catalog`.
-- Warning de build resuelto: `AlbumDetailView.swift:517` — `await MainActor.run { ... }` con retorno de `NSWorkspace.shared.selectFile` (Bool) sin usar. Fix: `_ = await MainActor.run { ... }` (dos ocurrencias, líneas 351 y 517-518, ambas iguales — mismo patrón de descarga de covers ZIP).
+- `OfflineStore.swift` ya existía sin trackear al empezar la sesión (base: folder local elegido por usuario, reachability check, toggle modo offline). Solo guardaba IDs de tracks descargados, sin metadata — no alcanzaba pa agrupar por álbum como Favoritos.
+- Patrón de referencia: `FavoritesStore.swift` + `FavoritesView.swift` (grouped por álbum, persistencia, empty state).
+- Sidebar/nav: `SidebarItem` enum en `ContentView.swift`, filas en `SidebarView.swift`.
+- Hay **dos sistemas de descarga distintos** en `DetailTrackRow` (`AlbumDetailView.swift`): botón ⬇ (`downloadTrack` → `POST /tracks/{id}/fetch`, cachea en **servidor**, no toca la Mac) y botón ☁️✓ nuevo (`offline.downloadOffline`, guarda mp3 en carpeta local elegida). Usuario los confundió inicialmente — se resolvió con tooltips más explícitos, no fusión (decisión: dejar ambos, aclarar con `help()`).
+- Bug reportado y arreglado: cover faltante en player bar al reproducir desde Favorites/Descargado — causa: `FavoriteTrack.coverUrl`/`DownloadedTrack.coverUrl` puede venir vacío (guardado en momento sin covers cargados). Fix: fallback a `LibraryStore.albums.first(where: id)?.coverUrls` si `coverUrl` viene vacío, en `FavoritesView.swift` y `DownloadedView.swift`.
+- Bug reportado "no suena nada al doble-click" — resultó ser build viejo sin compilar (el SSD externo con Xcode, `/Volumes/ExtDevDisk`, estaba desmontado). Una vez compilado y confirmado: streaming remoto funciona normal cuando NO está en modo offline; solo bloquea si `effectiveOfflineMode` (toggle manual o backend inalcanzable).
 
 **Decisiones tomadas (implementadas):**
-- Un solo helper `matchesSearchQuery` en `Models.swift`, reusado por Library/SearchOverlay (evita duplicar lógica de tokenización).
-- Backend usa `LIKE` por palabra en vez de regex/FTS — simple, consistente con lo ya existente.
+- `OfflineStore` ahora persiste `[DownloadedTrack]` (JSON en UserDefaults, no solo IDs) con metadata completa (name, albumId, albumTitle, platform, year, durationSec, coverUrl, index) — necesario pa poder agrupar por álbum en la nueva vista.
+- Nuevo modelo `DownloadedTrack` en `Models.swift` (mismo shape que `FavoriteTrack` + `index`).
+- `OfflineStore.downloadOffline(_:album:)` ahora requiere `album: AlbumSummary` (antes solo `Track`) — call site actualizado en `AlbumDetailView.swift`.
+- Nuevas funciones: `downloadedCount(albumID:)`, `isAlbumDownloaded(albumID:totalTracks:)`, `grouped` (computed, mismo patrón que `FavoritesStore.grouped`).
+- Nueva vista `DownloadedView.swift` (clon de `FavoritesView.swift`, agrupado por álbum, botón quitar descarga en vez de estrella).
+- Badge álbum: círculo verde `checkmark.icloud.fill` sobre la portada en `AlbumCard` (grid) y junto al título en `AlbumListRow` (lista) — visible solo si `isAlbumDownloaded` (todos los tracks del álbum descargados localmente).
+- Item nuevo en sidebar: "Descargado" (ícono `checkmark.icloud`), entre Favorites y Recently Played. `SidebarItem.downloaded` en `ContentView.swift`.
 
 **Preguntas pendientes antes de continuar:**
-1. Ninguna bloqueante — falta probar build+run interactivo y decidir si commitear junto o separar macOS/backend.
+1. Ninguna bloqueante. Falta: probar interactivamente el flujo completo (descargar track → verificar aparece en "Descargado" → verificar badge álbum cuando se completan todos los tracks → quitar descarga) y commitear.
 
 ## Completado esta sesión
 
-- [x] `matchesSearchQuery` en `Models.swift` (búsqueda tokenizada)
-- [x] `LibraryView.swift` y `SearchOverlay.swift` usan el nuevo matcher
-- [x] `BrowseView.swift`: Cmd+F enfoca el campo de búsqueda
-- [x] `catalog.go`: `SearchCatalog`/`CountCatalog` con `LIKE` multi-palabra
-- [x] Fix warning `MainActor.run` result unused en `AlbumDetailView.swift` (líneas 351 y 517)
-- [x] `./scripts/build-mac.sh` corrió OK, warning limpio confirmado por usuario
+- [x] Modelo `DownloadedTrack` en `Models.swift`
+- [x] `OfflineStore.swift`: persistencia con metadata (JSON), `grouped`, `downloadedCount`, `isAlbumDownloaded`
+- [x] `DownloadedView.swift` (vista nueva, agrupada por álbum, con "Play all" y quitar descarga)
+- [x] Sidebar: item "Descargado" (`ContentView.swift`, `SidebarView.swift`)
+- [x] Badge álbum descargado en `LibraryView.swift` (`AlbumCard` grid + `AlbumListRow` lista)
+- [x] Tooltips diferenciados pa botones ⬇ (server cache) vs ☁️✓ (offline local) en `AlbumDetailView.swift`
+- [x] Fix cover faltante en Favorites/Descargado al reproducir (fallback a `LibraryStore`)
+- [x] Build release confirmado OK (con `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer`), app relanzada y probada por usuario
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Probar interactivamente**: búsqueda multi-palabra en Library, SearchOverlay y Browse (Cmd+F debe enfocar)
-- [ ] **Commitear cambios** — sin commitear: `Models.swift`, `AlbumDetailView.swift`, `BrowseView.swift`, `LibraryView.swift`, `SearchOverlay.swift`, `backend/internal/store/catalog.go`
-- [ ] **Push pendiente** — rama `main` está 6 commits adelante de `origin/main`, sin pushear
-- [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`, Ctrl+F) — sigue pendiente de sesión anterior
-- [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync` para poblar búsqueda
+- [ ] **Probar interactivamente** el flujo completo de "Descargado" (badge álbum, quitar descarga, cover fix) — usuario confirmó audio funciona pero no confirmó explícitamente el fix de cover ni el badge de álbum
+- [ ] **Commitear cambios** — sin commitear: todo lo de arriba + cambios previos de sesión anterior (Sidebar.svelte, UserMenu.svelte, +layout.svelte, albums/[id]/+page.svelte — UI colapsable, sin relación con offline) + `AlbumDetailView.swift`/`SettingsView.swift` (sección OFFLINE en Settings)
+- [ ] **Push pendiente** — verificar cuántos commits adelante de `origin/main` tras commitear
+- [ ] Resto de pendientes de sesión anterior sigue igual (ver abajo)
+
+### Pendientes de sesiones anteriores (sin tocar esta sesión)
+
+- [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`, Ctrl+F)
+- [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync`
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
-- [ ] **Cover en Now Playing (notification center widget)** — popup de la barra de menú (ícono ▶ en menu bar) muestra placeholder gris en vez del cover del álbum
-- [ ] **feat: scrapear por año/consola/todo el catálogo khinsider** — 3 modos: (1) endpoint para escrapear por consola (ya existe letra/consola parcial, revisar `catalog/syncer.go`), (2) por año (`/game-soundtracks/year/2026`), (3) full catalog (`/game-soundtracks`, 102971 álbumes, 206 páginas). Necesita: ir a la letra del álbum o buscarlo por Cmd+K en Library, o sección "por descargar/scrapear" (similar a wishlist) para trackear qué falta bajar.
-- [ ] **Mini-covers en Browse/catalog search** — `/catalog` (Browse macOS+web) es texto solo. `CatalogEntry` (`backend/internal/scraper/catalog.go:14`) no tiene campo cover — el scraper de browse/console pages (`extractCatalogEntries`) nunca capturó thumb URL, solo el album detail page trae covers. Para paridad visual con búsqueda original de khinsider (grid con mini-cover + título + plataforma/tipo/año): agregar `CoverThumbURL` a `CatalogEntry`, parsear `<img>` thumb en `extractCatalogEntries`, columna nueva en tabla `catalog`, actualizar `SearchCatalog`/`CountCatalog`, y grid UI en Browse (macOS/web).
+- [ ] **Cover en Now Playing (menu bar widget)** — muestra placeholder gris
+- [ ] **feat: scrapear por año/consola/todo el catálogo khinsider** — ver detalle en notas técnicas abajo
+- [ ] **Mini-covers en Browse/catalog search** — ver detalle en notas técnicas abajo
+- [ ] **Cert mkcert roto para subdominios `.lab`** — wildcard `*.lab` estructuralmente inválido, requiere regenerar con SANs explícitos
 
 ## Notas
+
+### Build macOS requiere SSD externo montado
+
+Xcode vive en `/Volumes/ExtDevDisk/Xcode.app` (CommandLineTools solo no compila — falla con "Invalid manifest" / symbols not found). Si el SSD se desmonta a mitad de sesión, `swift build` falla silenciosamente distinto (a veces "missing DEVELOPER_DIR", a veces "Permission denied" en `/Volumes/ExtDevDisk`). Verificar con `ls /Volumes/ExtDevDisk/Xcode.app/Contents/Developer` antes de compilar.
+
+```bash
+cd VGRadio && DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build -c release
+pkill -x VGRadio 2>/dev/null; sleep 0.3
+cp .build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
+open /Applications/VGRadio.app
+```
+
+### Detalle técnico: scrapear catálogo completo khinsider
+
+3 modos: (1) por consola (revisar `catalog/syncer.go`, ya hay letra/consola parcial), (2) por año (`/game-soundtracks/year/2026`), (3) full catalog (`/game-soundtracks`, 102971 álbumes, 206 páginas). Necesita sección tipo "por descargar/scrapear" (similar a wishlist) pa trackear qué falta bajar.
+
+### Detalle técnico: mini-covers en Browse/catalog search
+
+`CatalogEntry` (`backend/internal/scraper/catalog.go:14`) no tiene campo cover — `extractCatalogEntries` nunca capturó thumb URL (solo el album detail page trae covers). Fix: agregar `CoverThumbURL` a `CatalogEntry`, parsear `<img>` thumb, columna nueva en tabla `catalog`, actualizar `SearchCatalog`/`CountCatalog`, grid UI en Browse (macOS/web).
 
 ### Infraestructura homelab
 
@@ -78,7 +111,7 @@ curl -X POST https://vgradio-api.lab/albums/9ee1fa540f28534f/scrape-tracks
 ### Comandos útiles
 
 ```bash
-# Build macOS (usar el script, no manual)
+# Build macOS (usar el script, no manual — pero verificar SSD montado primero)
 ./scripts/build-mac.sh
 
 # Backend local

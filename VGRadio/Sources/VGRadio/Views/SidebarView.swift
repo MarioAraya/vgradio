@@ -40,6 +40,7 @@ struct SidebarView: View {
                 SidebarRow(icon: "globe",           label: "Browse",          item: .browse,         selection: $selection)
                 SidebarRow(icon: "chart.bar.fill",  label: "Top 40",          item: .top40,          selection: $selection)
                 SidebarRow(icon: "star",            label: "Favorites",       item: .favorites,      selection: $selection)
+                SidebarRow(icon: "checkmark.icloud", label: "Descargado",     item: .downloaded,     selection: $selection)
                 SidebarRow(icon: "clock",           label: "Recently Played", item: .recentlyPlayed, selection: $selection)
             }
 

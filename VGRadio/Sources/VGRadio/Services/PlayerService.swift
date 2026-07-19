@@ -12,6 +12,7 @@ final class PlayerService {
     private(set) var currentCovers: [Cover] = []
     var currentCoverIndex: Int = 0
     var hiddenTracks: HiddenTracksStore?
+    var offline: OfflineStore?
     private(set) var isPlaying = false
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
@@ -50,21 +51,27 @@ final class PlayerService {
         updateNowPlayingInfo()
     }
 
+    private func isSkippable(_ track: Track) -> Bool {
+        if hiddenTracks?.isHidden(track.id) == true { return true }
+        if offline?.effectiveOfflineMode == true && offline?.isDownloaded(track.id) != true { return true }
+        return false
+    }
+
     func next() {
         if repeatMode == .one {
             seek(to: 0); player?.play(); isPlaying = true; return
         }
         if isShuffle {
-            let candidates = queue.indices.filter { $0 != queueIndex && hiddenTracks?.isHidden(queue[$0].id) != true }
+            let candidates = queue.indices.filter { $0 != queueIndex && !isSkippable(queue[$0]) }
             guard let idx = candidates.randomElement() else { return }
             queueIndex = idx; load(track: queue[idx]); return
         }
         var idx = queueIndex + 1
-        while idx < queue.count && hiddenTracks?.isHidden(queue[idx].id) == true { idx += 1 }
+        while idx < queue.count && isSkippable(queue[idx]) { idx += 1 }
         if idx >= queue.count {
             guard repeatMode == .all else { return }
             idx = 0
-            while idx < queue.count && hiddenTracks?.isHidden(queue[idx].id) == true { idx += 1 }
+            while idx < queue.count && isSkippable(queue[idx]) { idx += 1 }
             guard idx < queue.count else { return }
         }
         queueIndex = idx
@@ -86,7 +93,7 @@ final class PlayerService {
     func previous() {
         if currentTime > 3 { seek(to: 0); return }
         var idx = queueIndex - 1
-        while idx >= 0 && hiddenTracks?.isHidden(queue[idx].id) == true { idx -= 1 }
+        while idx >= 0 && isSkippable(queue[idx]) { idx -= 1 }
         guard idx >= 0 else { return }
         queueIndex = idx
         load(track: queue[idx])
@@ -105,7 +112,9 @@ final class PlayerService {
     // MARK: - Private
 
     private func load(track: Track) {
-        guard let url = APIClient.shared.streamURL(for: track) else { return }
+        let localURL = offline?.localURL(for: track.id)
+        guard let url = localURL ?? APIClient.shared.streamURL(for: track) else { return }
+        if localURL == nil, offline?.effectiveOfflineMode == true { return }
         removeTimeObserver()
         let item = AVPlayerItem(url: url)
         if player == nil {

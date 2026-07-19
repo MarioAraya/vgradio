@@ -9,6 +9,7 @@ struct AlbumDetailView: View {
     @Environment(HiddenTracksStore.self) var hidden
     @Environment(AuthStore.self) var auth
     @Environment(LibraryStore.self) var library
+    @Environment(OfflineStore.self) var offline
     @State private var album: Album?
     @State private var isLoading = true
     @State private var hoveredTrackID: String?
@@ -35,9 +36,10 @@ struct AlbumDetailView: View {
                         Label("Library", systemImage: "chevron.left")
                             .font(VGFont.caption(12))
                             .foregroundStyle(Color.vgTextSec)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 24)
+                    .padding(.top, 36)
                     .padding(.horizontal, 32)
 
                     if isLoading {
@@ -296,6 +298,9 @@ struct AlbumDetailView: View {
                     isDownloaded: downloadedIDs.contains(track.id),
                     isDownloading: downloadingTrackID == track.id,
                     onDownload: { downloadTrack(track) },
+                    isOffline: offline.isDownloaded(track.id),
+                    isDownloadingOffline: offline.downloadingTrackIDs.contains(track.id),
+                    onDownloadOffline: offline.hasFolder ? { Task { await offline.downloadOffline(track, album: summary) } } : nil,
                     onAddToPlaylist: auth.isLoggedIn ? {
                         addToPlaylistTrackId = track.id
                         showAddToPlaylist = true
@@ -694,6 +699,9 @@ private struct DetailTrackRow: View {
     let isDownloaded: Bool
     let isDownloading: Bool
     let onDownload: () -> Void
+    var isOffline: Bool = false
+    var isDownloadingOffline: Bool = false
+    var onDownloadOffline: (() -> Void)? = nil
     var onAddToPlaylist: (() -> Void)? = nil
     @Environment(FavoritesStore.self) var favorites
     @Environment(HiddenTracksStore.self) var hidden
@@ -780,7 +788,32 @@ private struct DetailTrackRow: View {
                     .buttonStyle(.plain)
                     .frame(width: 40, alignment: .center)
                     .disabled(isDownloading)
-                    .help("Download track")
+                    .help("Cachear en el servidor (acelera el streaming, no guarda nada en esta Mac)")
+                }
+
+                // Offline download button (save to local folder for offline playback)
+                if let onDownloadOffline {
+                    Button(action: onDownloadOffline) {
+                        Group {
+                            if isDownloadingOffline {
+                                ProgressView().progressViewStyle(.circular).scaleEffect(0.5)
+                            } else if isOffline {
+                                Image(systemName: "checkmark.icloud.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.green)
+                            } else if isHovered {
+                                Image(systemName: "icloud.and.arrow.down")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.vgAccent)
+                            } else {
+                                Color.clear
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 40, alignment: .center)
+                    .disabled(isDownloadingOffline || isOffline)
+                    .help(isOffline ? "Disponible offline (guardada en esta Mac)" : "Guardar en esta Mac para escuchar sin conexión")
                 }
 
                 // Favorite button

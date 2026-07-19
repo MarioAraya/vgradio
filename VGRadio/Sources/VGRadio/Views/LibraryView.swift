@@ -345,6 +345,7 @@ struct LibraryView: View {
 private struct AlbumCard: View {
     let album: AlbumSummary
     let isHovered: Bool
+    @Environment(OfflineStore.self) var offline
 
     var body: some View {
         VStack(alignment: .leading, spacing: VGSpace.sm) {
@@ -356,6 +357,16 @@ private struct AlbumCard: View {
                     initialIndex: CoverPrefsStore.shared.index(for: album.id),
                     enableHoverControls: false
                 )
+
+                if offline.isAlbumDownloaded(albumID: album.id, totalTracks: album.trackCount) {
+                    Image(systemName: "checkmark.icloud.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white)
+                        .padding(5)
+                        .background(Color.green)
+                        .clipShape(Circle())
+                        .padding(6)
+                }
 
                 if isHovered && album.covers.isEmpty {
                     Circle()
@@ -402,6 +413,7 @@ private struct AlbumCard: View {
 private struct AlbumListRow: View {
     let album: AlbumSummary
     let isHovered: Bool
+    @Environment(OfflineStore.self) var offline
 
     var body: some View {
         HStack(spacing: VGSpace.md) {
@@ -415,11 +427,18 @@ private struct AlbumListRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(album.title)
-                    .font(VGFont.body())
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color.vgText)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(album.title)
+                        .font(VGFont.body())
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.vgText)
+                        .lineLimit(1)
+                    if offline.isAlbumDownloaded(albumID: album.id, totalTracks: album.trackCount) {
+                        Image(systemName: "checkmark.icloud.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.green)
+                    }
+                }
                 HStack(spacing: 4) {
                     let firstPlatform = album.platform.split(separator: ",").first.map(String.init) ?? album.platform
                     PlatformPill(platform: firstPlatform.trimmingCharacters(in: .whitespaces))

@@ -6,6 +6,7 @@ private enum BackendStatus {
 
 struct SettingsView: View {
     @Binding var isPresented: Bool
+    @Environment(OfflineStore.self) var offline
     @State private var status: BackendStatus = .checking
 
     var body: some View {
@@ -41,6 +42,60 @@ struct SettingsView: View {
                             .foregroundStyle(Color.vgTextMuted)
                     }
                     .buttonStyle(.plain)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            VStack(alignment: .leading, spacing: VGSpace.sm) {
+                Text("OFFLINE")
+                    .font(VGFont.label(10))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.vgTextMuted)
+
+                @Bindable var offline = offline
+
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Modo offline")
+                            .font(VGFont.body())
+                            .foregroundStyle(Color.vgTextSec)
+                        Text(offline.isBackendReachable ? "Backend accesible" : "Sin conexión al backend — offline activado automáticamente")
+                            .font(VGFont.caption(11))
+                            .foregroundStyle(offline.isBackendReachable ? Color.vgTextMuted : Color.vgAccent)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $offline.offlineModeEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Carpeta de descargas")
+                            .font(VGFont.body())
+                            .foregroundStyle(Color.vgTextSec)
+                        Text(offline.folderDisplayPath)
+                            .font(VGFont.caption(11))
+                            .foregroundStyle(Color.vgTextMuted)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if offline.hasFolder {
+                            Text(ByteCountFormatter.string(fromByteCount: offline.offlineStorageBytes, countStyle: .file) + " descargados")
+                                .font(VGFont.caption(11))
+                                .foregroundStyle(Color.vgTextMuted)
+                        }
+                    }
+                    Spacer()
+                    Button("Elegir…") { offline.chooseFolder() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.vgAccent)
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 10)

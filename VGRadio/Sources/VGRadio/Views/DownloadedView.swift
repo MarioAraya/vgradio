@@ -1,9 +1,8 @@
 import SwiftUI
 
-struct FavoritesView: View {
-    @Environment(FavoritesStore.self) var favorites
+struct DownloadedView: View {
+    @Environment(OfflineStore.self) var offline
     @Environment(PlayerService.self) var player
-    @Environment(LibraryStore.self) var library
 
     var body: some View {
         ScrollView {
@@ -11,7 +10,7 @@ struct FavoritesView: View {
                 // Header
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Favorites")
+                        Text("Descargado")
                             .font(VGFont.title())
                             .foregroundStyle(Color.vgText)
                         Text(subtitle)
@@ -19,7 +18,7 @@ struct FavoritesView: View {
                             .foregroundStyle(Color.vgTextSec)
                     }
                     Spacer()
-                    if !favorites.favorites.isEmpty {
+                    if !offline.downloadedTracks.isEmpty {
                         Button { playAll() } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "play.fill").font(.system(size: 11))
@@ -32,17 +31,17 @@ struct FavoritesView: View {
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
-                        .help("Play all favorites")
+                        .help("Play all downloaded tracks")
                     }
                 }
                 .padding(.top, VGSpace.md)
                 .padding(.horizontal, VGSpace.xl)
 
-                if favorites.grouped.isEmpty {
+                if offline.grouped.isEmpty {
                     emptyState
                 } else {
-                    ForEach(favorites.grouped, id: \.albumTitle) { group in
-                        FavoriteGroupView(group: group)
+                    ForEach(offline.grouped, id: \.albumTitle) { group in
+                        DownloadedGroupView(group: group)
                     }
                     .padding(.horizontal, VGSpace.xl)
                 }
@@ -53,36 +52,36 @@ struct FavoritesView: View {
     }
 
     private func playAll() {
-        let tracks = favorites.favorites.enumerated().map { i, f in
-            Track(id: f.id, index: i + 1, name: f.name,
-                  durationSec: f.durationSec, sizeBytes: 0,
-                  streamUrl: "/tracks/\(f.id)/stream",
-                  downloadUrl: "/tracks/\(f.id)/download",
+        let tracks = offline.downloadedTracks.enumerated().map { i, d in
+            Track(id: d.id, index: i + 1, name: d.name,
+                  durationSec: d.durationSec, sizeBytes: 0,
+                  streamUrl: "/tracks/\(d.id)/stream",
+                  downloadUrl: "/tracks/\(d.id)/download",
                   downloaded: true)
         }
         guard let first = tracks.first else { return }
-        let album = AlbumSummary(id: "favorites", title: "Favorites",
+        let album = AlbumSummary(id: "downloaded", title: "Descargado",
                                  platform: "", year: 0, albumType: "",
                                  trackCount: tracks.count, totalDurationSec: 0, coverUrls: [])
         player.play(track: first, in: album, queue: tracks)
     }
 
     private var subtitle: String {
-        let total = favorites.favorites.count
-        let albums = favorites.grouped.count
-        if total == 0 { return "No starred tracks yet" }
-        return "\(total) starred track\(total == 1 ? "" : "s") across \(albums) album\(albums == 1 ? "" : "s")"
+        let total = offline.downloadedTracks.count
+        let albums = offline.grouped.count
+        if total == 0 { return "No hay canciones descargadas todavía" }
+        return "\(total) canción\(total == 1 ? "" : "es") descargada\(total == 1 ? "" : "s") en \(albums) álbum\(albums == 1 ? "" : "es")"
     }
 
     private var emptyState: some View {
         VStack(spacing: VGSpace.md) {
-            Image(systemName: "star")
+            Image(systemName: "checkmark.icloud")
                 .font(.system(size: 40))
                 .foregroundStyle(Color.vgTextMuted)
-            Text("No favorites yet")
+            Text("No hay descargas")
                 .font(VGFont.heading())
                 .foregroundStyle(Color.vgTextSec)
-            Text("Star tracks while listening to save them here.")
+            Text("Descargá canciones para escucharlas sin conexión.")
                 .font(VGFont.body())
                 .foregroundStyle(Color.vgTextMuted)
         }
@@ -93,8 +92,8 @@ struct FavoritesView: View {
 
 // MARK: - Group
 
-private struct FavoriteGroupView: View {
-    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
+private struct DownloadedGroupView: View {
+    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [DownloadedTrack])
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -128,7 +127,7 @@ private struct FavoriteGroupView: View {
                     Text("#").frame(width: 32, alignment: .trailing)
                     Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
                     Text("DUR").frame(width: 50, alignment: .trailing)
-                    Text("★").frame(width: 28, alignment: .center)
+                    Text("").frame(width: 28, alignment: .center)
                 }
                 .font(VGFont.caption(11))
                 .foregroundStyle(Color.vgTextMuted)
@@ -137,8 +136,8 @@ private struct FavoriteGroupView: View {
 
                 Divider().overlay(Color.vgSeparator)
 
-                ForEach(group.tracks) { track in
-                    FavoriteTrackRow(track: track, group: group)
+                ForEach(group.tracks.sorted(by: { $0.index < $1.index })) { track in
+                    DownloadedTrackRow(track: track, group: group)
                 }
             }
             .background(Color.vgSurface)
@@ -149,17 +148,17 @@ private struct FavoriteGroupView: View {
 
 // MARK: - Track row
 
-private struct FavoriteTrackRow: View {
-    let track: FavoriteTrack
-    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
-    @Environment(FavoritesStore.self) var favorites
+private struct DownloadedTrackRow: View {
+    let track: DownloadedTrack
+    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [DownloadedTrack])
+    @Environment(OfflineStore.self) var offline
     @Environment(PlayerService.self) var player
     @Environment(LibraryStore.self) var library
     @State private var isHovered = false
 
     var body: some View {
         HStack {
-            Text(String(format: "%02d", track.index ?? 0))
+            Text(String(format: "%02d", track.index))
                 .font(VGFont.mono())
                 .foregroundStyle(Color.vgTextMuted)
                 .frame(width: 32, alignment: .trailing)
@@ -175,21 +174,16 @@ private struct FavoriteTrackRow: View {
                 .foregroundStyle(Color.vgTextSec)
                 .frame(width: 50, alignment: .trailing)
 
-            // Always-filled star (these are favorites)
-            Image(systemName: "star.fill")
-                .foregroundStyle(Color.vgStar)
-                .frame(width: 28, alignment: .center)
-                .onTapGesture {
-                    // Remove from favorites by creating a dummy Track
-                    // (FavoritesStore.toggle needs a Track — use the stored data)
-                    let dummy = Track(id: track.id, index: track.index ?? 0, name: track.name,
-                                     durationSec: track.durationSec, sizeBytes: 0,
-                                     streamUrl: "", downloadUrl: "", downloaded: true)
-                    let dummyAlbum = AlbumSummary(id: track.albumId, title: track.albumTitle,
-                                                   platform: track.platform, year: track.year,
-                                                   albumType: "", trackCount: 0, totalDurationSec: 0, coverUrls: [])
-                    favorites.toggle(dummy, album: dummyAlbum)
-                }
+            // Remove from offline storage
+            Button {
+                offline.removeOffline(track.id)
+            } label: {
+                Image(systemName: "checkmark.icloud.fill")
+                    .foregroundStyle(isHovered ? Color.red : Color.green)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 28, alignment: .center)
+            .help("Quitar descarga")
         }
         .padding(.horizontal, VGSpace.md)
         .padding(.vertical, 10)
@@ -202,11 +196,11 @@ private struct FavoriteTrackRow: View {
     }
 
     private func play() {
-        let tracks = group.tracks.enumerated().map { i, f in
-            Track(id: f.id, index: i + 1, name: f.name,
-                  durationSec: f.durationSec, sizeBytes: 0,
-                  streamUrl: "/tracks/\(f.id)/stream",
-                  downloadUrl: "/tracks/\(f.id)/download",
+        let tracks = group.tracks.sorted(by: { $0.index < $1.index }).map { d in
+            Track(id: d.id, index: d.index, name: d.name,
+                  durationSec: d.durationSec, sizeBytes: 0,
+                  streamUrl: "/tracks/\(d.id)/stream",
+                  downloadUrl: "/tracks/\(d.id)/download",
                   downloaded: true)
         }
         guard let current = tracks.first(where: { $0.id == track.id }) else { return }
@@ -218,8 +212,4 @@ private struct FavoriteTrackRow: View {
                                  albumType: "", trackCount: tracks.count, totalDurationSec: 0, coverUrls: resolvedCovers)
         player.play(track: current, in: album, queue: tracks)
     }
-}
-
-private extension FavoriteTrack {
-    var index: Int? { nil } // not stored; use track name ordering
 }
