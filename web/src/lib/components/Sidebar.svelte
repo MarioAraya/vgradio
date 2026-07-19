@@ -103,11 +103,9 @@
   {/if}
 
   <div class="bottom" class:bottom-collapsed={collapsed}>
+    <slot name="user" {collapsed} />
     {#if !collapsed}
-      <slot name="user" />
       <button class="add-btn" on:click={onAddURL}>+ Add URL</button>
-    {:else}
-      <slot name="user" />
     {/if}
   </div>
 </aside>

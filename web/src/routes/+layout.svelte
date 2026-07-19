@@ -48,8 +48,8 @@
 <div class="shell">
   <div class="main">
     <Sidebar onAddURL={() => showAddURL = true}>
-      <svelte:fragment slot="user">
-        <UserMenu onLogin={() => showAuthModal.set(true)} />
+      <svelte:fragment slot="user" let:collapsed>
+        <UserMenu collapsed={collapsed} onLogin={() => showAuthModal.set(true)} />
       </svelte:fragment>
     </Sidebar>
     <div class="content">

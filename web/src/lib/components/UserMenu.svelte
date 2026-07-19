@@ -3,13 +3,22 @@
   import { api } from '$lib/api';
 
   export let onLogin: () => void = () => {};
+  export let collapsed = false;
 
   let open = false;
+  let btnEl: HTMLButtonElement;
+  let dropdownStyle = '';
 
-  function toggle() { open = !open; }
+  function toggle() {
+    open = !open;
+    if (open && btnEl) {
+      const r = btnEl.getBoundingClientRect();
+      dropdownStyle = `left:${r.left}px; bottom:${window.innerHeight - r.top + 4}px; min-width:${Math.max(r.width, 180)}px;`;
+    }
+  }
 
   function onOutsideClick(e: MouseEvent) {
-    if (!(e.target as HTMLElement).closest('.user-menu')) open = false;
+    if (!(e.target as HTMLElement).closest('.user-menu') && !(e.target as HTMLElement).closest('.dropdown')) open = false;
   }
 
   async function handleLogout() {
@@ -18,23 +27,25 @@
   }
 </script>
 
-<svelte:window on:click={onOutsideClick} />
+<svelte:window on:click={onOutsideClick} on:resize={() => open = false} />
 
 <div class="user-menu">
   {#if $currentUser}
-    <button class="user-btn" on:click={toggle}>
+    <button class="user-btn" class:collapsed bind:this={btnEl} on:click={toggle} title={collapsed ? `@${$currentUser.username}` : undefined}>
       <span class="avatar">{$currentUser.username[0].toUpperCase()}</span>
-      <span class="username">@{$currentUser.username}</span>
-      <span class="caret">{open ? '▴' : '▾'}</span>
+      {#if !collapsed}
+        <span class="username">@{$currentUser.username}</span>
+        <span class="caret">{open ? '▴' : '▾'}</span>
+      {/if}
     </button>
     {#if open}
-      <div class="dropdown">
+      <div class="dropdown" style={dropdownStyle}>
         <div class="dropdown-email">{$currentUser.email}</div>
         <button class="dropdown-item logout" on:click={handleLogout}>Cerrar sesión</button>
       </div>
     {/if}
   {:else}
-    <button class="login-btn" on:click={onLogin}>Entrar</button>
+    <button class="login-btn" on:click={onLogin}>{collapsed ? '→' : 'Entrar'}</button>
   {/if}
 </div>
 
@@ -52,6 +63,7 @@
     width: 100%;
   }
   .user-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .user-btn.collapsed { justify-content: center; padding: 6px; gap: 0; }
 
   .avatar {
     width: 22px;
@@ -78,15 +90,12 @@
   .caret { font-size: 9px; color: var(--text-muted); }
 
   .dropdown {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    left: 0;
-    right: 0;
+    position: fixed;
     background: var(--surface);
     border: 1px solid var(--separator);
     border-radius: var(--r-md, 8px);
     overflow: hidden;
-    z-index: 100;
+    z-index: 1000;
     box-shadow: 0 4px 16px rgba(0,0,0,0.4);
   }
   .dropdown-email {
