@@ -122,7 +122,7 @@ private struct DownloadedGroupView: View {
                     Text(group.albumTitle)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.vgText)
-                    Text("\(group.platform)  ·  \(group.year)")
+                    Text("\(group.platform)  ·  \(String(group.year))")
                         .font(VGFont.mono(11))
                         .foregroundStyle(Color.vgTextSec)
                         .monospacedDigit()

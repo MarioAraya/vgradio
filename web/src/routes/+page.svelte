@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import type { AlbumSummary } from '$lib/types';
   import CoverImage from '$lib/components/CoverImage.svelte';
+  import CompactAlbumCard from '$lib/components/CompactAlbumCard.svelte';
   import FavoriteButton from '$lib/components/FavoriteButton.svelte';
   import { player } from '$lib/stores/player';
   import { fmtDuration } from '$lib/utils';
@@ -15,6 +16,28 @@
   let error = '';
   let playingId: string | null = null;
   let playCtrl: AbortController | null = null;
+  let filterText = '';
+  let filterInput: HTMLInputElement | null = null;
+
+  type ViewMode = 'grid' | 'compact' | 'list';
+  let viewMode: ViewMode = (localStorage.getItem('vgradio.libraryViewMode') as ViewMode) || 'grid';
+  $: localStorage.setItem('vgradio.libraryViewMode', viewMode);
+
+  $: filteredAlbums = filterText.trim()
+    ? albums.filter(a => matches(a.title, filterText) || matches(a.platform, filterText))
+    : albums;
+
+  function matches(haystack: string, query: string): boolean {
+    const words = query.trim().split(/\s+/);
+    return words.every(w => haystack.toLowerCase().includes(w.toLowerCase()));
+  }
+
+  function onWindowKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      filterInput?.focus();
+    }
+  }
 
   onMount(async () => {
     try { albums = await api.albums(); }
@@ -40,10 +63,29 @@
   }
 </script>
 
+<svelte:window on:keydown={onWindowKeydown} />
+
 <div class="page">
   <div class="header">
     <h1>Library</h1>
     <span class="count">{albums.length} albums</span>
+    <div class="spacer"></div>
+    <div class="filter-wrap">
+      <span class="filter-icon">🔍</span>
+      <input
+        bind:this={filterInput}
+        class="filter-input"
+        type="text"
+        placeholder="Filter albums… (⌘F)"
+        bind:value={filterText}
+        on:keydown={(e) => { if (e.key === 'Escape') { filterText = ''; filterInput?.blur(); } }}
+      />
+    </div>
+    <div class="view-toggle">
+      <button class:active={viewMode === 'grid'} on:click={() => viewMode = 'grid'} title="Grid view">▦</button>
+      <button class:active={viewMode === 'compact'} on:click={() => viewMode = 'compact'} title="Compact view">▪▪</button>
+      <button class:active={viewMode === 'list'} on:click={() => viewMode = 'list'} title="List view">☰</button>
+    </div>
   </div>
 
   {#if loading}
@@ -56,9 +98,31 @@
       <p class="muted">No albums yet</p>
       <p class="hint">Add albums with + Add URL (Cmd+4)</p>
     </div>
+  {:else if filteredAlbums.length === 0}
+    <div class="center"><span class="muted">No results for "{filterText}"</span></div>
+  {:else if viewMode === 'list'}
+    <div class="rows">
+      {#each filteredAlbums as album}
+        <div class="row" class:playing={album.id === currentAlbumId} on:click={() => goto(`/albums/${album.id}`)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
+          <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={44} radius={6} />
+          <div class="row-info">
+            <span class="row-title">{album.title}</span>
+            <span class="row-sub">{album.platform || album.albumType}{album.year ? ` · ${album.year}` : ''}</span>
+          </div>
+          <span class="row-dur">{album.totalDurationSec ? fmtDuration(album.totalDurationSec) : ''}</span>
+          <span class="row-tracks">{album.trackCount} tracks</span>
+        </div>
+      {/each}
+    </div>
+  {:else if viewMode === 'compact'}
+    <div class="compact-grid">
+      {#each filteredAlbums as album}
+        <CompactAlbumCard {album} on:click={() => goto(`/albums/${album.id}`)} on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)} />
+      {/each}
+    </div>
   {:else}
     <div class="grid">
-      {#each albums as album}
+      {#each filteredAlbums as album}
         <div class="card" class:playing={album.id === currentAlbumId} on:click={() => goto(`/albums/${album.id}`)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
           <div class="cover-wrap">
             <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={120} radius={8} />
@@ -101,6 +165,41 @@
   }
   h1 { font-size: 22px; font-weight: 700; }
   .count { font-size: 12px; color: var(--text-muted); }
+  .spacer { flex: 1; }
+  .filter-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: var(--r-sm);
+    width: 220px;
+  }
+  .filter-icon { font-size: 12px; opacity: 0.6; }
+  .filter-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 13px;
+    width: 100%;
+  }
+  .filter-input::placeholder { color: var(--text-muted); }
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    background: rgba(255,255,255,0.06);
+    border-radius: var(--r-sm);
+  }
+  .view-toggle button {
+    width: 28px; height: 24px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .view-toggle button.active { color: var(--accent); background: rgba(203,168,39,0.12); }
   .center {
     display: flex;
     flex-direction: column;
@@ -181,4 +280,28 @@
     min-width: 0;
   }
   .card-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .compact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 2px;
+  }
+
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 8px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .row:hover { background: rgba(255,255,255,0.04); }
+  .row.playing .row-title { color: var(--accent); }
+  .row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .row-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-dur { font-size: 12px; color: var(--text-sec); width: 60px; text-align: right; flex-shrink: 0; }
+  .row-tracks { font-size: 11px; color: var(--text-muted); width: 80px; text-align: right; flex-shrink: 0; }
 </style>

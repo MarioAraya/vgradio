@@ -221,13 +221,10 @@ struct BrowseView: View {
 
 private struct CatalogEntryRow: View {
     let entry: CatalogEntry
-    @Environment(WishlistStore.self) var wishlist
     @Environment(LibraryStore.self) var library
     @State private var isHovered = false
     @State private var isOpening = false
     @State private var openError: String?
-
-    private var inWishlist: Bool { wishlist.contains(url: entry.sourceUrl) }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -287,11 +284,6 @@ private struct CatalogEntryRow: View {
             Button { Task { await openAlbum() } } label: {
                 Label("Open Album", systemImage: "play.rectangle")
             }
-            if !inWishlist {
-                Button { wishlist.add(url: entry.sourceUrl) } label: {
-                    Label("Add to Library", systemImage: "plus.circle")
-                }
-            }
             Divider()
             if let url = URL(string: entry.sourceUrl) {
                 Button { NSWorkspace.shared.open(url) } label: {
@@ -319,13 +311,8 @@ private struct CatalogEntryRow: View {
 
     @ViewBuilder
     private var addButton: some View {
-        if inWishlist {
-            Image(systemName: "bookmark.fill")
-                .foregroundStyle(Color.vgAccent.opacity(0.8))
-                .font(.system(size: 12))
-                .frame(width: 44)
-        } else if isHovered {
-            Button(action: { wishlist.add(url: entry.sourceUrl) }) {
+        if isHovered {
+            Button(action: { Task { await openAlbum() } }) {
                 Text("Add")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color.vgAccent)

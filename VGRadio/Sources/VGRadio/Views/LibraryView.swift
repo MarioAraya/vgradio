@@ -14,7 +14,6 @@ private enum LibraryViewMode: String {
 
 struct LibraryView: View {
     @Environment(LibraryStore.self) var library
-    @Environment(WishlistStore.self) var wishlist
     @Environment(PlayerService.self) var player
     // Browser-style navigation history: nil = grid, non-nil = album detail
     @State private var history: [AlbumSummary?] = [nil]
@@ -23,8 +22,6 @@ struct LibraryView: View {
     @State private var swipeTracker = SwipeAccumulator()
     @State private var scrollMonitor: Any?
     @State private var hoveredID: String?
-    @State private var importingURL: String?
-    @State private var importError: String?
     @State private var searchText = ""
     @State private var searchFocused = false
     @State private var pendingDeleteAlbum: AlbumSummary?
@@ -176,10 +173,16 @@ struct LibraryView: View {
     private var libraryGrid: some View {
         ScrollView {
             VStack(alignment: .leading) {
-                HStack(spacing: VGSpace.sm) {
+                HStack(alignment: .lastTextBaseline, spacing: VGSpace.sm) {
                     Text("Library")
                         .font(VGFont.title())
                         .foregroundStyle(Color.vgText)
+
+                    if !library.albums.isEmpty {
+                        Text("\(library.albums.count) albums")
+                            .font(VGFont.body())
+                            .foregroundStyle(Color.vgTextMuted)
+                    }
 
                     Spacer()
 
@@ -250,7 +253,7 @@ struct LibraryView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.top, 60)
-                } else if library.albums.isEmpty && wishlist.items.isEmpty {
+                } else if library.albums.isEmpty {
                     emptyState
                 } else {
                     if !library.albums.isEmpty {
@@ -306,64 +309,10 @@ struct LibraryView: View {
                             .padding(.vertical, VGSpace.lg)
                         }
                     }
-
-                    if !wishlist.items.isEmpty && searchText.isEmpty {
-                        wishlistSection
-                    }
                 }
             }
         }
         .background(Color.vgBg)
-    }
-
-    private var wishlistSection: some View {
-        VStack(alignment: .leading, spacing: VGSpace.md) {
-            HStack(spacing: 6) {
-                Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.vgTextMuted)
-                Text("Not downloaded yet")
-                    .font(VGFont.caption(12))
-                    .foregroundStyle(Color.vgTextMuted)
-            }
-            .padding(.horizontal, VGSpace.xl)
-            .padding(.top, library.albums.isEmpty ? VGSpace.lg : 0)
-
-            if let err = importError {
-                Text(err)
-                    .font(VGFont.caption(11))
-                    .foregroundStyle(.red.opacity(0.85))
-                    .padding(.horizontal, VGSpace.xl)
-            }
-
-            LazyVGrid(columns: columns, spacing: VGSpace.md) {
-                ForEach(wishlist.items) { item in
-                    WishlistCard(
-                        item: item,
-                        isImporting: importingURL == item.url,
-                        onImport: { importItem(item) },
-                        onRemove: { wishlist.remove(url: item.url) }
-                    )
-                }
-            }
-            .padding(.horizontal, VGSpace.xl)
-            .padding(.bottom, VGSpace.lg)
-        }
-    }
-
-    private func importItem(_ item: WishlistItem) {
-        guard importingURL == nil else { return }
-        importingURL = item.url
-        importError = nil
-        Task {
-            do {
-                try await library.importAlbum(url: item.url)
-                wishlist.remove(url: item.url)
-            } catch {
-                importError = error.localizedDescription
-            }
-            importingURL = nil
-        }
     }
 
     private var emptyState: some View {
@@ -456,6 +405,11 @@ private struct AlbumCard: View {
 private struct CompactAlbumCard: View {
     let album: AlbumSummary
     @Environment(OfflineStore.self) var offline
+    @Environment(FavoritesStore.self) var favorites
+    @State private var showTooltip = false
+    @State private var hoverTask: Task<Void, Never>?
+
+    private var isDownloaded: Bool { offline.isAlbumDownloaded(albumID: album.id, totalTracks: album.trackCount) }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -467,7 +421,7 @@ private struct CompactAlbumCard: View {
                 enableHoverControls: false
             )
 
-            if offline.isAlbumDownloaded(albumID: album.id, totalTracks: album.trackCount) {
+            if isDownloaded {
                 Image(systemName: "checkmark.icloud.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(.white)
@@ -477,8 +431,64 @@ private struct CompactAlbumCard: View {
                     .padding(6)
             }
         }
-        .help(album.title)
         .contentShape(Rectangle())
+        .onHover { inside in
+            hoverTask?.cancel()
+            if inside {
+                // Near-instant custom tooltip — AppKit's native .help() still
+                // has a perceptible delay even at its lowest setting, and can't
+                // show rich, multi-line content (title + platform + downloaded state).
+                hoverTask = Task {
+                    try? await Task.sleep(nanoseconds: 80_000_000)
+                    if !Task.isCancelled { showTooltip = true }
+                }
+            } else {
+                showTooltip = false
+            }
+        }
+        .overlay(alignment: .top) {
+            if showTooltip {
+                CompactAlbumTooltip(album: album, isFavorited: favorites.isAlbumFavorited(album.id), isDownloaded: isDownloaded)
+                    .offset(y: -8)
+                    .zIndex(10)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+// MARK: - Compact card tooltip (custom, appears near-instantly on hover)
+
+private struct CompactAlbumTooltip: View {
+    let album: AlbumSummary
+    let isFavorited: Bool
+    let isDownloaded: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(album.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.vgText)
+                    .lineLimit(1)
+                if isFavorited {
+                    Image(systemName: "star.fill").font(.system(size: 9)).foregroundStyle(Color.vgStar)
+                }
+                if isDownloaded {
+                    Image(systemName: "checkmark.icloud.fill").font(.system(size: 9)).foregroundStyle(Color.green)
+                }
+            }
+            let firstPlatform = album.platform.split(separator: ",").first.map(String.init) ?? album.platform
+            Text("\(firstPlatform.trimmingCharacters(in: .whitespaces))  ·  \(String(album.year))\(album.totalDurationFormatted.isEmpty ? "" : "  ·  \(album.totalDurationFormatted)")")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.vgTextSec)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.1)))
+        .fixedSize()
     }
 }
 
@@ -538,82 +548,6 @@ private struct AlbumListRow: View {
         .background(isHovered ? Color.vgSurfaceHi : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Wishlist card
-
-private struct WishlistCard: View {
-    let item: WishlistItem
-    let isImporting: Bool
-    let onImport: () -> Void
-    let onRemove: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: VGSpace.sm) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(0.03))
-                    .frame(width: 160, height: 160)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                            .foregroundStyle(Color.white.opacity(0.15))
-                    )
-
-                if isImporting {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.8)
-                } else if isHovered {
-                    VStack(spacing: 6) {
-                        Button(action: onImport) {
-                            Label("Import", systemImage: "arrow.down.circle.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.vgBg)
-                                .padding(.horizontal, 12)
-                                .frame(height: 28)
-                                .background(Color.vgAccent)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-
-                        Button(action: onRemove) {
-                            Text("Remove")
-                                .font(VGFont.caption(11))
-                                .foregroundStyle(Color.vgTextMuted)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .transition(.opacity)
-                } else {
-                    Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Color.white.opacity(0.2))
-                }
-            }
-            .frame(width: 160, height: 160)
-            .animation(.easeOut(duration: 0.15), value: isHovered)
-
-            Text(item.displayTitle)
-                .font(VGFont.body())
-                .fontWeight(.medium)
-                .foregroundStyle(Color.vgTextSec)
-                .lineLimit(2)
-
-            Text("Not downloaded")
-                .font(VGFont.caption(10))
-                .foregroundStyle(Color.vgTextMuted)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.white.opacity(0.06))
-                .clipShape(Capsule())
-        }
-        .padding(VGSpace.sm)
-        .background(isHovered ? Color.vgSurfaceHi : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .onHover { isHovered = $0 }
     }
 }
 

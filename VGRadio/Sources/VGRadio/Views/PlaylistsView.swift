@@ -679,7 +679,7 @@ private struct FavoriteGroupView: View {
                     .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(group.albumTitle).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.vgText)
-                    Text("\(group.platform)  ·  \(group.year)").font(VGFont.mono(11)).foregroundStyle(Color.vgTextSec)
+                    Text("\(group.platform)  ·  \(String(group.year))").font(VGFont.mono(11)).foregroundStyle(Color.vgTextSec)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: openAlbum)

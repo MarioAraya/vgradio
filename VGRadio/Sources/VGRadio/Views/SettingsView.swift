@@ -90,6 +90,11 @@ struct SettingsView: View {
                             }
                         }
                         Spacer()
+                        if offline.hasFolder {
+                            Button("Abrir en Finder") { offline.revealFolderInFinder() }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(Color.vgAccent)
+                        }
                         Button("Elegir…") { offline.chooseFolder() }
                             .buttonStyle(.plain)
                             .foregroundStyle(Color.vgAccent)

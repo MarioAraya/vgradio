@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Binding var selection: SidebarItem
+    var onToggleSidebar: () -> Void = {}
     @Environment(LibraryStore.self) var library
     @Environment(AuthStore.self) var auth
     @Environment(PlaylistsStore.self) var playlists
@@ -11,27 +12,23 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Search bar
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.vgTextMuted)
-                Text("Search")
-                    .font(VGFont.caption(12))
-                    .foregroundStyle(Color.vgTextMuted)
+            // Brand header
+            HStack(spacing: 10) {
+                Button(action: onToggleSidebar) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.vgTextSec)
+                }
+                .buttonStyle(.plain)
+                Text("VGRadio")
+                    .font(VGFont.heading())
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.vgAccent)
                 Spacer()
-                Text("⌘K")
-                    .font(VGFont.label(10))
-                    .foregroundStyle(Color.vgTextMuted)
             }
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.05)))
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
             .padding(.top, 36)
-            .padding(.bottom, 4)
+            .padding(.bottom, 12)
 
             // MY MUSIC
             SidebarSection(title: "My Music") {
@@ -254,24 +251,24 @@ private struct SidebarRow: View {
                         .padding(.vertical, 6)
                         .frame(maxHeight: .infinity, alignment: .leading)
                 }
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image(systemName: icon)
-                        .font(.system(size: 13))
-                        .frame(width: 16)
+                        .font(.system(size: 15))
+                        .frame(width: 20)
                         .foregroundStyle(isSelected ? Color.vgAccent : Color.vgTextSec)
                     Text(label)
-                        .font(VGFont.caption(13))
+                        .font(VGFont.body(15))
                         .foregroundStyle(isSelected ? Color.vgAccent : Color.vgTextSec)
                     Spacer()
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
                 .padding(.leading, 2)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 28)
+            .frame(height: 38)
             .background(isSelected ? Color.vgAccentSoft : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

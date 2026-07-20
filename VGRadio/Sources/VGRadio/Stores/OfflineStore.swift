@@ -42,6 +42,11 @@ final class OfflineStore {
         folderURL?.path ?? "No configurada"
     }
 
+    func revealFolderInFinder() {
+        guard let folderURL else { return }
+        NSWorkspace.shared.open(folderURL)
+    }
+
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false

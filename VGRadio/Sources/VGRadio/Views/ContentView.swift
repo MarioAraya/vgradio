@@ -36,7 +36,11 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             NavigationSplitView(columnVisibility: $columnVisibility) {
-                SidebarView(selection: $selection)
+                SidebarView(selection: $selection, onToggleSidebar: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                    }
+                })
                     .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 220)
             } detail: {
                 ZStack {

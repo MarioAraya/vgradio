@@ -140,7 +140,7 @@ private struct SearchResultRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(album.title).font(VGFont.body()).foregroundStyle(Color.vgText)
-                Text("\(album.platform) · \(album.year)").font(VGFont.caption()).foregroundStyle(Color.vgTextSec)
+                Text("\(album.platform) · \(String(album.year))").font(VGFont.caption()).foregroundStyle(Color.vgTextSec)
             }
             Spacer()
             Text("\(album.trackCount) tracks").font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
