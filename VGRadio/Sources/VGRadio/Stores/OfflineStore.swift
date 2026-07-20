@@ -32,6 +32,7 @@ final class OfflineStore {
         offlineModeEnabled = UserDefaults.standard.bool(forKey: modeKey)
         loadFolderBookmark()
         loadDownloadedIDs()
+        migrateLegacyFileNames()
     }
 
     // MARK: - Folder
@@ -98,9 +99,57 @@ final class OfflineStore {
     }
 
     func localURL(for trackID: String) -> URL? {
-        guard let folderURL, downloadedTrackIDs.contains(trackID) else { return nil }
-        let file = folderURL.appendingPathComponent("\(trackID).mp3")
+        guard let folderURL, let track = downloadedTracks.first(where: { $0.id == trackID }) else { return nil }
+        let file = folderURL.appendingPathComponent(track.resolvedFileName)
         return FileManager.default.fileExists(atPath: file.path) ? file : nil
+    }
+
+    /// Sanitizes a string for use as a path component (no "/" or ":", trimmed, capped length).
+    private static func sanitizeForFilename(_ s: String) -> String {
+        let cleaned = s.replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let capped = cleaned.count > 80 ? String(cleaned.prefix(80)) : cleaned
+        return capped.isEmpty ? "Untitled" : capped
+    }
+
+    /// Builds a human-readable, collision-free filename for a track being downloaded.
+    private func uniqueFileName(albumTitle: String, trackName: String) -> String {
+        let base = "\(Self.sanitizeForFilename(albumTitle)) - \(Self.sanitizeForFilename(trackName))"
+        let existing = Set(downloadedTracks.map(\.resolvedFileName))
+        var candidate = "\(base).mp3"
+        var n = 2
+        while existing.contains(candidate) {
+            candidate = "\(base) (\(n)).mp3"
+            n += 1
+        }
+        return candidate
+    }
+
+    /// Renames already-downloaded files from the old "<trackId>.mp3" scheme to
+    /// human-readable "Album - Track.mp3" names, one time, so files dropped
+    /// into the offline folder before this change also become legible in Finder.
+    private func migrateLegacyFileNames() {
+        guard let folderURL else { return }
+        let accessed = folderURL.startAccessingSecurityScopedResource()
+        defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
+        var changed = false
+        for i in downloadedTracks.indices {
+            guard downloadedTracks[i].fileName == nil, downloadedTracks[i].albumTitle != "Descargas antiguas" else { continue }
+            let track = downloadedTracks[i]
+            let oldPath = folderURL.appendingPathComponent("\(track.id).mp3")
+            guard FileManager.default.fileExists(atPath: oldPath.path) else { continue }
+            let newName = uniqueFileName(albumTitle: track.albumTitle, trackName: track.name)
+            let newPath = folderURL.appendingPathComponent(newName)
+            do {
+                try FileManager.default.moveItem(at: oldPath, to: newPath)
+                downloadedTracks[i].fileName = newName
+                changed = true
+            } catch {
+                // best-effort; leave this one under its legacy name
+            }
+        }
+        if changed { saveDownloadedIDs() }
     }
 
     func isDownloaded(_ trackID: String) -> Bool { localURL(for: trackID) != nil }
@@ -124,9 +173,10 @@ final class OfflineStore {
         let accessed = folderURL.startAccessingSecurityScopedResource()
         defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
 
+        let fileName = uniqueFileName(albumTitle: album.title, trackName: track.name)
         do {
             let (tmpURL, _) = try await URLSession.shared.download(from: remoteURL)
-            let dest = folderURL.appendingPathComponent("\(track.id).mp3")
+            let dest = folderURL.appendingPathComponent(fileName)
             try? FileManager.default.removeItem(at: dest)
             try FileManager.default.moveItem(at: tmpURL, to: dest)
             downloadedTracks.removeAll(where: { $0.id == track.id })
@@ -134,7 +184,8 @@ final class OfflineStore {
                 id: track.id, index: track.index, name: track.name,
                 albumId: album.id, albumTitle: album.title,
                 platform: album.platform, year: album.year,
-                durationSec: track.durationSec, coverUrl: album.coverUrls.first
+                durationSec: track.durationSec, coverUrl: album.coverUrls.first,
+                fileName: fileName
             ), at: 0)
             saveDownloadedIDs()
         } catch {
@@ -163,8 +214,8 @@ final class OfflineStore {
 
     var offlineStorageBytes: Int64 {
         guard let folderURL else { return 0 }
-        return downloadedTrackIDs.reduce(Int64(0)) { total, id in
-            let file = folderURL.appendingPathComponent("\(id).mp3")
+        return downloadedTracks.reduce(Int64(0)) { total, t in
+            let file = folderURL.appendingPathComponent(t.resolvedFileName)
             let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
             return total + size
         }
@@ -173,7 +224,7 @@ final class OfflineStore {
     func offlineStorageBytes(albumID: String) -> Int64 {
         guard let folderURL else { return 0 }
         return downloadedTracks.filter { $0.albumId == albumID }.reduce(Int64(0)) { total, t in
-            let file = folderURL.appendingPathComponent("\(t.id).mp3")
+            let file = folderURL.appendingPathComponent(t.resolvedFileName)
             let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
             return total + size
         }

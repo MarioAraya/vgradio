@@ -333,6 +333,12 @@ struct DownloadedTrack: Codable, Identifiable {
     var year: Int
     var durationSec: Int
     var coverUrl: String?
+    /// Filename on disk, e.g. "Album Title - Track Name.mp3". `nil` for
+    /// entries saved before this field existed — those fall back to
+    /// "<trackId>.mp3" via `resolvedFileName`.
+    var fileName: String?
+
+    var resolvedFileName: String { fileName ?? "\(id).mp3" }
 
     var durationFormatted: String {
         let m = durationSec / 60, s = durationSec % 60

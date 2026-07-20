@@ -1,6 +1,6 @@
 {
   "project": "VGRadio",
-  "updated": "2026-07-17",
+  "updated": "2026-07-20",
   "phases": {
     "v1": {
       "label": "MVP",
@@ -16,7 +16,7 @@
         { "id": "client-library", "title": "Cliente: biblioteca de albumes", "status": "todo", "evidence": null },
         { "id": "client-addurl", "title": "Cliente: agregar album por URL + polling", "status": "todo", "evidence": null },
         { "id": "client-player", "title": "Cliente: player AVFoundation (play/pause/seek/next/prev)", "status": "todo", "evidence": null },
-        { "id": "client-download", "title": "Cliente: descarga album para offline", "status": "done", "evidence": "OfflineStore.swift + DownloadedView.swift, macOS-only, badges track/album, sesion 2026-07-17" },
+        { "id": "client-download", "title": "Cliente: descarga album para offline", "status": "done", "evidence": "OfflineStore.swift + DownloadedView.swift, macOS-only, badges track/album (2026-07-17); nombres de archivo legibles 'Album - Track.mp3' + migracion de legacy (2026-07-20)" },
         { "id": "favorites", "title": "Favoritos (★) por track, perfil local single-user", "status": "spec", "evidence": "1b78b28 (spec only)" }
       ]
     },

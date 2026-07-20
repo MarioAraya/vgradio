@@ -1,54 +1,66 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-07-17
+Última sesión: 2026-07-20
 
 ## En progreso
 
-### Offline downloads + badges "Descargado" (solo macOS)
+### Renombrado legible de archivos offline (macOS)
 
-Feature pedida: distintivo visual pa tracks/álbumes descargados + nuevo menú "Descargado" (como Favoritos). Alcance acotado a macOS (web queda sin tocar — no hay filesystem real en browser).
+Feature pedida: los mp3 descargados offline se guardaban como `<trackId>.mp3` (ej. `279.mp3`), ilegible en Finder. Usuario eligió explícitamente la opción "renombrar" (no ID3 tags — más riesgo/complejidad, descartado por ahora).
 
 **Contexto recopilado:**
-- `OfflineStore.swift` ya existía sin trackear al empezar la sesión (base: folder local elegido por usuario, reachability check, toggle modo offline). Solo guardaba IDs de tracks descargados, sin metadata — no alcanzaba pa agrupar por álbum como Favoritos.
-- Patrón de referencia: `FavoritesStore.swift` + `FavoritesView.swift` (grouped por álbum, persistencia, empty state).
-- Sidebar/nav: `SidebarItem` enum en `ContentView.swift`, filas en `SidebarView.swift`.
-- Hay **dos sistemas de descarga distintos** en `DetailTrackRow` (`AlbumDetailView.swift`): botón ⬇ (`downloadTrack` → `POST /tracks/{id}/fetch`, cachea en **servidor**, no toca la Mac) y botón ☁️✓ nuevo (`offline.downloadOffline`, guarda mp3 en carpeta local elegida). Usuario los confundió inicialmente — se resolvió con tooltips más explícitos, no fusión (decisión: dejar ambos, aclarar con `help()`).
-- Bug reportado y arreglado: cover faltante en player bar al reproducir desde Favorites/Descargado — causa: `FavoriteTrack.coverUrl`/`DownloadedTrack.coverUrl` puede venir vacío (guardado en momento sin covers cargados). Fix: fallback a `LibraryStore.albums.first(where: id)?.coverUrls` si `coverUrl` viene vacío, en `FavoritesView.swift` y `DownloadedView.swift`.
-- Bug reportado "no suena nada al doble-click" — resultó ser build viejo sin compilar (el SSD externo con Xcode, `/Volumes/ExtDevDisk`, estaba desmontado). Una vez compilado y confirmado: streaming remoto funciona normal cuando NO está en modo offline; solo bloquea si `effectiveOfflineMode` (toggle manual o backend inalcanzable).
+- `DownloadedTrack` (Models.swift) ya tenía toda la metadata necesaria (`albumTitle`, `name`) para construir un nombre legible — solo faltaba el campo para el nombre de archivo real.
+- El folder offline es un security-scoped bookmark (`NSOpenPanel` + `bookmarkData`) — cualquier operación de FileManager sobre él (incl. la migración) necesita `startAccessingSecurityScopedResource()`, ya se sigue ese patrón en `downloadOffline`.
 
 **Decisiones tomadas (implementadas):**
-- `OfflineStore` ahora persiste `[DownloadedTrack]` (JSON en UserDefaults, no solo IDs) con metadata completa (name, albumId, albumTitle, platform, year, durationSec, coverUrl, index) — necesario pa poder agrupar por álbum en la nueva vista.
-- Nuevo modelo `DownloadedTrack` en `Models.swift` (mismo shape que `FavoriteTrack` + `index`).
-- `OfflineStore.downloadOffline(_:album:)` ahora requiere `album: AlbumSummary` (antes solo `Track`) — call site actualizado en `AlbumDetailView.swift`.
-- Nuevas funciones: `downloadedCount(albumID:)`, `isAlbumDownloaded(albumID:totalTracks:)`, `grouped` (computed, mismo patrón que `FavoritesStore.grouped`).
-- Nueva vista `DownloadedView.swift` (clon de `FavoritesView.swift`, agrupado por álbum, botón quitar descarga en vez de estrella).
-- Badge álbum: círculo verde `checkmark.icloud.fill` sobre la portada en `AlbumCard` (grid) y junto al título en `AlbumListRow` (lista) — visible solo si `isAlbumDownloaded` (todos los tracks del álbum descargados localmente).
-- Item nuevo en sidebar: "Descargado" (ícono `checkmark.icloud`), entre Favorites y Recently Played. `SidebarItem.downloaded` en `ContentView.swift`.
+- `DownloadedTrack.fileName: String?` nuevo (opcional, así no rompe el decode de entradas JSON viejas que no lo tenían). `resolvedFileName` computed hace fallback a `"<id>.mp3"` si `fileName` es nil.
+- Nuevo naming: `"{Album} - {Track}.mp3"`, sanitizado (sin `/` ni `:`, cap 80 chars), con dedupe por sufijo `(2)`, `(3)`... si ya existe ese nombre.
+- Migración automática al arrancar (`migrateLegacyFileNames()` en `OfflineStore.init()`): renombra en disco los archivos legacy `<id>.mp3` a la nueva convención, una sola vez. Se salta las entradas placeholder `"Descargas antiguas"` (del migrate anterior de formato `[String]` → `[DownloadedTrack]`, sin metadata real de track/álbum) — esas se quedan con el nombre legacy porque no hay info útil para un nombre mejor.
+- Todos los sitios que antes derivaban la ruta con `"\(id).mp3"` (`localURL`, `offlineStorageBytes`, `offlineStorageBytes(albumID:)`) ahora usan `track.resolvedFileName`.
 
 **Preguntas pendientes antes de continuar:**
-1. Ninguna bloqueante. Falta: probar interactivamente el flujo completo (descargar track → verificar aparece en "Descargado" → verificar badge álbum cuando se completan todos los tracks → quitar descarga) y commitear.
+1. Ninguna bloqueante. Falta: build+run interactivo para confirmar que la migración renombra bien los archivos ya descargados hoy (el usuario mostró captura con `279.mp3`, `280.mp3`, etc. — verificar que al abrir la app esos pasan a `"Álbum - Track.mp3"`).
 
 ## Completado esta sesión
 
-- [x] Modelo `DownloadedTrack` en `Models.swift`
-- [x] `OfflineStore.swift`: persistencia con metadata (JSON), `grouped`, `downloadedCount`, `isAlbumDownloaded`
-- [x] `DownloadedView.swift` (vista nueva, agrupada por álbum, con "Play all" y quitar descarga)
-- [x] Sidebar: item "Descargado" (`ContentView.swift`, `SidebarView.swift`)
-- [x] Badge álbum descargado en `LibraryView.swift` (`AlbumCard` grid + `AlbumListRow` lista)
-- [x] Tooltips diferenciados pa botones ⬇ (server cache) vs ☁️✓ (offline local) en `AlbumDetailView.swift`
-- [x] Fix cover faltante en Favorites/Descargado al reproducir (fallback a `LibraryStore`)
-- [x] Build release confirmado OK (con `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer`), app relanzada y probada por usuario
+Sesión larga, múltiples rondas de fixes/features. En orden:
+
+- [x] **Offline downloads "Descargado"**: `OfflineStore.swift` reescrito con metadata completa, `DownloadedView.swift` nueva, badges track/álbum descargado, item sidebar
+- [x] Fix perf: Library scrolleaba con jank — swipe-back monitor escribía a `@State` en cada evento de scroll vertical, ahora usa un tracker de referencia (no dispara render) y solo promueve a `@State` en gesto horizontal confirmado
+- [x] Fix: filas del sidebar solo clickeables sobre el texto — `HStack+Spacer` no forzaba ancho completo
+- [x] Fix: header de tabla de tracks desalineado (columnas ⬇/☁️ se excluían condicionalmente en vez de reservar espacio fijo)
+- [x] "Visit source" agregado en macOS (ya existía en web), tenue-visible en ambos (antes invisible-hasta-hover en web)
+- [x] Botón "descargar álbum completo" (offline) en macOS — álbum y también en playlists (Liked Music + playlists normales)
+- [x] Cover-download-as-ZIP movido a ícono hover-only dentro de la portada (antes botón standalone) — web + macOS
+- [x] Cmd+K como shortcut alternativo para filtrar tracks dentro de un álbum (además de Cmd+F)
+- [x] Cover/título en Favorites/Descargado/Liked Music ahora navegan al álbum completo (macOS) — web ya lo tenía
+- [x] **Recently Played implementado de cero** — era un stub permanente vacío, nunca se grababa nada. `PlayerService` ahora hace `POST /history` en cada track (endpoint que ya existía en backend, nadie lo llamaba), `RecentlyPlayedView.swift` nueva con fetch real
+- [x] **Settings convertido a página del sidebar** (antes modal) — agregada sección "Álbumes descargados" con lista + tamaño + botón Eliminar por álbum (pedido explícito: no había forma de ver/liberar espacio offline)
+- [x] Quitado del sidebar macOS: Top 40, Favorites (duplicaba Liked Music), Add URL de Quick Actions (sigue con Cmd+5) — archivos huérfanos borrados (`Top40View.swift`, `FavoritesView.swift`)
+- [x] Quitado "Wishlist" del sidebar web (ruta/store se dejaron intactos)
+- [x] Tercer modo de vista Library "Compact" (macOS + web): covers tamaño grid normal, gap casi 0, sin epígrafe — con tooltip custom instantáneo (~80ms, sin librería externa) mostrando título/plataforma/año/duración/favorito
+- [x] Fix bug visual: filas de tracks se veían "apagadas" aunque estuvieran descargadas offline — el brillo dependía solo de la caché de servidor (⬇), no del offline (☁️)
+- [x] Quitado botón "Add to Queue" (▶+) de header y filas de track — sigue accesible por click derecho → "Play Next"
+- [x] Ícono header "👁" (eye, no coincidía con el ícono real) → "👎" (thumbsdown, coincide con `hand.thumbsdown`)
+- [x] Fix bug: `Text("\(year)")` en SwiftUI aplica agrupación de miles por locale (gotcha de `LocalizedStringKey`) → "1.993" en vez de "1993". Arreglado en 4 sitios (wrap con `String(year)`). Web no tenía el bug (interpolación JS plana)
+- [x] **Wishlist eliminado por completo del cliente macOS** (sección Library + `WishlistStore.swift` + botón bookmark en Browse) — botón "Add" de Browse ahora importa directo a la library
+- [x] **Header sidebar macOS** = "☰ VGRadio" (hamburger colapsa sidebar, igual Cmd+B), sacada la barra de búsqueda duplicada con Cmd+K, filas de menú más grandes (15pt/38pt)
+- [x] "Library" title en macOS ahora muestra "N albums" al lado, matching web
+- [x] **Web: filtro "Filter albums…" con Cmd+F** + Escape limpia, y los mismos 3 modos de vista que macOS (persistidos en localStorage)
+- [x] Botón "Abrir en Finder" para la carpeta offline en Settings
+- [x] Nombres de archivo legibles para descargas offline: `"Álbum - Track.mp3"` + migración automática de nombres legacy
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Probar interactivamente** el flujo completo de "Descargado" (badge álbum, quitar descarga, cover fix) — usuario confirmó audio funciona pero no confirmó explícitamente el fix de cover ni el badge de álbum
-- [ ] **Commitear cambios** — sin commitear: todo lo de arriba + cambios previos de sesión anterior (Sidebar.svelte, UserMenu.svelte, +layout.svelte, albums/[id]/+page.svelte — UI colapsable, sin relación con offline) + `AlbumDetailView.swift`/`SettingsView.swift` (sección OFFLINE en Settings)
-- [ ] **Push pendiente** — verificar cuántos commits adelante de `origin/main` tras commitear
-- [ ] Resto de pendientes de sesión anterior sigue igual (ver abajo)
+- [ ] **Commitear el último cambio** — sin commitear: `Models.swift` (campo `fileName`), `OfflineStore.swift` (renombrado + migración)
+- [ ] **Probar interactivamente** la migración de nombres de archivo (abrir app, verificar en Finder que los `279.mp3` etc pasaron a nombre legible)
+- [ ] **Push pendiente** — verificar cuántos commits adelante de `origin/main`
+- [ ] ID3 tags reales (TIT2/TALB/APIC) — usuario lo descartó esta sesión por riesgo/complejidad, pero quedó mencionado como posible follow-up si más adelante lo quiere
+- [ ] Resto de pendientes de sesiones anteriores sigue igual (ver abajo)
 
 ### Pendientes de sesiones anteriores (sin tocar esta sesión)
 
-- [ ] **Filtro Library en web** — paridad con macOS (barra de búsqueda en `/library`, Ctrl+F)
+- [ ] **Filtro Library en web** — ✅ ya resuelto esta sesión (Cmd+F + filtro), tachar de sesiones futuras
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync`
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
@@ -61,7 +73,7 @@ Feature pedida: distintivo visual pa tracks/álbumes descargados + nuevo menú "
 
 ### Build macOS requiere SSD externo montado
 
-Xcode vive en `/Volumes/ExtDevDisk/Xcode.app` (CommandLineTools solo no compila — falla con "Invalid manifest" / symbols not found). Si el SSD se desmonta a mitad de sesión, `swift build` falla silenciosamente distinto (a veces "missing DEVELOPER_DIR", a veces "Permission denied" en `/Volumes/ExtDevDisk`). Verificar con `ls /Volumes/ExtDevDisk/Xcode.app/Contents/Developer` antes de compilar.
+Xcode vive en `/Volumes/ExtDevDisk/Xcode.app` (CommandLineTools solo no compila). El SSD se desmontó varias veces durante esta sesión sin aviso — siempre verificar con `ls /Volumes/ExtDevDisk/Xcode.app/Contents/Developer` antes de compilar; si falla, pedirle al usuario que reconecte el disco.
 
 ```bash
 cd VGRadio && DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build -c release
@@ -70,13 +82,13 @@ cp .build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/
 open /Applications/VGRadio.app
 ```
 
-### Detalle técnico: scrapear catálogo completo khinsider
+### Gotcha SwiftUI: Text con interpolación de números
 
-3 modos: (1) por consola (revisar `catalog/syncer.go`, ya hay letra/consola parcial), (2) por año (`/game-soundtracks/year/2026`), (3) full catalog (`/game-soundtracks`, 102971 álbumes, 206 páginas). Necesita sección tipo "por descargar/scrapear" (similar a wishlist) pa trackear qué falta bajar.
+`Text("\(someInt)")` (interpolación de string) usa `LocalizedStringKey` internamente, que SÍ aplica separador de miles según el locale del sistema — incluso dentro de interpolación literal, no solo con `Text(someInt)` directo. Para evitar esto, siempre `Text("\(String(someInt))")` o pre-convertir a `String` antes de armar el string interpolado. Mordió en year (1993 → "1.993") en varios lugares esta sesión.
 
-### Detalle técnico: mini-covers en Browse/catalog search
+### Arquitectura offline (macOS-only)
 
-`CatalogEntry` (`backend/internal/scraper/catalog.go:14`) no tiene campo cover — `extractCatalogEntries` nunca capturó thumb URL (solo el album detail page trae covers). Fix: agregar `CoverThumbURL` a `CatalogEntry`, parsear `<img>` thumb, columna nueva en tabla `catalog`, actualizar `SearchCatalog`/`CountCatalog`, grid UI en Browse (macOS/web).
+Favoritos, Descargado (offline), Recently Played y "álbum completo download" son conceptos exclusivos de macOS — no hay backend ni tablas SQL para favoritos-offline (favoritos normales sí son backend). Web no tiene ningún concepto de "offline files", solo streaming. Si en algún momento se quiere paridad, requeriría diseño nuevo de sync cross-device (mencionado en `features.json` v2 roadmap: `favorites-backend`, pero offline-per-device es otra cosa).
 
 ### Infraestructura homelab
 
@@ -111,12 +123,12 @@ curl -X POST https://vgradio-api.lab/albums/9ee1fa540f28534f/scrape-tracks
 ### Comandos útiles
 
 ```bash
-# Build macOS (usar el script, no manual — pero verificar SSD montado primero)
-./scripts/build-mac.sh
-
 # Backend local
 kill $(lsof -t -i :8080) 2>/dev/null; sleep 1
 cd backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
+
+# Web dev (svelte-check antes de dar por bueno un cambio)
+cd web && npx svelte-check --tsconfig ./tsconfig.json
 
 # Ver build Drone
 curl -sk "https://drone.lab/api/repos/maaya/vgradio-app/builds?limit=3" \
