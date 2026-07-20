@@ -4,22 +4,7 @@
 
 ## En progreso
 
-### Renombrado legible de archivos offline (macOS)
-
-Feature pedida: los mp3 descargados offline se guardaban como `<trackId>.mp3` (ej. `279.mp3`), ilegible en Finder. Usuario eligió explícitamente la opción "renombrar" (no ID3 tags — más riesgo/complejidad, descartado por ahora).
-
-**Contexto recopilado:**
-- `DownloadedTrack` (Models.swift) ya tenía toda la metadata necesaria (`albumTitle`, `name`) para construir un nombre legible — solo faltaba el campo para el nombre de archivo real.
-- El folder offline es un security-scoped bookmark (`NSOpenPanel` + `bookmarkData`) — cualquier operación de FileManager sobre él (incl. la migración) necesita `startAccessingSecurityScopedResource()`, ya se sigue ese patrón en `downloadOffline`.
-
-**Decisiones tomadas (implementadas):**
-- `DownloadedTrack.fileName: String?` nuevo (opcional, así no rompe el decode de entradas JSON viejas que no lo tenían). `resolvedFileName` computed hace fallback a `"<id>.mp3"` si `fileName` es nil.
-- Nuevo naming: `"{Album} - {Track}.mp3"`, sanitizado (sin `/` ni `:`, cap 80 chars), con dedupe por sufijo `(2)`, `(3)`... si ya existe ese nombre.
-- Migración automática al arrancar (`migrateLegacyFileNames()` en `OfflineStore.init()`): renombra en disco los archivos legacy `<id>.mp3` a la nueva convención, una sola vez. Se salta las entradas placeholder `"Descargas antiguas"` (del migrate anterior de formato `[String]` → `[DownloadedTrack]`, sin metadata real de track/álbum) — esas se quedan con el nombre legacy porque no hay info útil para un nombre mejor.
-- Todos los sitios que antes derivaban la ruta con `"\(id).mp3"` (`localURL`, `offlineStorageBytes`, `offlineStorageBytes(albumID:)`) ahora usan `track.resolvedFileName`.
-
-**Preguntas pendientes antes de continuar:**
-1. Ninguna bloqueante. Falta: build+run interactivo para confirmar que la migración renombra bien los archivos ya descargados hoy (el usuario mostró captura con `279.mp3`, `280.mp3`, etc. — verificar que al abrir la app esos pasan a `"Álbum - Track.mp3"`).
+Nada en curso — todo lo de esta sesión quedó commiteado, pusheado y deployado (ver abajo). Próxima sesión arranca de cero en features nuevas.
 
 ## Completado esta sesión
 
@@ -49,18 +34,17 @@ Sesión larga, múltiples rondas de fixes/features. En orden:
 - [x] **Web: filtro "Filter albums…" con Cmd+F** + Escape limpia, y los mismos 3 modos de vista que macOS (persistidos en localStorage)
 - [x] Botón "Abrir en Finder" para la carpeta offline en Settings
 - [x] Nombres de archivo legibles para descargas offline: `"Álbum - Track.mp3"` + migración automática de nombres legacy
+- [x] Commit final (`97ecbf1`) + push a `origin` (GitHub→Vercel) y `gitea` (→Drone CI homelab)
+- [x] Deploy verificado: Drone build #14 (`536a794..97ecbf1`) — **success**
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Commitear el último cambio** — sin commitear: `Models.swift` (campo `fileName`), `OfflineStore.swift` (renombrado + migración)
-- [ ] **Probar interactivamente** la migración de nombres de archivo (abrir app, verificar en Finder que los `279.mp3` etc pasaron a nombre legible)
-- [ ] **Push pendiente** — verificar cuántos commits adelante de `origin/main`
+- [ ] **Probar interactivamente en producción/homelab** la migración de nombres de archivo (abrir app, verificar en Finder que los `279.mp3` etc pasaron a nombre legible) — el build pasó pero esto es un comportamiento runtime del cliente macOS, no lo cubre CI
 - [ ] ID3 tags reales (TIT2/TALB/APIC) — usuario lo descartó esta sesión por riesgo/complejidad, pero quedó mencionado como posible follow-up si más adelante lo quiere
 - [ ] Resto de pendientes de sesiones anteriores sigue igual (ver abajo)
 
 ### Pendientes de sesiones anteriores (sin tocar esta sesión)
 
-- [ ] **Filtro Library en web** — ✅ ya resuelto esta sesión (Cmd+F + filtro), tachar de sesiones futuras
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync`
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
