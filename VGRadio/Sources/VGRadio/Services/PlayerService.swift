@@ -131,6 +131,9 @@ final class PlayerService {
         observeTime()
         observeEnd()
         updateNowPlayingInfo()
+        if let albumId = currentAlbum?.id {
+            Task { await APIClient.shared.recordHistory(trackId: track.id, albumId: albumId) }
+        }
     }
 
     private func observeTime() {

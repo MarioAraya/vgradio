@@ -310,11 +310,14 @@ struct AlbumDetailView: View {
                 Text("#").frame(width: 40, alignment: .center)
                 Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
                 Text("DUR").frame(width: 60, alignment: .trailing)
-                Text("▶+").frame(width: 40, alignment: .center)
                 Text("⬇").frame(width: 40, alignment: .center)
+                    .help("Cachear en el servidor (acelera el streaming, no guarda nada en esta Mac)")
                 Text("☁️").frame(width: 40, alignment: .center)
+                    .help("Guardar en esta Mac para escuchar sin conexión")
                 Text("👍").frame(width: 40, alignment: .center)
-                Text("👁").frame(width: 40, alignment: .center)
+                    .help("Favorito")
+                Text("👎").frame(width: 40, alignment: .center)
+                    .help("Ocultar de reproducción automática")
             }
             .font(VGFont.label(10))
             .tracking(1.0)
@@ -783,6 +786,10 @@ private struct DetailTrackRow: View {
 
     private var isHidden: Bool { hidden.isHidden(track.id) }
     private var isFav: Bool { favorites.isFavorite(track.id) }
+    // Available to play without hitting the network — cached on the server
+    // OR saved locally on this Mac. Drives row brightness so offline-only
+    // downloads don't look dim/unavailable.
+    private var isAvailable: Bool { isDownloaded || isOffline }
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -804,13 +811,13 @@ private struct DetailTrackRow: View {
                     } else if isPlaying {
                         Image(systemName: "waveform")
                             .foregroundStyle(Color.vgAccent).font(.system(size: 12))
-                    } else if isHovered && isDownloaded {
+                    } else if isHovered && isAvailable {
                         Image(systemName: "play.fill")
                             .foregroundStyle(Color.vgText).font(.system(size: 11))
                     } else {
                         Text(String(format: "%02d", track.index))
                             .font(VGFont.mono(12))
-                            .foregroundStyle(isDownloaded ? Color.vgTextMuted : Color.vgTextMuted.opacity(0.4))
+                            .foregroundStyle(isAvailable ? Color.vgTextMuted : Color.vgTextMuted.opacity(0.4))
                     }
                 }
                 .frame(width: 40, alignment: .center)
@@ -820,7 +827,7 @@ private struct DetailTrackRow: View {
                     .foregroundStyle(
                         isHidden ? Color.vgTextMuted :
                         isPlaying ? Color.vgAccent :
-                        isDownloaded ? Color.vgText : Color.vgTextSec.opacity(0.5)
+                        isAvailable ? Color.vgText : Color.vgTextSec.opacity(0.5)
                     )
                     .strikethrough(isHidden, color: Color.vgTextMuted)
                     .lineLimit(1)
@@ -828,21 +835,9 @@ private struct DetailTrackRow: View {
 
                 Text(track.durationFormatted)
                     .font(VGFont.mono(12))
-                    .foregroundStyle(isDownloaded ? (isHidden ? Color.vgTextMuted.opacity(0.5) : Color.vgTextSec) : Color.vgTextMuted.opacity(0.3))
+                    .foregroundStyle(isAvailable ? (isHidden ? Color.vgTextMuted.opacity(0.5) : Color.vgTextSec) : Color.vgTextMuted.opacity(0.3))
                     .frame(width: 60, alignment: .trailing)
                     .monospacedDigit()
-
-                // Play next button
-                Button {
-                    player.playNext(track)
-                } label: {
-                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
-                        .font(.system(size: 12))
-                        .foregroundStyle(isHovered ? Color.vgTextSec : Color.clear)
-                }
-                .buttonStyle(.plain)
-                .frame(width: 40, alignment: .center)
-                .help("Play next")
 
                 // Download button (server-side cache; reserves its column even
                 // once downloaded, so row widths stay aligned with the header)
@@ -898,7 +893,7 @@ private struct DetailTrackRow: View {
                         .font(.system(size: 12))
                         .foregroundStyle(isFav ? Color.vgStar : Color.vgTextSec)
                         .scaleEffect(isFav ? 1.1 : 1)
-                        .opacity(isFav || isHovered ? 1 : (isDownloaded ? 0 : 0.25))
+                        .opacity(isFav || isHovered ? 1 : (isAvailable ? 0 : 0.25))
                         .animation(.spring(response: 0.2), value: isFav)
                 }
                 .buttonStyle(.plain)

@@ -8,6 +8,10 @@ private final class SwipeAccumulator {
     var y: CGFloat = 0
 }
 
+private enum LibraryViewMode: String {
+    case grid, list, compact
+}
+
 struct LibraryView: View {
     @Environment(LibraryStore.self) var library
     @Environment(WishlistStore.self) var wishlist
@@ -26,9 +30,10 @@ struct LibraryView: View {
     @State private var pendingDeleteAlbum: AlbumSummary?
     @State private var isDeletingAlbum = false
     @FocusState private var searchFieldFocused: Bool
-    @AppStorage("vgradio.libraryListView") private var isListView = false
+    @AppStorage("vgradio.libraryViewMode") private var viewMode = LibraryViewMode.grid
 
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: VGSpace.md)]
+    private let compactColumns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 2)]
 
     private var selected: AlbumSummary? { history[historyIndex] }
 
@@ -210,17 +215,25 @@ struct LibraryView: View {
                     .frame(width: 220)
 
                     HStack(spacing: 2) {
-                        Button { isListView = false } label: {
+                        Button { viewMode = .grid } label: {
                             Image(systemName: "square.grid.2x2")
-                                .foregroundStyle(isListView ? Color.vgTextMuted : Color.vgAccent)
+                                .foregroundStyle(viewMode == .grid ? Color.vgAccent : Color.vgTextMuted)
                                 .frame(width: 26, height: 22)
                         }
                         .buttonStyle(.plain)
                         .help("Grid view")
 
-                        Button { isListView = true } label: {
+                        Button { viewMode = .compact } label: {
+                            Image(systemName: "square.grid.3x3")
+                                .foregroundStyle(viewMode == .compact ? Color.vgAccent : Color.vgTextMuted)
+                                .frame(width: 26, height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Compact view")
+
+                        Button { viewMode = .list } label: {
                             Image(systemName: "list.bullet")
-                                .foregroundStyle(isListView ? Color.vgAccent : Color.vgTextMuted)
+                                .foregroundStyle(viewMode == .list ? Color.vgAccent : Color.vgTextMuted)
                                 .frame(width: 26, height: 22)
                         }
                         .buttonStyle(.plain)
@@ -247,11 +260,25 @@ struct LibraryView: View {
                                 .foregroundStyle(Color.vgTextMuted)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.top, 40)
-                        } else if isListView {
+                        } else if viewMode == .list {
                             LazyVStack(spacing: 0) {
                                 ForEach(filteredAlbums) { album in
                                     AlbumListRow(album: album, isHovered: hoveredID == album.id)
                                         .onHover { hoveredID = $0 ? album.id : nil }
+                                        .onTapGesture { navigate(to: album) }
+                                        .contextMenu {
+                                            Button(role: .destructive) { pendingDeleteAlbum = album } label: {
+                                                Label("Eliminar de la library", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                            .padding(.horizontal, VGSpace.xl)
+                            .padding(.top, VGSpace.md)
+                        } else if viewMode == .compact {
+                            LazyVGrid(columns: compactColumns, spacing: 2) {
+                                ForEach(filteredAlbums) { album in
+                                    CompactAlbumCard(album: album)
                                         .onTapGesture { navigate(to: album) }
                                         .contextMenu {
                                             Button(role: .destructive) { pendingDeleteAlbum = album } label: {
@@ -421,6 +448,37 @@ private struct AlbumCard: View {
         .background(isHovered ? Color.vgSurfaceHi : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .animation(.easeOut(duration: 0.15), value: isHovered)
+    }
+}
+
+// MARK: - Compact Album Card (cover-only grid, no epigraph, near-zero gap)
+
+private struct CompactAlbumCard: View {
+    let album: AlbumSummary
+    @Environment(OfflineStore.self) var offline
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            AlbumCoverView(
+                covers: album.covers,
+                title: album.title,
+                size: 160,
+                initialIndex: CoverPrefsStore.shared.index(for: album.id),
+                enableHoverControls: false
+            )
+
+            if offline.isAlbumDownloaded(albumID: album.id, totalTracks: album.trackCount) {
+                Image(systemName: "checkmark.icloud.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
+                    .padding(5)
+                    .background(Color.green)
+                    .clipShape(Circle())
+                    .padding(6)
+            }
+        }
+        .help(album.title)
+        .contentShape(Rectangle())
     }
 }
 

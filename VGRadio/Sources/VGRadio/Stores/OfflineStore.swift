@@ -145,10 +145,30 @@ final class OfflineStore {
         saveDownloadedIDs()
     }
 
+    /// Removes every locally-downloaded track belonging to an album (frees disk space).
+    func removeAllOffline(albumID: String) {
+        for id in downloadedTracks.filter({ $0.albumId == albumID }).map(\.id) {
+            if let url = localURL(for: id) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        downloadedTracks.removeAll(where: { $0.albumId == albumID })
+        saveDownloadedIDs()
+    }
+
     var offlineStorageBytes: Int64 {
         guard let folderURL else { return 0 }
         return downloadedTrackIDs.reduce(Int64(0)) { total, id in
             let file = folderURL.appendingPathComponent("\(id).mp3")
+            let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
+            return total + size
+        }
+    }
+
+    func offlineStorageBytes(albumID: String) -> Int64 {
+        guard let folderURL else { return 0 }
+        return downloadedTracks.filter { $0.albumId == albumID }.reduce(Int64(0)) { total, t in
+            let file = folderURL.appendingPathComponent("\(t.id).mp3")
             let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int64) ?? 0
             return total + size
         }

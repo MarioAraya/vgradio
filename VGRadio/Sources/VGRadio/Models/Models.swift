@@ -212,12 +212,16 @@ struct CatalogConsole: Decodable, Identifiable {
     var albumCount: Int
 }
 
-struct Top40Entry: Decodable, Identifiable {
-    var rank: Int
-    var title: String
-    var sourceUrl: String
-    var coverThumbUrl: String
-    var id: String { sourceUrl }
+struct HistoryEntry: Decodable, Identifiable {
+    var trackId: String
+    var trackName: String
+    var albumId: String
+    var albumTitle: String
+    var platform: String
+    var year: Int
+    var coverUrl: String
+    var playedAt: String
+    var id: String { trackId + playedAt }
 }
 
 struct CatalogSyncProgress: Decodable {

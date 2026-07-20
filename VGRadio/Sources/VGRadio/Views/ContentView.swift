@@ -11,12 +11,11 @@ private final class SwipeAccumulator {
 enum SidebarItem: Hashable {
     case library
     case browse
-    case top40
-    case favorites
     case downloaded
     case recentlyPlayed
     case playlistLiked
     case playlist(id: String)
+    case settings
 }
 
 struct ContentView: View {
@@ -28,7 +27,6 @@ struct ContentView: View {
     @State private var selection: SidebarItem = .library
     @State private var showAddURL = false
     @State private var showSearch = false
-    @State private var showSettings = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var spaceKeyMonitor: Any?
     @State private var backSwipeMonitor: Any?
@@ -38,7 +36,7 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             NavigationSplitView(columnVisibility: $columnVisibility) {
-                SidebarView(selection: $selection, showAddURL: $showAddURL)
+                SidebarView(selection: $selection)
                     .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 220)
             } detail: {
                 ZStack {
@@ -79,19 +77,6 @@ struct ContentView: View {
         }
         .overlay {
             if showSearch { SearchOverlay(isShowing: $showSearch) }
-        }
-        .overlay {
-            if showSettings {
-                ZStack {
-                    Color.black.opacity(0.55)
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture { showSettings = false }
-                    SettingsView(isPresented: $showSettings)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .onKeyPress(.escape) { showSettings = false; return .handled }
-            }
         }
         .overlay(alignment: .bottomTrailing) {
             if player.showQueue {
@@ -160,8 +145,7 @@ struct ContentView: View {
                 Button("") { showSearch = true           }.keyboardShortcut("k", modifiers: .command)
                 Button("") { selection = .library        }.keyboardShortcut("1", modifiers: .command)
                 Button("") { selection = .browse         }.keyboardShortcut("2", modifiers: .command)
-                Button("") { selection = .favorites      }.keyboardShortcut("3", modifiers: .command)
-                Button("") { selection = .playlistLiked  }.keyboardShortcut("4", modifiers: .command)
+                Button("") { selection = .playlistLiked  }.keyboardShortcut("3", modifiers: .command)
                 Button("") { showAddURL = true           }.keyboardShortcut("5", modifiers: .command)
                 Button("") {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -178,7 +162,7 @@ struct ContentView: View {
                     guard let track = player.currentTrack, let album = player.currentAlbum else { return }
                     favorites.toggle(track, album: album)
                 }.keyboardShortcut("f", modifiers: [.command, .shift])
-                Button("") { showSettings = true }.keyboardShortcut(",", modifiers: .command)
+                Button("") { selection = .settings }.keyboardShortcut(",", modifiers: .command)
             }
             .hidden()
         }
@@ -193,13 +177,12 @@ struct ContentView: View {
     private var detailView: some View {
         switch selection {
         case .library:       LibraryView()
-        case .favorites:     FavoritesView()
         case .downloaded:    DownloadedView()
         case .browse:        BrowseView()
-        case .top40:         Top40View()
         case .recentlyPlayed: RecentlyPlayedView()
         case .playlistLiked: LikedMusicView()
         case .playlist(let id): PlaylistDetailView(playlistId: id)
+        case .settings:      SettingsView()
         }
     }
 }

@@ -370,23 +370,3 @@ private struct CatalogEntryRow: View {
             )
     }
 }
-
-// MARK: - Recently Played stub
-
-struct RecentlyPlayedView: View {
-    var body: some View {
-        VStack(spacing: VGSpace.md) {
-            Image(systemName: "clock")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.vgTextMuted)
-            Text("Recently Played")
-                .font(VGFont.heading())
-                .foregroundStyle(Color.vgTextSec)
-            Text("Tracks you've played will appear here.")
-                .font(VGFont.body())
-                .foregroundStyle(Color.vgTextMuted)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.vgBg)
-    }
-}

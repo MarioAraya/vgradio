@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SidebarView: View {
     @Binding var selection: SidebarItem
-    @Binding var showAddURL: Bool
     @Environment(LibraryStore.self) var library
     @Environment(AuthStore.self) var auth
     @Environment(PlaylistsStore.self) var playlists
@@ -38,8 +37,6 @@ struct SidebarView: View {
             SidebarSection(title: "My Music") {
                 SidebarRow(icon: "music.note.list", label: "Library",         item: .library,        selection: $selection)
                 SidebarRow(icon: "globe",           label: "Browse",          item: .browse,         selection: $selection)
-                SidebarRow(icon: "chart.bar.fill",  label: "Top 40",          item: .top40,          selection: $selection)
-                SidebarRow(icon: "star",            label: "Favorites",       item: .favorites,      selection: $selection)
                 SidebarRow(icon: "checkmark.icloud", label: "Descargado",     item: .downloaded,     selection: $selection)
                 SidebarRow(icon: "clock",           label: "Recently Played", item: .recentlyPlayed, selection: $selection)
             }
@@ -49,28 +46,10 @@ struct SidebarView: View {
                 playlistsSection
             }
 
-            SidebarSection(title: "Quick Actions") {
-                Button { showAddURL = true } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.vgAccent)
-                            .frame(width: 16)
-                        Text("Add URL")
-                            .font(VGFont.caption(13))
-                            .foregroundStyle(Color.vgText)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 28)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 4)
-            }
-
             Spacer()
+
+            SidebarRow(icon: "gearshape", label: "Settings", item: .settings, selection: $selection)
+                .padding(.bottom, 4)
 
             Divider().overlay(Color.vgSeparator)
 

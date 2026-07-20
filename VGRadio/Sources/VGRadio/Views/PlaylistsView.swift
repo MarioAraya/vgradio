@@ -5,6 +5,8 @@ import SwiftUI
 struct LikedMusicView: View {
     @Environment(FavoritesStore.self) var favorites
     @Environment(PlayerService.self) var player
+    @Environment(OfflineStore.self) var offline
+    @State private var isDownloadingAll = false
 
     var body: some View {
         ScrollView {
@@ -24,18 +26,42 @@ struct LikedMusicView: View {
                             .font(VGFont.body())
                             .foregroundStyle(Color.vgTextSec)
                         if !favorites.favorites.isEmpty {
-                            Button { playAll() } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "play.fill").font(.system(size: 11))
-                                    Text("Play all").font(.system(size: 13, weight: .semibold))
+                            HStack(spacing: 8) {
+                                Button { playAll() } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "play.fill").font(.system(size: 11))
+                                        Text("Play all").font(.system(size: 13, weight: .semibold))
+                                    }
+                                    .foregroundStyle(Color.vgBg)
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 7)
+                                    .background(Color.vgAccent)
+                                    .clipShape(Capsule())
                                 }
-                                .foregroundStyle(Color.vgBg)
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 7)
-                                .background(Color.vgAccent)
-                                .clipShape(Capsule())
+                                .buttonStyle(.plain)
+
+                                if offline.hasFolder {
+                                    Button {
+                                        Task { await downloadAllOffline() }
+                                    } label: {
+                                        Group {
+                                            if isDownloadingAll {
+                                                ProgressView().progressViewStyle(.circular).scaleEffect(0.6)
+                                            } else {
+                                                Image(systemName: "icloud.and.arrow.down")
+                                                    .font(.system(size: 14))
+                                            }
+                                        }
+                                        .foregroundStyle(Color.vgTextSec)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.white.opacity(0.05))
+                                        .clipShape(Circle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(isDownloadingAll)
+                                    .help("Descargar toda la playlist para escuchar sin conexión")
+                                }
                             }
-                            .buttonStyle(.plain)
                             .padding(.top, 4)
                         }
                     }
@@ -75,6 +101,20 @@ struct LikedMusicView: View {
                                   albumType: "", trackCount: tracks.count, totalDurationSec: 0, coverUrls: [])
         player.play(track: first, in: album, queue: tracks)
     }
+
+    private func downloadAllOffline() async {
+        guard offline.hasFolder, !isDownloadingAll else { return }
+        isDownloadingAll = true
+        for f in favorites.favorites where !offline.isDownloaded(f.id) {
+            let track = Track(id: f.id, index: 0, name: f.name, durationSec: f.durationSec,
+                              sizeBytes: 0, streamUrl: "/tracks/\(f.id)/stream", downloadUrl: "/tracks/\(f.id)/download")
+            let album = AlbumSummary(id: f.albumId, title: f.albumTitle, platform: f.platform, year: f.year,
+                                     albumType: "", trackCount: 0, totalDurationSec: 0,
+                                     coverUrls: f.coverUrl.map { [$0] } ?? [])
+            await offline.downloadOffline(track, album: album)
+        }
+        isDownloadingAll = false
+    }
 }
 
 // MARK: - Playlist Detail
@@ -84,12 +124,14 @@ struct PlaylistDetailView: View {
     @Environment(PlayerService.self) var player
     @Environment(PlaylistsStore.self) var store
     @Environment(AuthStore.self) var auth
+    @Environment(OfflineStore.self) var offline
 
     @State private var detail: PlaylistDetail?
     @State private var isLoading = true
     @State private var error = ""
     @State private var showEdit = false
     @State private var hoveredTrackId: String?
+    @State private var isDownloadingAll = false
 
     var body: some View {
         ScrollView {
@@ -165,6 +207,28 @@ struct PlaylistDetailView: View {
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
+
+                        if offline.hasFolder {
+                            Button {
+                                Task { await downloadAllOffline(pl) }
+                            } label: {
+                                Group {
+                                    if isDownloadingAll {
+                                        ProgressView().progressViewStyle(.circular).scaleEffect(0.6)
+                                    } else {
+                                        Image(systemName: "icloud.and.arrow.down")
+                                            .font(.system(size: 14))
+                                    }
+                                }
+                                .foregroundStyle(Color.vgTextSec)
+                                .frame(width: 32, height: 32)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isDownloadingAll)
+                            .help("Descargar toda la playlist para escuchar sin conexión")
+                        }
                     }
 
                     if auth.currentUser?.id == pl.ownerId {
@@ -247,6 +311,20 @@ struct PlaylistDetailView: View {
                                     albumType: "", trackCount: pl.trackCount,
                                     totalDurationSec: pl.totalDurationSec, coverUrls: pl.coverUrls)
         player.play(track: first, in: summary, queue: queue)
+    }
+
+    private func downloadAllOffline(_ pl: PlaylistDetail) async {
+        guard offline.hasFolder, !isDownloadingAll else { return }
+        isDownloadingAll = true
+        for t in pl.tracks where !offline.isDownloaded(t.id) {
+            let track = Track(id: t.id, index: t.position, name: t.name, durationSec: t.durationSec,
+                              sizeBytes: 0, streamUrl: "/tracks/\(t.id)/stream", downloadUrl: "/tracks/\(t.id)/download")
+            let album = AlbumSummary(id: t.albumId, title: t.albumTitle, platform: t.platform, year: t.year,
+                                     albumType: "", trackCount: 0, totalDurationSec: 0,
+                                     coverUrls: t.coverUrl.map { [$0] } ?? [])
+            await offline.downloadOffline(track, album: album)
+        }
+        isDownloadingAll = false
     }
 
     private func playFrom(_ pl: PlaylistDetail, track: PlaylistTrack) {

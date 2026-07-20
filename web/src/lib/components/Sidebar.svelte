@@ -24,7 +24,6 @@
     { href: '/',          label: 'Library',   icon: '♫' },
     { href: '/browse',    label: 'Browse',    icon: '🔍' },
     { href: '/history',   label: 'Recientes', icon: '🕐' },
-    { href: '/wishlist',  label: 'Wishlist',  icon: '📋' },
     { href: '/settings',  label: 'Settings',  icon: '⚙' },
   ];
 

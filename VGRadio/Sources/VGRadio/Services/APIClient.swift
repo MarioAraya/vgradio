@@ -126,9 +126,21 @@ final class APIClient {
         return try JSONDecoder().decode([CatalogConsole].self, from: data)
     }
 
-    func top40() async throws -> [Top40Entry] {
-        let (data, _) = try await session.data(from: try url("/catalog/top40"))
-        return try JSONDecoder().decode([Top40Entry].self, from: data)
+    // MARK: - History
+
+    func recordHistory(trackId: String, albumId: String) async {
+        guard var req = try? URLRequest(url: url("/history")) else { return }
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["trackId": trackId, "albumId": albumId])
+        _ = try? await session.data(for: req)
+    }
+
+    func history(limit: Int = 100) async throws -> [HistoryEntry] {
+        var comps = URLComponents(string: baseURL + "/history")!
+        comps.queryItems = [.init(name: "limit", value: String(limit))]
+        let (data, _) = try await session.data(from: comps.url!)
+        return try JSONDecoder().decode([HistoryEntry].self, from: data)
     }
 
     // MARK: - Stream URL
