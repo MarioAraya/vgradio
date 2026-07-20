@@ -5,8 +5,9 @@
   export let covers: { url: string }[] = [];
   export let index: number = 0;
   export let size: number = 220;
+  export let downloadable: boolean = false;
 
-  const dispatch = createEventDispatcher<{ change: number; open: number }>();
+  const dispatch = createEventDispatcher<{ change: number; open: number; download: void }>();
 
   let swipeStartX = 0;
 
@@ -60,6 +61,18 @@
         tabindex="-1"
         aria-label="Next cover"
       >›</button>
+    {/if}
+
+    {#if downloadable}
+      <button
+        class="dl-btn"
+        on:click|stopPropagation={() => dispatch('download')}
+        on:pointerdown|stopPropagation
+        on:pointerup|stopPropagation
+        tabindex="-1"
+        aria-label="Download covers"
+        title={covers.length > 1 ? 'Download all covers as ZIP' : 'Download cover'}
+      >⬇</button>
     {/if}
   </div>
 
@@ -117,6 +130,24 @@
   .nav-btn:disabled { opacity: 0 !important; }
   .nav-btn.left { left: 6px; }
   .nav-btn.right { right: 6px; }
+
+  .dl-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px; height: 28px;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    border-radius: 50%;
+    font-size: 13px;
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 2;
+    line-height: 1;
+  }
+  .img-wrap:hover .dl-btn { opacity: 1; }
 
   .dots {
     display: flex;

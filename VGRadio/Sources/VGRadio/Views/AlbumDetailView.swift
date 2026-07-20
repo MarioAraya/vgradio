@@ -16,6 +16,7 @@ struct AlbumDetailView: View {
     @State private var showLightbox = false
     @State private var downloadingTrackID: String?
     @State private var downloadedIDs: Set<String> = []
+    @State private var isDownloadingAlbumOffline = false
     @State private var addToPlaylistTrackId: String?
     @State private var showAddToPlaylist = false
     @State private var trackSearchText = ""
@@ -73,9 +74,11 @@ struct AlbumDetailView: View {
             }
         }
         .background {
-            Button("") { trackSearchFocused = true }
-                .keyboardShortcut("f", modifiers: .command)
-                .hidden()
+            Group {
+                Button("") { trackSearchFocused = true }.keyboardShortcut("f", modifiers: .command)
+                Button("") { trackSearchFocused = true }.keyboardShortcut("k", modifiers: .command)
+            }
+            .hidden()
         }
     }
 
@@ -92,7 +95,10 @@ struct AlbumDetailView: View {
                     player.currentCoverIndex = $0
                     CoverPrefsStore.shared.set($0, for: summary.id)
                 },
-                onTap: { showLightbox = true }
+                onTap: { showLightbox = true },
+                onDownloadCovers: album.covers.isEmpty ? nil : {
+                    Task { await downloadCoversZip(album.covers, title: album.title) }
+                }
             )
 
             VStack(alignment: .leading, spacing: 6) {
@@ -141,6 +147,20 @@ struct AlbumDetailView: View {
 
                 metaRow(album)
 
+                if !album.sourceUrl.isEmpty, let sourceURL = URL(string: album.sourceUrl) {
+                    Button { NSWorkspace.shared.open(sourceURL) } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 10))
+                            Text("Visit source")
+                                .font(VGFont.caption(12))
+                        }
+                        .foregroundStyle(Color.vgTextSec)
+                        .opacity(0.6)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Spacer(minLength: 12)
 
                 // Actions
@@ -164,11 +184,32 @@ struct AlbumDetailView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if !album.covers.isEmpty {
-                        CircleIconButton(icon: "arrow.down.circle") {
-                            Task { await downloadCoversZip(album.covers, title: album.title) }
+                    if offline.hasFolder {
+                        Button {
+                            Task { await downloadAlbumOffline(album) }
+                        } label: {
+                            Group {
+                                if isDownloadingAlbumOffline {
+                                    ProgressView().progressViewStyle(.circular).scaleEffect(0.6)
+                                } else if offline.isAlbumDownloaded(albumID: summary.id, totalTracks: album.tracks.count) {
+                                    Image(systemName: "checkmark.icloud.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Color.green)
+                                } else {
+                                    Image(systemName: "icloud.and.arrow.down")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Color.vgTextSec)
+                                }
+                            }
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Circle())
                         }
-                        .help(album.covers.count > 1 ? "Download all covers as ZIP" : "Download cover")
+                        .buttonStyle(.plain)
+                        .disabled(isDownloadingAlbumOffline || offline.isAlbumDownloaded(albumID: summary.id, totalTracks: album.tracks.count))
+                        .help(offline.isAlbumDownloaded(albumID: summary.id, totalTracks: album.tracks.count)
+                              ? "Álbum completo guardado en esta Mac"
+                              : "Descargar álbum completo para escuchar sin conexión")
                     }
 
                     // Star: adds/removes all tracks for this album
@@ -270,6 +311,8 @@ struct AlbumDetailView: View {
                 Text("TITLE").frame(maxWidth: .infinity, alignment: .leading)
                 Text("DUR").frame(width: 60, alignment: .trailing)
                 Text("▶+").frame(width: 40, alignment: .center)
+                Text("⬇").frame(width: 40, alignment: .center)
+                Text("☁️").frame(width: 40, alignment: .center)
                 Text("👍").frame(width: 40, alignment: .center)
                 Text("👁").frame(width: 40, alignment: .center)
             }
@@ -375,6 +418,15 @@ struct AlbumDetailView: View {
             downloadedIDs.insert(track.id)
             downloadingTrackID = nil
         }
+    }
+
+    private func downloadAlbumOffline(_ album: Album) async {
+        guard offline.hasFolder, !isDownloadingAlbumOffline else { return }
+        isDownloadingAlbumOffline = true
+        for track in album.tracks where !offline.isDownloaded(track.id) {
+            await offline.downloadOffline(track, album: summary)
+        }
+        isDownloadingAlbumOffline = false
     }
 
     private func downloadCoversZip(_ covers: [Cover], title: String) async {
@@ -592,6 +644,7 @@ struct AlbumCoverView: View {
     var enableHoverControls = true
     var onIndexChange: ((Int) -> Void)? = nil
     var onTap: (() -> Void)? = nil
+    var onDownloadCovers: (() -> Void)? = nil
 
     @State private var coverIndex = 0
     @State private var isHovered = false
@@ -678,6 +731,27 @@ struct AlbumCoverView: View {
                     }
                     .padding(.bottom, 8)
                 }
+                .frame(width: size, height: size)
+            }
+
+            if enableHoverControls, isHovered, !covers.isEmpty, let onDownloadCovers {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(action: onDownloadCovers) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(Color.black.opacity(0.55))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(covers.count > 1 ? "Download all covers as ZIP" : "Download cover")
+                    }
+                    Spacer()
+                }
+                .padding(8)
                 .frame(width: size, height: size)
             }
         }
@@ -770,51 +844,53 @@ private struct DetailTrackRow: View {
                 .frame(width: 40, alignment: .center)
                 .help("Play next")
 
-                // Download button (only when not downloaded)
-                if !isDownloaded {
-                    Button(action: onDownload) {
-                        Group {
-                            if isDownloading {
-                                ProgressView().progressViewStyle(.circular).scaleEffect(0.5)
-                            } else if isHovered {
-                                Image(systemName: "arrow.down.circle")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.vgAccent)
-                            } else {
-                                Color.clear
-                            }
+                // Download button (server-side cache; reserves its column even
+                // once downloaded, so row widths stay aligned with the header)
+                Button(action: onDownload) {
+                    Group {
+                        if isDownloaded {
+                            Color.clear
+                        } else if isDownloading {
+                            ProgressView().progressViewStyle(.circular).scaleEffect(0.5)
+                        } else if isHovered {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.vgAccent)
+                        } else {
+                            Color.clear
                         }
                     }
-                    .buttonStyle(.plain)
-                    .frame(width: 40, alignment: .center)
-                    .disabled(isDownloading)
-                    .help("Cachear en el servidor (acelera el streaming, no guarda nada en esta Mac)")
                 }
+                .buttonStyle(.plain)
+                .frame(width: 40, alignment: .center)
+                .disabled(isDownloading || isDownloaded)
+                .help("Cachear en el servidor (acelera el streaming, no guarda nada en esta Mac)")
 
-                // Offline download button (save to local folder for offline playback)
-                if let onDownloadOffline {
-                    Button(action: onDownloadOffline) {
-                        Group {
-                            if isDownloadingOffline {
-                                ProgressView().progressViewStyle(.circular).scaleEffect(0.5)
-                            } else if isOffline {
-                                Image(systemName: "checkmark.icloud.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.green)
-                            } else if isHovered {
-                                Image(systemName: "icloud.and.arrow.down")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.vgAccent)
-                            } else {
-                                Color.clear
-                            }
+                // Offline download button (save to local folder for offline
+                // playback); same fixed-width column even with no folder chosen.
+                Button {
+                    onDownloadOffline?()
+                } label: {
+                    Group {
+                        if isDownloadingOffline {
+                            ProgressView().progressViewStyle(.circular).scaleEffect(0.5)
+                        } else if isOffline {
+                            Image(systemName: "checkmark.icloud.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.green)
+                        } else if isHovered && onDownloadOffline != nil {
+                            Image(systemName: "icloud.and.arrow.down")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.vgAccent)
+                        } else {
+                            Color.clear
                         }
                     }
-                    .buttonStyle(.plain)
-                    .frame(width: 40, alignment: .center)
-                    .disabled(isDownloadingOffline || isOffline)
-                    .help(isOffline ? "Disponible offline (guardada en esta Mac)" : "Guardar en esta Mac para escuchar sin conexión")
                 }
+                .buttonStyle(.plain)
+                .frame(width: 40, alignment: .center)
+                .disabled(isDownloadingOffline || isOffline || onDownloadOffline == nil)
+                .help(isOffline ? "Disponible offline (guardada en esta Mac)" : "Guardar en esta Mac para escuchar sin conexión")
 
                 // Favorite button
                 Button { favorites.toggle(track, album: album) } label: {

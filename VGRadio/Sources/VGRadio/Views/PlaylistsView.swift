@@ -582,16 +582,30 @@ struct AddToPlaylistSheet: View {
 
 private struct FavoriteGroupView: View {
     let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
+    @Environment(LibraryStore.self) var library
+
+    private func openAlbum() {
+        library.pendingNavigation = AlbumSummary(
+            id: group.albumId, title: group.albumTitle, platform: group.platform, year: group.year,
+            albumType: "", trackCount: group.tracks.count, totalDurationSec: 0,
+            coverUrls: group.coverUrl.isEmpty ? [] : [group.coverUrl]
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: VGSpace.md) {
                 AsyncCoverImage(url: AlbumCoverView.resolveURL(group.coverUrl), size: 48)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .onTapGesture(perform: openAlbum)
+                    .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(group.albumTitle).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.vgText)
                     Text("\(group.platform)  ·  \(group.year)").font(VGFont.mono(11)).foregroundStyle(Color.vgTextSec)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: openAlbum)
+                .onHover { inside in inside ? NSCursor.pointingHand.push() : NSCursor.pop() }
                 Spacer()
             }
             .padding(.bottom, VGSpace.sm)

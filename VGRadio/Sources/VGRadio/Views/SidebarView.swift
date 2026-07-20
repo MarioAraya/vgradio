@@ -62,6 +62,7 @@ struct SidebarView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 28)
                     .contentShape(Rectangle())
                 }
@@ -131,6 +132,7 @@ struct SidebarView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 34)
                 .background(selection == .playlistLiked ? Color.vgAccentSoft : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -162,6 +164,7 @@ struct SidebarView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(minHeight: 34)
                     .background(selection == .playlist(id: pl.id) ? Color.vgAccentSoft : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -184,6 +187,7 @@ struct SidebarView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: 28)
                 .contentShape(Rectangle())
             }
@@ -283,7 +287,9 @@ private struct SidebarRow: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.leading, 2)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 28)
             .background(isSelected ? Color.vgAccentSoft : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 5))

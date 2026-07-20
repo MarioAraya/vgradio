@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Scratch accumulator for scroll-wheel swipe detection. A plain reference type so
+/// mutating it during every scroll event doesn't trigger a SwiftUI re-render — only
+/// promoting a value into @State (once a gesture is confirmed horizontal) should do that.
+private final class SwipeAccumulator {
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+}
+
 enum SidebarItem: Hashable {
     case library
     case browse
@@ -25,7 +33,7 @@ struct ContentView: View {
     @State private var spaceKeyMonitor: Any?
     @State private var backSwipeMonitor: Any?
     @State private var backSwipeAccumX: CGFloat = 0
-    @State private var backSwipeAccumY: CGFloat = 0
+    @State private var backSwipeTracker = SwipeAccumulator()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -116,17 +124,25 @@ struct ContentView: View {
                 guard event.hasPreciseScrollingDeltas, selection != .library else { return event }
                 switch event.phase {
                 case .began:
-                    backSwipeAccumX = 0
-                    backSwipeAccumY = 0
+                    backSwipeTracker.x = 0
+                    backSwipeTracker.y = 0
+                    if backSwipeAccumX != 0 { backSwipeAccumX = 0 }
                 case .changed:
-                    backSwipeAccumX += event.scrollingDeltaX
-                    backSwipeAccumY += event.scrollingDeltaY
+                    backSwipeTracker.x += event.scrollingDeltaX
+                    backSwipeTracker.y += event.scrollingDeltaY
+                    // Only surface progress (and trigger a re-render) once the
+                    // gesture is clearly horizontal — avoids re-rendering on every
+                    // frame of ordinary vertical scrolling.
+                    if abs(backSwipeTracker.x) > abs(backSwipeTracker.y) * 1.5 {
+                        backSwipeAccumX = backSwipeTracker.x
+                    } else if backSwipeAccumX != 0 {
+                        backSwipeAccumX = 0
+                    }
                 case .ended, .cancelled:
-                    if backSwipeAccumX > 80 && backSwipeAccumX > abs(backSwipeAccumY) * 2 {
+                    if backSwipeTracker.x > 80 && backSwipeTracker.x > abs(backSwipeTracker.y) * 2 {
                         selection = .library
                     }
                     backSwipeAccumX = 0
-                    backSwipeAccumY = 0
                 default: break
                 }
                 return event

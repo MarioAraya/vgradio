@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Scratch accumulator for scroll-wheel swipe detection. A plain reference type so
+/// mutating it during every scroll event doesn't trigger a SwiftUI re-render — only
+/// promoting a value into @State (once a gesture is confirmed horizontal) should do that.
+private final class SwipeAccumulator {
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+}
+
 struct LibraryView: View {
     @Environment(LibraryStore.self) var library
     @Environment(WishlistStore.self) var wishlist
@@ -8,7 +16,7 @@ struct LibraryView: View {
     @State private var history: [AlbumSummary?] = [nil]
     @State private var historyIndex = 0
     @State private var swipeAccumX: CGFloat = 0
-    @State private var swipeAccumY: CGFloat = 0
+    @State private var swipeTracker = SwipeAccumulator()
     @State private var scrollMonitor: Any?
     @State private var hoveredID: String?
     @State private var importingURL: String?
@@ -110,17 +118,25 @@ struct LibraryView: View {
                 guard event.hasPreciseScrollingDeltas else { return event }
                 switch event.phase {
                 case .began:
-                    swipeAccumX = 0
-                    swipeAccumY = 0
+                    swipeTracker.x = 0
+                    swipeTracker.y = 0
+                    if swipeAccumX != 0 { swipeAccumX = 0 }
                 case .changed:
-                    swipeAccumX += event.scrollingDeltaX
-                    swipeAccumY += event.scrollingDeltaY
+                    swipeTracker.x += event.scrollingDeltaX
+                    swipeTracker.y += event.scrollingDeltaY
+                    // Only surface progress (and trigger a re-render) once the
+                    // gesture is clearly horizontal — avoids re-rendering on every
+                    // frame of ordinary vertical scrolling through the grid.
+                    if abs(swipeTracker.x) > abs(swipeTracker.y) * 1.5 {
+                        swipeAccumX = swipeTracker.x
+                    } else if swipeAccumX != 0 {
+                        swipeAccumX = 0
+                    }
                 case .ended, .cancelled:
-                    if abs(swipeAccumX) > 80 && abs(swipeAccumX) > abs(swipeAccumY) * 2 {
-                        if swipeAccumX > 0 { goBack() } else { goForward() }
+                    if abs(swipeTracker.x) > 80 && abs(swipeTracker.x) > abs(swipeTracker.y) * 2 {
+                        if swipeTracker.x > 0 { goBack() } else { goForward() }
                     }
                     swipeAccumX = 0
-                    swipeAccumY = 0
                 default: break
                 }
                 return event

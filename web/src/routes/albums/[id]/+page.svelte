@@ -89,6 +89,10 @@
     player.setCoverIndex(id, i);
   }
 
+  function downloadCovers() {
+    window.open(`${api.baseURL()}/albums/${id}/covers.zip`, '_blank');
+  }
+
   async function fetchTrack(trackId: string) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 120_000);
@@ -209,8 +213,10 @@
           covers={album.covers}
           index={coverIdx}
           size={220}
+          downloadable={album.covers.length > 0}
           on:change={(e) => setCover(e.detail)}
           on:open={(e) => { lightboxIndex = e.detail; lightboxOpen = true; }}
+          on:download={downloadCovers}
         />
         <button
           class="play-fab"
@@ -239,9 +245,6 @@
           <button class="btn-sec" class:fav={isAlbumFav} on:click={toggleAlbumFav}>
             {isAlbumFav ? '★ Unfavorite' : '☆ Favorite'}
           </button>
-          <a class="btn-sec" href={`${api.baseURL()}/albums/${id}/covers.zip`} download>
-            ⬇ Covers
-          </a>
           <button class="btn-sec" class:scraping={albumScraping} on:click={scrapeAllTracks} disabled={albumScraping} title="Resuelve URLs de MP3 de todas las canciones desde khinsider">
             {albumScraping ? '⟳ Scraping…' : '⚡ Scrape URLs'}
           </button>
@@ -424,11 +427,12 @@
     display: flex; align-items: center; justify-content: center;
     width: 30px; height: 30px;
     font-size: 14px;
-    color: transparent;
+    color: var(--text-muted);
+    opacity: 0.5;
     border-radius: var(--r-sm);
-    transition: color 0.15s, background 0.15s;
+    transition: color 0.15s, background 0.15s, opacity 0.15s;
   }
-  .source-link:hover { color: var(--text-sec); background: var(--surface-hi); }
+  .source-link:hover { color: var(--text-sec); background: var(--surface-hi); opacity: 1; }
   .btn-danger {
     padding: 7px 14px;
     background: var(--surface-hi);
@@ -464,8 +468,13 @@
   .filter-wrap.has-value .track-filter { width: 100%; opacity: 1; }
   .track-filter::placeholder { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .track-filter:focus { outline: none; border-bottom-color: var(--accent); }
+  .track-header .col-acts {
+    display: flex;
+    align-items: center;
+  }
   .compact-btn {
     font-size: 14px;
+    line-height: 1;
     color: var(--text-muted);
     padding: 2px 4px;
     border-radius: var(--r-sm);
