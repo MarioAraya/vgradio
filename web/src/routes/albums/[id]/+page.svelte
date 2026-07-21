@@ -304,12 +304,13 @@
           </span>
           <button class="col-name track-name" on:click={() => playTrack(track)}>{track.name}</button>
           <span class="col-dur">{fmtTime(track.durationSec)}</span>
-          <div class="col-acts acts">
-            <button class="act" title="Play next" on:click={() => player.playNext(track)}>▶+</button>
-            <button class="act" class:act-active={isFav} title="Favorite"
+          <div class="col-acts">
+            <button class="fav-btn" class:fav-active={isFav} title="Favorite"
               on:click={() => toggleTrackFav(track)}>
               {isFav ? '★' : '☆'}
             </button>
+            <div class="acts">
+            <button class="act" title="Play next" on:click={() => player.playNext(track)}>▶+</button>
             {#if $currentUser}
               <button class="act" title="Add to playlist" on:click={() => openAddToPlaylist(track.id)}>+</button>
             {/if}
@@ -331,6 +332,7 @@
             {:else}
               <button class="act act-unscrape" title="Resolver URL de khinsider" on:click={() => scrapeTrack(track.id)}>🔗</button>
             {/if}
+            </div>
           </div>
         </div>
       {/each}
@@ -523,10 +525,25 @@
   }
   .track-name:hover { color: var(--accent); }
   .col-dur { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .col-acts { display: flex; align-items: center; gap: 2px; }
   .acts { display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
   .track-row:hover .acts { opacity: 1; }
   .track-row.current .acts { opacity: 1; }
   .track-row.hidden-track .acts { opacity: 1; }
+  .fav-btn {
+    font-size: 13px;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    border-radius: var(--r-sm);
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .track-row:hover .fav-btn,
+  .track-row.current .fav-btn,
+  .track-row.hidden-track .fav-btn { opacity: 1; }
+  .fav-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .fav-btn.fav-active { color: var(--accent) !important; opacity: 1; }
   .act {
     font-size: 13px;
     width: 28px; height: 28px;
@@ -535,7 +552,6 @@
     border-radius: var(--r-sm);
   }
   .act:hover { color: var(--text); background: rgba(255,255,255,0.06); }
-  .act-active { color: var(--accent) !important; }
 
   .hide-btn { filter: grayscale(1); opacity: 0.35; }
   .hide-btn:hover { filter: none; opacity: 1; }
