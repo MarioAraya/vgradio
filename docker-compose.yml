@@ -8,6 +8,8 @@ services:
       VGRADIO_ADDR: :8080
     volumes:
       - vgradio-data:/data
+    ports:
+      - "8086:8080"
     networks:
       - traefik-net
     labels:
@@ -23,6 +25,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    ports:
+      - "8085:80"
     networks:
       - traefik-net
     labels:

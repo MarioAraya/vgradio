@@ -6,6 +6,7 @@
   import { goto } from '$app/navigation';
   import { requireAuth } from '$lib/stores/authModal';
   import { favoritedTrackIDs, setTrackFavorited } from '$lib/stores/trackFavorites';
+  import { hidden } from '$lib/stores/hidden';
 
   let volumeHovered = false;
   let scrubDragging = false;
@@ -20,6 +21,13 @@
   $: covers = $player.currentCovers;
   $: coverUrl = covers[$player.currentCoverIndex]?.url ?? '';
   $: isFav = track ? $favoritedTrackIDs.has(track.id) : false;
+  $: isHid = track ? $hidden.has(track.id) : false;
+
+  function toggleTrackHidden() {
+    if (!track) return;
+    hidden.toggle(track.id);
+    if ($player.isPlaying) playerNext();
+  }
 
   async function doToggleTrackFav() {
     if (!track) return;
@@ -137,6 +145,9 @@
             <span class="repeat-wrap">↻<sup class="repeat-1">1</sup></span>
           {:else}↻{/if}
         </button>
+        {#if track}
+          <button class="icon-btn hover-reveal" class:hide-active={isHid} on:click={toggleTrackHidden} title={isHid ? 'Unhide' : 'Hide'}>👎</button>
+        {/if}
       </div>
       <div class="scrub-row">
         <span class="time-lbl">{fmtTime($player.currentTime)}</span>
@@ -181,7 +192,9 @@
 
 <!-- ───── Fullscreen Overlay ───── -->
 {#if fullscreen}
-  <div class="fs-overlay" role="dialog" aria-modal="true">
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div class="fs-overlay" role="dialog" aria-modal="true" tabindex="-1" on:click|self={() => fullscreen = false}>
     {#if coverUrl}
       <div class="fs-bg" style="background-image:url('{api.coverURL(coverUrl)}')"></div>
     {/if}
@@ -204,6 +217,11 @@
         <button class="icon-btn indicator-btn" class:active={$player.isShuffle}
           class:mode-off={!$player.isShuffle}
           on:click={() => player.toggleShuffle()} title="Shuffle">🔀</button>
+        {#if track}
+          <button class="icon-btn star" class:active={isFav} on:click={toggleTrackFav} title="Favorite">
+            {isFav ? '★' : '☆'}
+          </button>
+        {/if}
         <button class="icon-btn" on:click={playerPrev} title="Previous">⏮</button>
         <button class="play-btn play-btn-lg" on:click={() => player.togglePlay()}>
           {#if $player.isPlaying}⏸{:else}▶{/if}
@@ -217,6 +235,9 @@
             <span class="repeat-wrap">↻<sup class="repeat-1">1</sup></span>
           {:else}↻{/if}
         </button>
+        {#if track}
+          <button class="icon-btn" class:hide-active={isHid} on:click={toggleTrackHidden} title={isHid ? 'Unhide' : 'Hide'}>👎</button>
+        {/if}
       </div>
       <div class="scrub-row fs-scrub">
         <span class="time-lbl">{fmtTime($player.currentTime)}</span>
@@ -382,7 +403,7 @@
     border-radius: 50%;
     background: white;
     color: #131320;
-    font-size: 16px;
+    font-size: 20px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
@@ -464,7 +485,7 @@
     margin-bottom: 40px;
   }
   .fs-art {
-    width: 240px; height: 240px;
+    width: min(400px, 60vw); height: min(400px, 60vw);
     object-fit: cover;
     border-radius: 12px;
     box-shadow: 0 16px 48px rgba(0,0,0,0.7);
@@ -497,6 +518,12 @@
   .fs-scrub { width: 100%; }
   .play-btn-lg {
     width: 52px; height: 52px;
-    font-size: 20px;
+    font-size: 26px;
   }
+
+  /* hover-only reveal (thumbs down in main bar) */
+  .hover-reveal { opacity: 0; transition: opacity 0.15s; }
+  .player-bar:hover .hover-reveal { opacity: 1; }
+  .hover-reveal.hide-active { opacity: 1; }
+  .hide-active { filter: none; color: var(--accent); }
 </style>
