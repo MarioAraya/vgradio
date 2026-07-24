@@ -1,108 +1,72 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-07-20
+Última sesión: 2026-07-23
 
 ## En progreso
 
-Nada en curso — todo lo de esta sesión quedó commiteado, pusheado y deployado (ver abajo). Próxima sesión arranca de cero en features nuevas.
+Nada en curso — todo commiteado y pusheado a `gitea` (Drone dispara build/deploy en homelab). Pendiente: confirmar visualmente el resultado (no había browser MCP conectado durante buena parte de esta sesión, todo se validó por código + `svelte-check`).
+
+**Preguntas pendientes antes de continuar:**
+1. ¿Login/favoritos por IP:puerto se necesitan de verdad, o alcanza con catálogo+reproducción sin sesión? (cookie `sid` tiene `Secure:true` hardcodeado, no se tocó — ver Notas)
+2. ¿Seguir con DNS local (Pi-hole/dnsmasq) para que TV/celular resuelvan `*.lab` sin exponer puertos? Quedó como opción discutida, no implementada.
 
 ## Completado esta sesión
 
-Sesión larga, múltiples rondas de fixes/features. En orden:
-
-- [x] **Offline downloads "Descargado"**: `OfflineStore.swift` reescrito con metadata completa, `DownloadedView.swift` nueva, badges track/álbum descargado, item sidebar
-- [x] Fix perf: Library scrolleaba con jank — swipe-back monitor escribía a `@State` en cada evento de scroll vertical, ahora usa un tracker de referencia (no dispara render) y solo promueve a `@State` en gesto horizontal confirmado
-- [x] Fix: filas del sidebar solo clickeables sobre el texto — `HStack+Spacer` no forzaba ancho completo
-- [x] Fix: header de tabla de tracks desalineado (columnas ⬇/☁️ se excluían condicionalmente en vez de reservar espacio fijo)
-- [x] "Visit source" agregado en macOS (ya existía en web), tenue-visible en ambos (antes invisible-hasta-hover en web)
-- [x] Botón "descargar álbum completo" (offline) en macOS — álbum y también en playlists (Liked Music + playlists normales)
-- [x] Cover-download-as-ZIP movido a ícono hover-only dentro de la portada (antes botón standalone) — web + macOS
-- [x] Cmd+K como shortcut alternativo para filtrar tracks dentro de un álbum (además de Cmd+F)
-- [x] Cover/título en Favorites/Descargado/Liked Music ahora navegan al álbum completo (macOS) — web ya lo tenía
-- [x] **Recently Played implementado de cero** — era un stub permanente vacío, nunca se grababa nada. `PlayerService` ahora hace `POST /history` en cada track (endpoint que ya existía en backend, nadie lo llamaba), `RecentlyPlayedView.swift` nueva con fetch real
-- [x] **Settings convertido a página del sidebar** (antes modal) — agregada sección "Álbumes descargados" con lista + tamaño + botón Eliminar por álbum (pedido explícito: no había forma de ver/liberar espacio offline)
-- [x] Quitado del sidebar macOS: Top 40, Favorites (duplicaba Liked Music), Add URL de Quick Actions (sigue con Cmd+5) — archivos huérfanos borrados (`Top40View.swift`, `FavoritesView.swift`)
-- [x] Quitado "Wishlist" del sidebar web (ruta/store se dejaron intactos)
-- [x] Tercer modo de vista Library "Compact" (macOS + web): covers tamaño grid normal, gap casi 0, sin epígrafe — con tooltip custom instantáneo (~80ms, sin librería externa) mostrando título/plataforma/año/duración/favorito
-- [x] Fix bug visual: filas de tracks se veían "apagadas" aunque estuvieran descargadas offline — el brillo dependía solo de la caché de servidor (⬇), no del offline (☁️)
-- [x] Quitado botón "Add to Queue" (▶+) de header y filas de track — sigue accesible por click derecho → "Play Next"
-- [x] Ícono header "👁" (eye, no coincidía con el ícono real) → "👎" (thumbsdown, coincide con `hand.thumbsdown`)
-- [x] Fix bug: `Text("\(year)")` en SwiftUI aplica agrupación de miles por locale (gotcha de `LocalizedStringKey`) → "1.993" en vez de "1993". Arreglado en 4 sitios (wrap con `String(year)`). Web no tenía el bug (interpolación JS plana)
-- [x] **Wishlist eliminado por completo del cliente macOS** (sección Library + `WishlistStore.swift` + botón bookmark en Browse) — botón "Add" de Browse ahora importa directo a la library
-- [x] **Header sidebar macOS** = "☰ VGRadio" (hamburger colapsa sidebar, igual Cmd+B), sacada la barra de búsqueda duplicada con Cmd+K, filas de menú más grandes (15pt/38pt)
-- [x] "Library" title en macOS ahora muestra "N albums" al lado, matching web
-- [x] **Web: filtro "Filter albums…" con Cmd+F** + Escape limpia, y los mismos 3 modos de vista que macOS (persistidos en localStorage)
-- [x] Botón "Abrir en Finder" para la carpeta offline en Settings
-- [x] Nombres de archivo legibles para descargas offline: `"Álbum - Track.mp3"` + migración automática de nombres legacy
-- [x] Commit final (`97ecbf1`) + push a `origin` (GitHub→Vercel) y `gitea` (→Drone CI homelab)
-- [x] Deploy verificado: Drone build #14 (`536a794..97ecbf1`) — **success**
+- [x] **Fix estrella favorito invisible en álbum (web)** — vivía dentro de `.acts` (opacity:0 hasta hover). Extraída a `.fav-btn` propio en `albums/[id]/+page.svelte`, siempre visible cuando el track está en favoritos (commit `5e98786`)
+- [x] **PlayerBar fullscreen (web)**:
+  - Click fuera del cover/controles cierra el overlay (`on:click|self`, mismo patrón que `CoverLightbox.svelte`)
+  - Cover agrandado: `240px` fijo → `min(400px, 60vw)`
+  - Botones favorito (★) y thumbs-down (👎) agregados al transport de fullscreen
+  - Ícono play/pause agrandado (bar normal 16px→20px, fullscreen 20px→26px)
+- [x] **Thumbs-down en bottom bar principal** — nuevo botón a la derecha de Repeat, oculto por defecto (`opacity:0`), visible solo en hover de `.player-bar`; si el track está oculto (marcado) queda siempre visible en dorado
+  (commit `22a1143`, junto con lo de abajo)
+- [x] **Puertos fijos de dev en `docker-compose.yml`** — `web` expuesto en `192.168.0.104:8085`, `backend` en `:8086`, bypass de Traefik para que dispositivos LAN sin `/etc/hosts` (smart TV, celular) puedan acceder directo por IP
+- [x] Deploy: push a `gitea` → Drone CI dispara build en homelab (commits `5e98786` y `22a1143`)
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Probar interactivamente en producción/homelab** la migración de nombres de archivo (abrir app, verificar en Finder que los `279.mp3` etc pasaron a nombre legible) — el build pasó pero esto es un comportamiento runtime del cliente macOS, no lo cubre CI
-- [ ] ID3 tags reales (TIT2/TALB/APIC) — usuario lo descartó esta sesión por riesgo/complejidad, pero quedó mencionado como posible follow-up si más adelante lo quiere
-- [ ] Resto de pendientes de sesiones anteriores sigue igual (ver abajo)
+- [ ] **Verificar visualmente en browser real** los 3 cambios de esta sesión (estrella álbum, fullscreen player, iconos agrandados) — no se pudo probar con browser MCP en buena parte de esta sesión
+- [ ] **Confirmar en la TV** que `http://192.168.0.104:8085` carga catálogo/reproducción tras el deploy de Drone
+- [ ] Decidir si se arma DNS local (Pi-hole/dnsmasq) para acceso por dominio `.lab` en todos los dispositivos LAN (discutido, no implementado)
+- [ ] Si se quiere login/favoritos desde IP:puerto plano: cambiar `Secure:true` → condicional en `backend/internal/api/auth.go:58` (usuario decidió **no** tocarlo esta sesión por riesgo, queda descartado salvo que lo pida de nuevo)
 
 ### Pendientes de sesiones anteriores (sin tocar esta sesión)
 
+- [ ] ID3 tags reales (TIT2/TALB/APIC) — descartado sesión anterior, posible follow-up
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync`
 - [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
 - [ ] **Cover en Now Playing (menu bar widget)** — muestra placeholder gris
-- [ ] **feat: scrapear por año/consola/todo el catálogo khinsider** — ver detalle en notas técnicas abajo
-- [ ] **Mini-covers en Browse/catalog search** — ver detalle en notas técnicas abajo
+- [ ] **feat: scrapear por año/consola/todo el catálogo khinsider**
+- [ ] **Mini-covers en Browse/catalog search**
 - [ ] **Cert mkcert roto para subdominios `.lab`** — wildcard `*.lab` estructuralmente inválido, requiere regenerar con SANs explícitos
 
 ## Notas
 
-### Build macOS requiere SSD externo montado
+### Cookie `sid` y acceso por IP:puerto plano
 
-Xcode vive en `/Volumes/ExtDevDisk/Xcode.app` (CommandLineTools solo no compila). El SSD se desmontó varias veces durante esta sesión sin aviso — siempre verificar con `ls /Volumes/ExtDevDisk/Xcode.app/Contents/Developer` antes de compilar; si falla, pedirle al usuario que reconecte el disco.
+`backend/internal/api/auth.go:58` fija `Secure: true` + `SameSite: None` en la cookie de sesión. Sobre HTTP plano (sin TLS) el browser nunca la guarda → login/favoritos no funcionan accediendo por `192.168.0.104:8086` directo. Catálogo y reproducción sí funcionan (no requieren sesión). CORS del backend (`router.go:190-203`) ya refleja cualquier origin, no es el bloqueante — es puramente el flag `Secure`. Usuario decidió no tocar esto esta sesión.
 
-```bash
-cd VGRadio && DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build -c release
-pkill -x VGRadio 2>/dev/null; sleep 0.3
-cp .build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
-open /Applications/VGRadio.app
-```
+### `.env.production` del frontend está stale/sin uso
 
-### Gotcha SwiftUI: Text con interpolación de números
+`web/.env.production` tiene `VITE_API_URL=https://api.vgradio.lab` (dominio que NO existe — el real es `vgradio-api.lab`, ver `.drone.yml:46`). No es un bug activo: el build real de CI usa el valor correcto vía `.drone.yml`, este `.env.production` no se lee en el pipeline. Podría confundir a futuro si alguien corre `vite build` local sin pasar el env var explícito.
 
-`Text("\(someInt)")` (interpolación de string) usa `LocalizedStringKey` internamente, que SÍ aplica separador de miles según el locale del sistema — incluso dentro de interpolación literal, no solo con `Text(someInt)` directo. Para evitar esto, siempre `Text("\(String(someInt))")` o pre-convertir a `String` antes de armar el string interpolado. Mordió en year (1993 → "1.993") en varios lugares esta sesión.
+### Infraestructura homelab (actualizado)
 
-### Arquitectura offline (macOS-only)
-
-Favoritos, Descargado (offline), Recently Played y "álbum completo download" son conceptos exclusivos de macOS — no hay backend ni tablas SQL para favoritos-offline (favoritos normales sí son backend). Web no tiene ningún concepto de "offline files", solo streaming. Si en algún momento se quiere paridad, requeriría diseño nuevo de sync cross-device (mencionado en `features.json` v2 roadmap: `favorites-backend`, pero offline-per-device es otra cosa).
-
-### Infraestructura homelab
-
-| Servicio    | Host            | URL                           |
-|-------------|-----------------|-------------------------------|
-| Gitea       | 192.168.0.103   | http://192.168.0.103:3000     |
-| Drone CI    | 192.168.0.103   | https://drone.lab             |
-| Registry    | 192.168.0.103   | 192.168.0.103:5000 (HTTP)     |
-| Traefik     | 192.168.0.104   | —                             |
-| VGRadio web | 192.168.0.104   | https://vgradio.lab           |
-| VGRadio API | 192.168.0.104   | https://vgradio-api.lab       |
+| Servicio        | Host          | Acceso                                  |
+|-----------------|---------------|------------------------------------------|
+| Gitea           | 192.168.0.103 | http://192.168.0.103:3000                |
+| Drone CI        | 192.168.0.103 | https://drone.lab                        |
+| Registry        | 192.168.0.103 | 192.168.0.103:5000 (HTTP)                |
+| Traefik         | 192.168.0.104 | —                                         |
+| VGRadio web     | 192.168.0.104 | https://vgradio.lab · **http://192.168.0.104:8085** (nuevo, sin login) |
+| VGRadio API     | 192.168.0.104 | https://vgradio-api.lab · **http://192.168.0.104:8086** (nuevo, sin login) |
 
 **Drone token:** `ZBnZ9g6QuAZDp3GUzDyL6H2NwSU63oT4`
 
-### Cómo re-migrar datos (si se necesita)
+### Router ISP (VTR/Claro, cable no fibra)
 
-```bash
-bash scripts/migrate-to-homelab.sh
-# Si falla permisos en volumen, usar:
-ssh maaya@192.168.0.104 "bash /tmp/fix-wal.sh"  # (copiar script primero)
-```
-
-### CF clearance para Einhander tracks 3+
-
-```bash
-# 1. Obtener cf_clearance del browser (DevTools → Cookies → downloads.khinsider.com)
-curl -X PUT https://vgradio-api.lab/config/cf-clearance \
-  -H 'Content-Type: application/json' -d '{"value":"COOKIE"}'
-curl -X POST https://vgradio-api.lab/albums/9ee1fa540f28534f/scrape-tracks
-```
+Para DNS local (`*.lab`) hace falta admin del router. Clave suele venir en sticker del equipo; si no, soporte técnico la da por teléfono. Riesgo: routers de cable VTR/Claro suelen venir bloqueados sin opción de DNS custom — salida típica es poner router propio en modo bridge/AP detrás del del ISP.
 
 ### Comandos útiles
 
