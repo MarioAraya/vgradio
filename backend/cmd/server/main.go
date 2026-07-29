@@ -35,11 +35,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// cf_clearance: prefer the value persisted on disk (set via PUT /config/cf-clearance
+	// and kept up to date across restarts) over the env var, which only reflects
+	// whatever was true at deploy time.
+	cfClearance := cfg.cfClearance
+	if b, err := os.ReadFile(filepath.Join(cfg.dataDir, "cf_clearance.txt")); err == nil {
+		cfClearance = string(b)
+	}
+
 	// Fetcher.
 	f := fetcher.New(fetcher.Options{
 		Delay:         time.Duration(cfg.scrapeDelayMS) * time.Millisecond,
 		MaxConcurrent: cfg.maxConcurrentDL,
-		CFClearance:   cfg.cfClearance,
+		CFClearance:   cfClearance,
 	})
 
 	// Jobs queue.
@@ -47,12 +55,15 @@ func main() {
 
 	// Catalog syncer.
 	syn := catalog.New(s, log)
+	syn.SetCFClearance(cfClearance)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go q.Start(ctx)
 	log.Info("scrape queue started", "workers", cfg.workers)
+
+	go runWeeklyCatalogSync(ctx, syn, log)
 
 	// HTTP server.
 	srv := &http.Server{
@@ -120,4 +131,43 @@ func envInt(key string, def int) int {
 		return def
 	}
 	return n
+}
+
+// runWeeklyCatalogSync triggers a full catalog re-scrape once a week for as long
+// as ctx is alive. It does not run one immediately on startup — only on each tick —
+// so restarts don't cause an unplanned extra scrape.
+func runWeeklyCatalogSync(ctx context.Context, syn *catalog.Syncer, log *slog.Logger) {
+	ticker := time.NewTicker(7 * 24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !syn.Start(ctx) {
+				log.Warn("weekly catalog sync: skipped, already running")
+				continue
+			}
+			log.Info("weekly catalog sync: started")
+			go logSyncResult(ctx, syn, log)
+		}
+	}
+}
+
+// logSyncResult polls until the sync finishes and logs a summary. Cheap poll,
+// runs once a week, no need for a channel-based signal from the syncer.
+func logSyncResult(ctx context.Context, syn *catalog.Syncer, log *slog.Logger) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+		p := syn.Progress()
+		if !p.Running {
+			log.Info("weekly catalog sync: finished",
+				"entries", p.Entries, "consoles", p.Consoles, "errors", p.Errors)
+			return
+		}
+	}
 }

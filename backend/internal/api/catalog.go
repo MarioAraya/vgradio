@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -126,5 +128,12 @@ func (h *handler) putCFClearance(w http.ResponseWriter, r *http.Request) {
 	}
 	h.fetcher.SetCFClearance(body.Value)
 	h.syncer.SetCFClearance(body.Value)
+	// Persist to disk so it survives a server restart — the syncer otherwise
+	// only holds this cookie in memory and a weekly auto-sync would silently
+	// fail against Cloudflare after any restart.
+	if err := os.WriteFile(filepath.Join(h.dataDir, "cf_clearance.txt"), []byte(body.Value), 0o600); err != nil {
+		jsonError(w, "saved in memory but failed to persist to disk", http.StatusInternalServerError)
+		return
+	}
 	jsonOK(w, map[string]string{"status": "ok"}, http.StatusOK)
 }

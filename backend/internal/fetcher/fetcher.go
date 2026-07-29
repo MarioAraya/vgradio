@@ -4,9 +4,8 @@ package fetcher
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -20,8 +19,6 @@ type Options struct {
 	Delay time.Duration
 	// MaxConcurrent limits parallel in-flight requests (0 defaults to 4).
 	MaxConcurrent int
-	// HTTPClient is optional; defaults to a client with a 30s timeout.
-	HTTPClient *http.Client
 	// CFClearance is the cf_clearance cookie value copied from a logged-in browser
 	// session. Required to bypass Cloudflare on browse/catalog pages.
 	CFClearance string
@@ -29,7 +26,6 @@ type Options struct {
 
 // Fetcher downloads pages and files with throttling and concurrency limiting.
 type Fetcher struct {
-	client      *http.Client
 	delay       time.Duration
 	sem         chan struct{}
 	mu          sync.Mutex
@@ -43,15 +39,7 @@ func New(opts Options) *Fetcher {
 	if mc <= 0 {
 		mc = 4
 	}
-	client := opts.HTTPClient
-	if client == nil {
-		// Use default transport — khinsider/CF endpoints require HTTP/2 (respond with
-		// H2 SETTINGS frames regardless of ALPN). Go's default client handles H2 correctly.
-		// CF clearance cookie is the primary bypass mechanism.
-		client = &http.Client{Timeout: 30 * time.Second}
-	}
 	return &Fetcher{
-		client:      client,
 		delay:       opts.Delay,
 		sem:         make(chan struct{}, mc),
 		cfClearance: opts.CFClearance,
@@ -125,34 +113,32 @@ func (f *Fetcher) get(ctx context.Context, url string) ([]byte, error) {
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-
 	f.mu.Lock()
 	cf := f.cfClearance
 	f.mu.Unlock()
-	if cf != "" {
-		req.Header.Set("Cookie", "cf_clearance="+cf)
-	}
 
 	f.mu.Lock()
 	f.lastAt = time.Now()
 	f.mu.Unlock()
 
-	resp, err := f.client.Do(req)
+	// Shell out to curl — bypasses Go's TLS fingerprint, which Cloudflare blocks
+	// on khinsider pages regardless of a valid cf_clearance cookie (same reason
+	// the catalog syncer uses curl; see catalog/syncer.go curlGet).
+	args := []string{
+		"-sL", "--fail", "--http1.1",
+		"-A", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+		"-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+		"-H", "Accept-Language: en-US,en;q=0.9",
+		"--max-time", "30",
+	}
+	if cf != "" {
+		args = append(args, "-H", "Cookie: cf_clearance="+cf)
+	}
+	args = append(args, url)
+
+	out, err := exec.CommandContext(ctx, "curl", args...).Output()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("HTTP error for %s: %w", url, err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP %d for %s", resp.StatusCode, url)
-	}
-
-	return io.ReadAll(resp.Body)
+	return out, nil
 }

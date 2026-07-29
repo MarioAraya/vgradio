@@ -22,6 +22,7 @@ struct AlbumDetailView: View {
     @State private var trackSearchText = ""
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
+    @State private var showBackButton = false
     @FocusState private var trackSearchFocused: Bool
 
     private func filteredTracks(_ tracks: [Track]) -> [Track] {
@@ -31,30 +32,34 @@ struct AlbumDetailView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Button { onBack() } label: {
-                        Label("Library", systemImage: "chevron.left")
-                            .font(VGFont.caption(12))
-                            .foregroundStyle(Color.vgTextSec)
-                            .contentShape(Rectangle())
+            ZStack(alignment: .topLeading) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
+                        } else if let album {
+                            albumContent(album)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 36)
-                    .padding(.horizontal, 32)
+                }
+                .background(Color.vgBg)
+                .onAppear {
+                    if let id = player.currentTrack?.id {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
 
-                    if isLoading {
-                        ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
-                    } else if let album {
-                        albumContent(album)
-                    }
-                }
+                edgeBackButton
             }
-            .background(Color.vgBg)
-            .onAppear {
-                if let id = player.currentTrack?.id {
-                    proxy.scrollTo(id, anchor: .center)
+            .onContinuousHover { phase in
+                let reveal: Bool
+                if case .active(let location) = phase, location.x < 70 {
+                    reveal = true
+                } else {
+                    reveal = false
                 }
+                guard reveal != showBackButton else { return }
+                withAnimation(.easeOut(duration: 0.15)) { showBackButton = reveal }
             }
         }
         .task { await load() }
@@ -80,6 +85,25 @@ struct AlbumDetailView: View {
             }
             .hidden()
         }
+    }
+
+    /// Back button revealed only when the pointer nears the left edge — mirrors the
+    /// trackpad two-finger back-swipe affordance instead of a permanent "< Library" row,
+    /// so the cover/title can sit higher on the page.
+    private var edgeBackButton: some View {
+        Button { onBack() } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.vgText)
+                .frame(width: 30, height: 30)
+                .background(Color.black.opacity(0.35))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 32)
+        .padding(.leading, 14)
+        .opacity(showBackButton ? 1 : 0)
+        .allowsHitTesting(showBackButton)
     }
 
     @ViewBuilder

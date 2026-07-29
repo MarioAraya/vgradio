@@ -6,6 +6,7 @@ struct SidebarView: View {
     @Environment(LibraryStore.self) var library
     @Environment(AuthStore.self) var auth
     @Environment(PlaylistsStore.self) var playlists
+    @Environment(OfflineStore.self) var offline
 
     @State private var showLogin = false
     @State private var showNewPlaylist = false
@@ -53,10 +54,18 @@ struct SidebarView: View {
             // Auth footer
             authFooter
 
-            HStack {
+            HStack(spacing: 6) {
                 Text("v0.1.0 · \(library.albums.count) albums")
                     .font(VGFont.label(10))
                     .foregroundStyle(Color.vgTextMuted)
+                if offline.effectiveOfflineMode {
+                    HStack(spacing: 3) {
+                        Image(systemName: "wifi.slash")
+                        Text("Offline")
+                    }
+                    .font(VGFont.label(10))
+                    .foregroundStyle(Color.vgAccent)
+                }
                 Spacer()
             }
             .padding(.horizontal, 12)

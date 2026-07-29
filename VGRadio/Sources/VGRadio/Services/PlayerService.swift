@@ -52,9 +52,7 @@ final class PlayerService {
     }
 
     private func isSkippable(_ track: Track) -> Bool {
-        if hiddenTracks?.isHidden(track.id) == true { return true }
-        if offline?.effectiveOfflineMode == true && offline?.isDownloaded(track.id) != true { return true }
-        return false
+        hiddenTracks?.isHidden(track.id) == true
     }
 
     func next() {
@@ -112,9 +110,10 @@ final class PlayerService {
     // MARK: - Private
 
     private func load(track: Track) {
-        let localURL = offline?.localURL(for: track.id)
-        guard let url = localURL ?? APIClient.shared.streamURL(for: track) else { return }
-        if localURL == nil, offline?.effectiveOfflineMode == true { return }
+        // Local file preferred (faster, works offline); otherwise stream — even
+        // in offline mode. Offline mode no longer hard-blocks non-downloaded
+        // tracks; if there's really no network, AVPlayer just fails to load.
+        guard let url = offline?.localURL(for: track.id) ?? APIClient.shared.streamURL(for: track) else { return }
         removeTimeObserver()
         let item = AVPlayerItem(url: url)
         if player == nil {

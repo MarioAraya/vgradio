@@ -1,10 +1,10 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-07-23
+Última sesión: 2026-07-27
 
 ## En progreso
 
-Nada en curso — todo commiteado y pusheado a `gitea` (Drone dispara build/deploy en homelab). Pendiente: confirmar visualmente el resultado (no había browser MCP conectado durante buena parte de esta sesión, todo se validó por código + `svelte-check`).
+Nada en curso. Sesión corta: solo se confirmó/pusheó a `origin` (GitHub→Vercel) y `gitea` (→Drone CI homelab) el trabajo de la sesión anterior (commit `ed2f4f5`, actualización de este mismo CURRENT.md). No hubo cambios de código nuevos. Ambos remotos verificados en sync con local al cierre.
 
 **Preguntas pendientes antes de continuar:**
 1. ¿Login/favoritos por IP:puerto se necesitan de verdad, o alcanza con catálogo+reproducción sin sesión? (cookie `sid` tiene `Secure:true` hardcodeado, no se tocó — ver Notas)
@@ -12,23 +12,14 @@ Nada en curso — todo commiteado y pusheado a `gitea` (Drone dispara build/depl
 
 ## Completado esta sesión
 
-- [x] **Fix estrella favorito invisible en álbum (web)** — vivía dentro de `.acts` (opacity:0 hasta hover). Extraída a `.fav-btn` propio en `albums/[id]/+page.svelte`, siempre visible cuando el track está en favoritos (commit `5e98786`)
-- [x] **PlayerBar fullscreen (web)**:
-  - Click fuera del cover/controles cierra el overlay (`on:click|self`, mismo patrón que `CoverLightbox.svelte`)
-  - Cover agrandado: `240px` fijo → `min(400px, 60vw)`
-  - Botones favorito (★) y thumbs-down (👎) agregados al transport de fullscreen
-  - Ícono play/pause agrandado (bar normal 16px→20px, fullscreen 20px→26px)
-- [x] **Thumbs-down en bottom bar principal** — nuevo botón a la derecha de Repeat, oculto por defecto (`opacity:0`), visible solo en hover de `.player-bar`; si el track está oculto (marcado) queda siempre visible en dorado
-  (commit `22a1143`, junto con lo de abajo)
-- [x] **Puertos fijos de dev en `docker-compose.yml`** — `web` expuesto en `192.168.0.104:8085`, `backend` en `:8086`, bypass de Traefik para que dispositivos LAN sin `/etc/hosts` (smart TV, celular) puedan acceder directo por IP
-- [x] Deploy: push a `gitea` → Drone CI dispara build en homelab (commits `5e98786` y `22a1143`)
+- [x] Push `ed2f4f5` a `origin` y `gitea` — confirmado ambos remotos en sync (nada quedó sin subir)
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Verificar visualmente en browser real** los 3 cambios de esta sesión (estrella álbum, fullscreen player, iconos agrandados) — no se pudo probar con browser MCP en buena parte de esta sesión
+- [ ] **Verificar visualmente en browser real** los cambios de la sesión `22a1143`/`5e98786` (estrella álbum, fullscreen player, iconos agrandados) — sigue sin probarse en browser real
 - [ ] **Confirmar en la TV** que `http://192.168.0.104:8085` carga catálogo/reproducción tras el deploy de Drone
 - [ ] Decidir si se arma DNS local (Pi-hole/dnsmasq) para acceso por dominio `.lab` en todos los dispositivos LAN (discutido, no implementado)
-- [ ] Si se quiere login/favoritos desde IP:puerto plano: cambiar `Secure:true` → condicional en `backend/internal/api/auth.go:58` (usuario decidió **no** tocarlo esta sesión por riesgo, queda descartado salvo que lo pida de nuevo)
+- [ ] Si se quiere login/favoritos desde IP:puerto plano: cambiar `Secure:true` → condicional en `backend/internal/api/auth.go:58` (usuario decidió **no** tocarlo por riesgo, queda descartado salvo que lo pida de nuevo)
 
 ### Pendientes de sesiones anteriores (sin tocar esta sesión)
 
