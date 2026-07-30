@@ -62,22 +62,50 @@ type SyncedLetter struct {
 	Entries  int    `json:"entries"`
 }
 
-// SyncedLetters returns all browse letters that have been fully scraped at least once.
+// browseLetters is the full set of browse-page suffixes (mirrors catalog.browseLetters).
+var browseLetters = func() []string {
+	letters := []string{"0-9"}
+	for c := 'A'; c <= 'Z'; c++ {
+		letters = append(letters, string(c))
+	}
+	return letters
+}()
+
+// SyncedLetters returns every browse letter that already has albums stored in
+// catalog_entries — i.e. it does not need to be scraped again to be browsed.
+// Counts come straight from catalog_entries (the source of truth), so data
+// loaded by any past sync — even before synced_letters existed — counts.
 func (s *Store) SyncedLetters(ctx context.Context) ([]SyncedLetter, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT letter, synced_at, entries FROM synced_letters ORDER BY letter`)
+	syncedAt := map[string]string{}
+	rows, err := s.db.QueryContext(ctx, `SELECT letter, synced_at FROM synced_letters`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []SyncedLetter
 	for rows.Next() {
-		var l SyncedLetter
-		if err := rows.Scan(&l.Letter, &l.SyncedAt, &l.Entries); err != nil {
+		var letter, at string
+		if err := rows.Scan(&letter, &at); err != nil {
+			rows.Close()
 			return nil, err
 		}
-		out = append(out, l)
+		syncedAt[letter] = at
 	}
-	return out, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var out []SyncedLetter
+	for _, letter := range browseLetters {
+		n, err := s.CountCatalog(ctx, "", "", letter)
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			continue
+		}
+		out = append(out, SyncedLetter{Letter: letter, SyncedAt: syncedAt[letter], Entries: n})
+	}
+	return out, nil
 }
 
 // UpsertCatalogEntries inserts or updates catalog entries in bulk.

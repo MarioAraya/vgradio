@@ -170,7 +170,7 @@
             class="letter"
             class:sel={letter === l}
             class:synced={!!l && !!syncedLetters[l]}
-            title={l && syncedLetters[l] ? `Scrapeado: ${syncedLetters[l].entries} álbumes` : ''}
+            title={l && syncedLetters[l] ? `Ya en BD: ${syncedLetters[l].entries} álbumes` : ''}
             on:click={() => setLetter(l)}
           >
             {l || 'All'}{#if l && syncedLetters[l]}<span class="synced-dot">✓</span>{/if}
