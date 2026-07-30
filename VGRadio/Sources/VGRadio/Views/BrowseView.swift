@@ -43,6 +43,14 @@ struct BrowseView: View {
                         .textFieldStyle(.plain)
                         .font(VGFont.body())
                         .focused($searchFocused)
+                    // Hints that the global catalog search (⌘K) is also available.
+                    Text("⌘K")
+                        .font(VGFont.label(10))
+                        .foregroundStyle(Color.vgTextMuted)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .padding(.horizontal, VGSpace.sm)
                 .padding(.vertical, 6)

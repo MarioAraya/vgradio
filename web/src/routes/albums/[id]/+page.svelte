@@ -15,6 +15,14 @@
   import { addToast } from '$lib/stores/toasts';
   import { currentUser } from '$lib/stores/auth';
   import AddToPlaylistModal from '$lib/components/AddToPlaylistModal.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
+
+  let ctxMenu: { x: number; y: number; track: import('$lib/types').Track } | null = null;
+
+  function openTrackContextMenu(e: MouseEvent, track: import('$lib/types').Track) {
+    e.preventDefault();
+    ctxMenu = { x: e.clientX, y: e.clientY, track };
+  }
 
   let lightboxOpen = false;
   let lightboxIndex = 0;
@@ -39,7 +47,7 @@
     try {
       album = await api.album(id);
       coverIdx = coverPrefs.get(id);
-      const activeId = $player.queue[$player.queueIndex]?.id;
+      const activeId = $player.queue[$player.queueIndex]?.track.id;
       if (activeId) {
         // wait one tick for DOM to render the track rows
         setTimeout(() => {
@@ -133,7 +141,7 @@
   let trackFilter = '';
   let compact = false;
 
-  $: isThisAlbumCurrent = $player.currentAlbum?.id === album?.id;
+  $: isThisAlbumCurrent = $player.queue[$player.queueIndex]?.album.id === album?.id;
   $: isThisAlbumPlaying = isThisAlbumCurrent && $player.isPlaying;
 
   let albumScraping = false;
@@ -275,8 +283,8 @@
         </span>
       </div>
       {#each album.tracks.filter(t => !trackFilter || t.name.toLowerCase().includes(trackFilter.toLowerCase())) as track, i}
-        {@const isPlaying = $player.queue[$player.queueIndex]?.id === track.id && $player.isPlaying}
-        {@const isCurrent = $player.queue[$player.queueIndex]?.id === track.id}
+        {@const isPlaying = $player.queue[$player.queueIndex]?.track.id === track.id && $player.isPlaying}
+        {@const isCurrent = $player.queue[$player.queueIndex]?.track.id === track.id}
         {@const isFav = $favoritedTrackIDs.has(track.id)}
         {@const isHid = $hidden.has(track.id)}
         {@const trackNum = album.tracks.indexOf(track) + 1}
@@ -286,6 +294,7 @@
           class:current={isCurrent}
           class:hidden-track={isHid}
           on:dblclick={() => playTrack(track)}
+          on:contextmenu={(e) => openTrackContextMenu(e, track)}
           role="row"
         >
           <span class="col-num">
@@ -310,7 +319,7 @@
               {isFav ? '★' : '☆'}
             </button>
             <div class="acts">
-            <button class="act" title="Play next" on:click={() => player.playNext(track)}>▶+</button>
+            <button class="act" title="Play next" on:click={() => player.playNext(track, album ? toSummary(album) : undefined, album?.covers ?? [])}>▶+</button>
             {#if $currentUser}
               <button class="act" title="Add to playlist" on:click={() => openAddToPlaylist(track.id)}>+</button>
             {/if}
@@ -366,6 +375,25 @@
 </div>
 
 <AddToPlaylistModal bind:open={addToPlaylistOpen} trackId={addToPlaylistTrackId} />
+
+{#if ctxMenu}
+  {@const track = ctxMenu.track}
+  {@const isFav = $favoritedTrackIDs.has(track.id)}
+  {@const isHid = $hidden.has(track.id)}
+  <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => ctxMenu = null}>
+    <button on:click={() => { player.playNext(track, album ? toSummary(album) : undefined, album?.covers ?? []); ctxMenu = null; }}>▶+ Play Next</button>
+    {#if $currentUser}
+      <button on:click={() => { openAddToPlaylist(track.id); ctxMenu = null; }}>+ Add to Playlist…</button>
+    {/if}
+    <div class="divider"></div>
+    <button on:click={() => { toggleTrackFav(track); ctxMenu = null; }}>
+      {isFav ? '★ Remove from Favorites' : '☆ Add to Favorites'}
+    </button>
+    <button on:click={() => { hidden.toggle(track.id); ctxMenu = null; }}>
+      {isHid ? '👍 Unhide' : '👎 Hide'}
+    </button>
+  </ContextMenu>
+{/if}
 
 <style>
   .page { padding: var(--sp-md); }

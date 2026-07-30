@@ -1,6 +1,6 @@
 import type {
   Album, AlbumSummary, CatalogConsole, CatalogPage,
-  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, Track, User,
+  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, SyncedLetter, Track, User,
   PlaylistSummary, PlaylistDetail
 } from './types';
 
@@ -88,6 +88,7 @@ export const api = {
   startCatalogSync: () => post<void>('/catalog/sync'),
   startLetterSync: (letter: string) => post<{ status: string; letter: string }>(`/catalog/sync?letter=${encodeURIComponent(letter)}`),
   catalogSyncProgress: () => get<CatalogSyncProgress>('/catalog/sync'),
+  syncedLetters: () => get<SyncedLetter[]>('/catalog/synced-letters'),
 
   recordPlay: (trackId: string, albumId: string) =>
     post<void>('/history', { trackId, albumId }),

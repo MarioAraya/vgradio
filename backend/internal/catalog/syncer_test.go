@@ -15,9 +15,10 @@ import (
 
 // fakeStore is an in-memory catalogStore for tests — no real DB or network involved.
 type fakeStore struct {
-	mu       sync.Mutex
-	entries  []scraper.CatalogEntry
-	consoles []scraper.Console
+	mu            sync.Mutex
+	entries       []scraper.CatalogEntry
+	consoles      []scraper.Console
+	syncedLetters []string
 }
 
 func (f *fakeStore) UpsertCatalogEntries(_ context.Context, entries []scraper.CatalogEntry) error {
@@ -44,6 +45,13 @@ func (f *fakeStore) Consoles(_ context.Context) ([]scraper.Console, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.consoles, nil
+}
+
+func (f *fakeStore) MarkLetterSynced(_ context.Context, letter string, _ int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.syncedLetters = append(f.syncedLetters, letter)
+	return nil
 }
 
 func silentLogger() *slog.Logger {

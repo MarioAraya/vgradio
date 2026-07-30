@@ -37,6 +37,7 @@ type storer interface {
 	SearchCatalog(ctx context.Context, q, platform, letter string, offset, limit int) ([]scraper.CatalogEntry, error)
 	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
 	Consoles(ctx context.Context) ([]scraper.Console, error)
+	SyncedLetters(ctx context.Context) ([]store.SyncedLetter, error)
 	RecordPlay(ctx context.Context, trackID, albumID, userID string) error
 	RecentHistory(ctx context.Context, limit int, userID string) ([]store.HistoryEntry, error)
 	// auth
@@ -135,6 +136,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /catalog/sync", h.getCatalogSync)
 	mux.HandleFunc("GET /catalog", h.getCatalog)
 	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
+	mux.HandleFunc("GET /catalog/synced-letters", h.getSyncedLetters)
 	mux.HandleFunc("GET /catalog/top40", h.getTop40)
 	mux.HandleFunc("PUT /config/cf-clearance", h.putCFClearance)
 	mux.HandleFunc("POST /history", h.postHistory)

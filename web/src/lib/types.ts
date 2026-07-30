@@ -72,6 +72,12 @@ export interface CatalogConsole {
   albumCount: number
 }
 
+export interface SyncedLetter {
+  letter: string
+  syncedAt: string
+  entries: number
+}
+
 export interface CatalogSyncProgress {
   running: boolean
   total: number

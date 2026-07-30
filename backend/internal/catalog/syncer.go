@@ -44,6 +44,7 @@ type catalogStore interface {
 	UpsertConsoles(ctx context.Context, consoles []scraper.Console) error
 	CountCatalog(ctx context.Context, q, platform, letter string) (int, error)
 	Consoles(ctx context.Context) ([]scraper.Console, error)
+	MarkLetterSynced(ctx context.Context, letter string, entries int) error
 }
 
 // Syncer orchestrates the catalog scrape.
@@ -159,6 +160,11 @@ func (s *Syncer) StartLetter(ctx context.Context, letter string) bool {
 			s.mu.Lock()
 			s.progress.Errors++
 			s.mu.Unlock()
+		} else {
+			n, _ := s.store.CountCatalog(context.Background(), "", "", letter)
+			if err := s.store.MarkLetterSynced(context.Background(), letter, n); err != nil {
+				s.log.Warn("catalog: mark letter synced failed", "letter", letter, "err", err)
+			}
 		}
 		s.log.Info("catalog: letter sync complete", "letter", letter)
 	}()
@@ -185,6 +191,11 @@ func (s *Syncer) run(ctx context.Context) {
 			s.mu.Lock()
 			s.progress.Errors++
 			s.mu.Unlock()
+		} else {
+			ln, _ := s.store.CountCatalog(ctx, "", "", letter)
+			if err := s.store.MarkLetterSynced(ctx, letter, ln); err != nil {
+				s.log.Warn("catalog: mark letter synced failed", "letter", letter, "err", err)
+			}
 		}
 		n, _ := s.store.CountCatalog(ctx, "", "", "")
 		s.mu.Lock()

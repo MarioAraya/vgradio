@@ -39,7 +39,7 @@
     </button>
     {#if !collapsed}
       <div class="list">
-        {#each q as track, i (i)}
+        {#each q as item, i (i)}
           <div
             class="row"
             class:current={i === $player.queueIndex}
@@ -53,15 +53,12 @@
           >
             <span class="num">{i + 1}</span>
             <button class="play-row" on:click={() => {
-              const s = $player;
-              if (s.currentAlbum) player.play(track, s.currentAlbum, s.queue, s.currentCovers);
+              player.play(item.track, item.album, q.map(it => it.track), item.covers);
             }}>
-              <span class="track-name">{track.name}</span>
-              {#if $player.currentAlbum}
-                <span class="album-name">{$player.currentAlbum.title}</span>
-              {/if}
+              <span class="track-name">{item.track.name}</span>
+              <span class="album-name">{item.album.title}</span>
             </button>
-            <span class="dur">{fmtTime(track.durationSec)}</span>
+            <span class="dur">{fmtTime(item.track.durationSec)}</span>
             <button class="rm" on:click={() => player.removeFromQueue(i)}>✕</button>
           </div>
         {/each}

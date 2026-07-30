@@ -9,7 +9,7 @@
   import { player } from '$lib/stores/player';
   import { fmtDuration } from '$lib/utils';
 
-  $: currentAlbumId = $player.currentAlbum?.id ?? null;
+  $: currentAlbumId = $player.queue[$player.queueIndex]?.album.id ?? null;
 
   let albums: AlbumSummary[] = [];
   let loading = true;

@@ -16,10 +16,11 @@
   let scrubHoverTime: string | null = null;
   let fullscreen = false;
 
-  $: track = $player.queue[$player.queueIndex] ?? null;
-  $: album = $player.currentAlbum;
-  $: covers = $player.currentCovers;
-  $: coverUrl = covers[$player.currentCoverIndex]?.url ?? '';
+  $: queueItem = $player.queue[$player.queueIndex] ?? null;
+  $: track = queueItem?.track ?? null;
+  $: album = queueItem?.album ?? null;
+  $: covers = queueItem?.covers ?? [];
+  $: coverUrl = covers[$player.currentCoverIndex]?.url ?? covers[0]?.url ?? '';
   $: isFav = track ? $favoritedTrackIDs.has(track.id) : false;
   $: isHid = track ? $hidden.has(track.id) : false;
 

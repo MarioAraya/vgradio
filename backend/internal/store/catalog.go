@@ -33,6 +33,51 @@ func (s *Store) migrateCatalog() {
 			album_count INTEGER NOT NULL DEFAULT 0
 		);
 	`) //nolint:errcheck
+
+	s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS synced_letters (
+			letter     TEXT PRIMARY KEY,
+			synced_at  TIMESTAMP NOT NULL,
+			entries    INTEGER NOT NULL DEFAULT 0
+		);
+	`) //nolint:errcheck
+}
+
+// MarkLetterSynced records that a browse letter has been fully scraped.
+func (s *Store) MarkLetterSynced(ctx context.Context, letter string, entries int) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO synced_letters (letter, synced_at, entries)
+		VALUES (?, CURRENT_TIMESTAMP, ?)
+		ON CONFLICT(letter) DO UPDATE SET
+			synced_at = CURRENT_TIMESTAMP,
+			entries   = excluded.entries
+	`, letter, entries)
+	return err
+}
+
+// SyncedLetter describes a browse letter's scrape state.
+type SyncedLetter struct {
+	Letter   string `json:"letter"`
+	SyncedAt string `json:"syncedAt"`
+	Entries  int    `json:"entries"`
+}
+
+// SyncedLetters returns all browse letters that have been fully scraped at least once.
+func (s *Store) SyncedLetters(ctx context.Context) ([]SyncedLetter, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT letter, synced_at, entries FROM synced_letters ORDER BY letter`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SyncedLetter
+	for rows.Next() {
+		var l SyncedLetter
+		if err := rows.Scan(&l.Letter, &l.SyncedAt, &l.Entries); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
 }
 
 // UpsertCatalogEntries inserts or updates catalog entries in bulk.

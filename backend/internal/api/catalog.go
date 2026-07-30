@@ -77,6 +77,16 @@ func (h *handler) getCatalog(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
+// GET /catalog/synced-letters — returns browse letters already fully scraped.
+func (h *handler) getSyncedLetters(w http.ResponseWriter, r *http.Request) {
+	letters, err := h.store.SyncedLetters(r.Context())
+	if err != nil {
+		jsonError(w, "store error", http.StatusInternalServerError)
+		return
+	}
+	jsonOK(w, letters, http.StatusOK)
+}
+
 // GET /catalog/consoles — returns all consoles ordered by album count.
 func (h *handler) getCatalogConsoles(w http.ResponseWriter, r *http.Request) {
 	consoles, err := h.store.Consoles(r.Context())
