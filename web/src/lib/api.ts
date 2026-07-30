@@ -4,10 +4,16 @@ import type {
   PlaylistSummary, PlaylistDetail
 } from './types';
 
-const BASE = () =>
-  localStorage.getItem('vgradio.backendURL') ??
-  (import.meta.env.VITE_API_URL as string | undefined) ??
-  `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8080`;
+const BASE = () => {
+  const override =
+    localStorage.getItem('vgradio.backendURL') ??
+    (import.meta.env.VITE_API_URL as string | undefined);
+  if (override) return override;
+  if (import.meta.env.PROD && typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
+  return `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8080`;
+};
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const r = await fetch(BASE() + path, { signal, credentials: 'include' });

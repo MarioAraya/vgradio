@@ -18,6 +18,12 @@ services:
       - "traefik.http.routers.vgradio-api.entrypoints=websecure"
       - "traefik.http.routers.vgradio-api.tls=true"
       - "traefik.http.services.vgradio-api.loadbalancer.server.port=8080"
+      - "traefik.http.middlewares.vgradio-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.vgradio-api-path.rule=Host(`vgradio.lab`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.vgradio-api-path.entrypoints=websecure"
+      - "traefik.http.routers.vgradio-api-path.tls=true"
+      - "traefik.http.routers.vgradio-api-path.middlewares=vgradio-api-strip"
+      - "traefik.http.routers.vgradio-api-path.service=vgradio-api"
 
   web:
     image: 192.168.0.103:5000/vgradio/web:latest

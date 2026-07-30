@@ -56,7 +56,7 @@ func (h *handler) setSessionCookie(ctx context.Context, w http.ResponseWriter, u
 		Expires:  expires,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	return nil
 }
