@@ -11,11 +11,13 @@
   let syncedLetters: Record<string, SyncedLetter> = {};
   let syncing = false;
   let syncingLetter = false;
+  let syncDoneMsg = '';
+  let syncDoneTimer: ReturnType<typeof setTimeout>;
   let loading = false;
   let error = '';
   let total = 0;
   let currentPage = 1;
-  const LIMIT = 300;
+  const LIMIT = 1200;
 
   $: totalPages = Math.ceil(total / LIMIT);
   $: pageNums = buildPageNums(currentPage, totalPages);
@@ -97,6 +99,8 @@
   }
 
   async function pollSync() {
+    const wasLetterSync = syncingLetter;
+    const syncedLetter = letter;
     while (syncing) {
       await new Promise(r => setTimeout(r, 1500));
       try {
@@ -109,6 +113,12 @@
             const sl = await api.syncedLetters();
             syncedLetters = Object.fromEntries(sl.map(s => [s.letter, s]));
           } catch {}
+          const errs = syncProgress.errors ? ` (${syncProgress.errors} errores)` : '';
+          syncDoneMsg = wasLetterSync
+            ? `✓ "${syncedLetter}" lista: ${syncedLetters[syncedLetter]?.entries ?? syncProgress.entries} álbumes${errs}`
+            : `✓ Catálogo listo: ${syncProgress.entries} álbumes${errs}`;
+          clearTimeout(syncDoneTimer);
+          syncDoneTimer = setTimeout(() => (syncDoneMsg = ''), 6000);
         }
       } catch { break; }
     }
@@ -150,7 +160,9 @@
         <span class="kbd-hint" title="Global catalog search">⌘K</span>
       </div>
       <div class="sync">
-        {#if syncProgress}
+        {#if syncDoneMsg}
+          <span class="sync-done">{syncDoneMsg}</span>
+        {:else if syncProgress}
           {#if syncing}
             <span class="muted">⟳ {syncProgress.done}/{syncProgress.total} · {syncProgress.entries} entries</span>
           {:else}
@@ -302,7 +314,11 @@
   }
   .letter:hover { color: var(--text); background: rgba(255,255,255,0.04); }
   .letter.sel { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .letter.synced { color: #7ec98f; }
+  .letter.synced.sel { color: var(--accent); }
   .synced-dot { color: #4caf50; font-size: 9px; margin-left: 2px; vertical-align: super; }
+  .sync-done { font-size: 11px; color: #4caf50; font-weight: 600; animation: fade-in 0.2s ease-out; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
   .console-strip { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 2px; max-height: calc(3 * (22px + 4px)); overflow: hidden; }
   .chip {
     font-size: 11px;

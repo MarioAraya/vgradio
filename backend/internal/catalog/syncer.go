@@ -128,6 +128,7 @@ func (s *Syncer) Start(ctx context.Context) bool {
 	s.progress = SyncProgress{Running: true, Total: total, StartedAt: time.Now()}
 	s.mu.Unlock()
 
+	s.log.Info("catalog: full sync started", "letters", len(browseLetters))
 	go func() {
 		s.run(ctx)
 	}()
@@ -142,10 +143,14 @@ func (s *Syncer) StartLetter(ctx context.Context, letter string) bool {
 		s.mu.Unlock()
 		return false
 	}
-	s.progress = SyncProgress{Running: true, Total: 0, StartedAt: time.Now()}
+	started := time.Now()
+	s.progress = SyncProgress{Running: true, Total: 0, StartedAt: started}
 	s.mu.Unlock()
 
+	s.log.Info("catalog: letter sync started", "letter", letter)
 	go func() {
+		var letterEntries int
+		var failed bool
 		defer func() {
 			total, _ := s.store.CountCatalog(context.Background(), "", "", "")
 			s.mu.Lock()
@@ -154,19 +159,25 @@ func (s *Syncer) StartLetter(ctx context.Context, letter string) bool {
 			s.progress.FinishedAt = &now
 			s.progress.Entries = total
 			s.mu.Unlock()
+			s.log.Info("catalog: letter sync complete",
+				"letter", letter,
+				"entries", letterEntries,
+				"ok", !failed,
+				"duration", time.Since(started).Round(time.Second).String())
 		}()
 		if err := s.syncBrowseLetterAllPages(ctx, letter); err != nil {
+			failed = true
 			s.log.Warn("catalog: letter sync failed", "letter", letter, "err", err)
 			s.mu.Lock()
 			s.progress.Errors++
 			s.mu.Unlock()
 		} else {
 			n, _ := s.store.CountCatalog(context.Background(), "", "", letter)
+			letterEntries = n
 			if err := s.store.MarkLetterSynced(context.Background(), letter, n); err != nil {
 				s.log.Warn("catalog: mark letter synced failed", "letter", letter, "err", err)
 			}
 		}
-		s.log.Info("catalog: letter sync complete", "letter", letter)
 	}()
 	return true
 }
@@ -248,10 +259,11 @@ func (s *Syncer) run(ctx context.Context) {
 	s.progress.Consoles = len(consoles)
 	s.mu.Unlock()
 
-	s.log.Info("catalog sync complete",
+	s.log.Info("catalog: full sync complete",
 		"entries", total,
 		"consoles", len(consoles),
-		"errors", s.progress.Errors)
+		"errors", s.progress.Errors,
+		"duration", time.Since(s.progress.StartedAt).Round(time.Second).String())
 }
 
 // curlGet fetches a URL using the system curl binary, bypassing Go's TLS fingerprint
