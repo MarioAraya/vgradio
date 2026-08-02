@@ -17,14 +17,14 @@
   let error = '';
   let total = 0;
   let currentPage = 1;
-  const LIMIT = 1200;
+  const LIMIT = 3000;
 
   $: totalPages = Math.ceil(total / LIMIT);
   $: pageNums = buildPageNums(currentPage, totalPages);
 
   function buildPageNums(cur: number, tot: number): (number | null)[] {
-    if (tot <= 7) return Array.from({ length: tot }, (_, i) => i + 1);
-    const show = new Set([1, tot, cur - 2, cur - 1, cur, cur + 1, cur + 2].filter(n => n >= 1 && n <= tot));
+    if (tot <= 12) return Array.from({ length: tot }, (_, i) => i + 1);
+    const show = new Set([1, tot, cur - 4, cur - 3, cur - 2, cur - 1, cur, cur + 1, cur + 2, cur + 3, cur + 4].filter(n => n >= 1 && n <= tot));
     const sorted = [...show].sort((a, b) => a - b);
     const pages: (number | null)[] = [];
     for (let i = 0; i < sorted.length; i++) {
@@ -254,6 +254,7 @@
 
     {#if !syncingLetter && totalPages > 1}
       <div class="pagination">
+        <button class="pg-btn" disabled={currentPage === 1} on:click={() => goToPage(1)}>«</button>
         <button class="pg-btn" disabled={currentPage === 1} on:click={() => goToPage(currentPage - 1)}>‹</button>
         {#each pageNums as p}
           {#if p === null}
@@ -263,6 +264,7 @@
           {/if}
         {/each}
         <button class="pg-btn" disabled={currentPage === totalPages} on:click={() => goToPage(currentPage + 1)}>›</button>
+        <button class="pg-btn" disabled={currentPage === totalPages} on:click={() => goToPage(totalPages)}>»</button>
       </div>
     {/if}
   {/if}
@@ -319,7 +321,7 @@
   .synced-dot { color: #4caf50; font-size: 9px; margin-left: 2px; vertical-align: super; }
   .sync-done { font-size: 11px; color: #4caf50; font-weight: 600; animation: fade-in 0.2s ease-out; }
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-  .console-strip { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 2px; max-height: calc(3 * (22px + 4px)); overflow: hidden; }
+  .console-strip { display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 2px; max-height: calc(3 * (22px + 4px)); overflow-y: auto; }
   .chip {
     font-size: 11px;
     padding: 3px 10px;
