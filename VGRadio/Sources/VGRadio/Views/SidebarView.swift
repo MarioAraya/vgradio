@@ -291,14 +291,71 @@ struct LoginSheet: View {
     @Environment(\.dismiss) var dismiss
     @Environment(AuthStore.self) var auth
 
+    @State private var showPicker: Bool
     @State private var email = ""
     @State private var password = ""
     @State private var loading = false
     @State private var error = ""
 
+    init() {
+        _showPicker = State(initialValue: !AuthStore.recentEmailsPreview.isEmpty)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: VGSpace.lg) {
             Text("Sign in").font(VGFont.title()).foregroundStyle(Color.vgText)
+
+            if showPicker {
+                accountPicker
+            } else {
+                form
+            }
+        }
+        .padding(VGSpace.xl)
+        .frame(width: 360)
+        .background(Color.vgSurface)
+    }
+
+    private var accountPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(auth.recentEmails, id: \.self) { e in
+                AccountRow(email: e,
+                           onSelect: { email = e; showPicker = false },
+                           onForget: { auth.forgetEmail(e) })
+            }
+            Button {
+                email = ""
+                showPicker = false
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle().fill(Color.vgSurfaceHi)
+                        Image(systemName: "plus").font(.system(size: 12, weight: .semibold))
+                    }
+                    .frame(width: 32, height: 32)
+                    Text("Otra cuenta").font(VGFont.body()).foregroundStyle(Color.vgTextSec)
+                    Spacer()
+                }
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.foregroundStyle(Color.vgTextSec)
+            }
+        }
+    }
+
+    private var form: some View {
+        VStack(alignment: .leading, spacing: VGSpace.lg) {
+            if !auth.recentEmails.isEmpty {
+                Button { showPicker = true; password = ""; error = "" } label: {
+                    Label("Cuentas", systemImage: "chevron.left").font(VGFont.caption())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.vgTextSec)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("EMAIL").font(VGFont.label(10)).tracking(1).foregroundStyle(Color.vgTextMuted)
@@ -306,6 +363,7 @@ struct LoginSheet: View {
                     .textFieldStyle(.roundedBorder)
                     .textContentType(.emailAddress)
                     .font(VGFont.body())
+                    .onSubmit { Task { await login() } }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -313,6 +371,7 @@ struct LoginSheet: View {
                 SecureField("Password", text: $password)
                     .textFieldStyle(.roundedBorder)
                     .font(VGFont.body())
+                    .onSubmit { Task { await login() } }
             }
 
             if !error.isEmpty {
@@ -333,12 +392,10 @@ struct LoginSheet: View {
                 .clipShape(Capsule())
             }
         }
-        .padding(VGSpace.xl)
-        .frame(width: 360)
-        .background(Color.vgSurface)
     }
 
     private func login() async {
+        guard !loading, !email.isEmpty, !password.isEmpty else { return }
         loading = true
         error = ""
         do {
@@ -348,5 +405,41 @@ struct LoginSheet: View {
             self.error = error.localizedDescription
         }
         loading = false
+    }
+}
+
+private struct AccountRow: View {
+    let email: String
+    let onSelect: () -> Void
+    let onForget: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(Color.vgAccent.opacity(0.25))
+                Text(String(email.prefix(1)).uppercased())
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.vgAccent)
+            }
+            .frame(width: 32, height: 32)
+            Text(email).font(VGFont.body()).foregroundStyle(Color.vgText)
+            Spacer()
+            if isHovered {
+                Button(action: onForget) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Color.vgTextMuted)
+                }
+                .buttonStyle(.plain)
+                .help("Olvidar esta cuenta")
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .background(isHovered ? Color.vgSurfaceHi : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .onTapGesture(perform: onSelect)
     }
 }

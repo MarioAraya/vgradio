@@ -39,8 +39,14 @@ func (rl *rateLimiter) allow(ip string) bool {
 	return true
 }
 
+// isSecureRequest reports whether the request arrived over TLS, either
+// directly or terminated upstream by a reverse proxy (Traefik in prod).
+func isSecureRequest(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+}
+
 // setSessionCookie creates a session in the DB and writes the sid cookie to w.
-func (h *handler) setSessionCookie(ctx context.Context, w http.ResponseWriter, userID string) error {
+func (h *handler) setSessionCookie(ctx context.Context, w http.ResponseWriter, userID string, r *http.Request) error {
 	sid, err := auth.NewID()
 	if err != nil {
 		return err
@@ -55,7 +61,7 @@ func (h *handler) setSessionCookie(ctx context.Context, w http.ResponseWriter, u
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 	return nil
@@ -105,7 +111,7 @@ func (h *handler) postRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if err := h.setSessionCookie(r.Context(), w, id); err != nil {
+	if err := h.setSessionCookie(r.Context(), w, id, r); err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -131,7 +137,7 @@ func (h *handler) postLogin(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid email or password", http.StatusUnauthorized)
 		return
 	}
-	if err := h.setSessionCookie(r.Context(), w, u.ID); err != nil {
+	if err := h.setSessionCookie(r.Context(), w, u.ID, r); err != nil {
 		jsonError(w, "internal error", http.StatusInternalServerError)
 		return
 	}

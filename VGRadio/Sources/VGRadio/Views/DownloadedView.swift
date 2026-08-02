@@ -205,25 +205,42 @@ private struct DownloadedTrackRow: View {
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .onTapGesture(count: 2) { play() }
+        .contextMenu {
+            Button { player.playNext(asTrack()) } label: {
+                Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+        }
 
         Divider().overlay(Color.vgSeparator).padding(.horizontal, VGSpace.md)
     }
 
+    private func asTrack() -> Track {
+        Track(id: track.id, index: track.index, name: track.name,
+              durationSec: track.durationSec, sizeBytes: 0,
+              streamUrl: "/tracks/\(track.id)/stream",
+              downloadUrl: "/tracks/\(track.id)/download",
+              downloaded: true)
+    }
+
     private func play() {
-        let tracks = group.tracks.sorted(by: { $0.index < $1.index }).map { d in
-            Track(id: d.id, index: d.index, name: d.name,
-                  durationSec: d.durationSec, sizeBytes: 0,
-                  streamUrl: "/tracks/\(d.id)/stream",
-                  downloadUrl: "/tracks/\(d.id)/download",
-                  downloaded: true)
+        var index = 0
+        let allTracks: [Track] = offline.grouped.flatMap { g in
+            g.tracks.sorted(by: { $0.index < $1.index }).map { d -> Track in
+                index += 1
+                return Track(id: d.id, index: index, name: d.name,
+                             durationSec: d.durationSec, sizeBytes: 0,
+                             streamUrl: "/tracks/\(d.id)/stream",
+                             downloadUrl: "/tracks/\(d.id)/download",
+                             downloaded: true)
+            }
         }
-        guard let current = tracks.first(where: { $0.id == track.id }) else { return }
+        guard let current = allTracks.first(where: { $0.id == track.id }) else { return }
         let resolvedCovers = group.coverUrl.isEmpty
             ? (library.albums.first(where: { $0.id == group.albumId })?.coverUrls ?? [])
             : [group.coverUrl]
-        let album = AlbumSummary(id: group.albumId, title: group.albumTitle,
+        let album = AlbumSummary(id: "downloaded", title: "Descargado",
                                  platform: group.platform, year: group.year,
-                                 albumType: "", trackCount: tracks.count, totalDurationSec: 0, coverUrls: resolvedCovers)
-        player.play(track: current, in: album, queue: tracks)
+                                 albumType: "", trackCount: allTracks.count, totalDurationSec: 0, coverUrls: resolvedCovers)
+        player.play(track: current, in: album, queue: allTracks)
     }
 }
