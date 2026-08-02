@@ -1,48 +1,56 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-07-27
+Última sesión: 2026-08-02
 
 ## En progreso
 
-Nada en curso. Sesión corta: solo se confirmó/pusheó a `origin` (GitHub→Vercel) y `gitea` (→Drone CI homelab) el trabajo de la sesión anterior (commit `ed2f4f5`, actualización de este mismo CURRENT.md). No hubo cambios de código nuevos. Ambos remotos verificados en sync con local al cierre.
+Nada en curso. Sesión cerrada con commit `647ffe4` en `main`, build macOS release compilado y deployado a `/Applications/VGRadio.app`. Falta push a `origin`/`gitea`.
 
 **Preguntas pendientes antes de continuar:**
-1. ¿Login/favoritos por IP:puerto se necesitan de verdad, o alcanza con catálogo+reproducción sin sesión? (cookie `sid` tiene `Secure:true` hardcodeado, no se tocó — ver Notas)
-2. ¿Seguir con DNS local (Pi-hole/dnsmasq) para que TV/celular resuelvan `*.lab` sin exponer puertos? Quedó como opción discutida, no implementada.
+1. Confirmar que el usuario ve "Liked Music" con sus 37 tracks tras re-login (logout/login) en la app — quedó pedido pero no confirmado en el chat.
+2. ¿Push de estos 3 commits (`647ffe4` + 2 previos) a `origin`/`gitea`? No se hizo esta sesión.
 
 ## Completado esta sesión
 
-- [x] Push `ed2f4f5` a `origin` y `gitea` — confirmado ambos remotos en sync (nada quedó sin subir)
+- [x] **Queue automático en Descargado**: tocar cualquier track en "Descargado" ahora arma la queue con *todas* las canciones descargadas (todos los álbumes, orden de la lista), no solo las del álbum clickeado — `DownloadedView.swift`
+- [x] **Context menu "Play Next" en Descargado** — faltaba, ya existía en AlbumDetailView, se replicó en `DownloadedTrackRow`
+- [x] **Selector de cuentas estilo Steam en login** — `AuthStore` guarda últimos 5 emails (nunca password) en UserDefaults (`vgradio.recentEmails`); `LoginSheet` abre en modo picker si hay cuentas guardadas, con avatar+inicial, botón "Otra cuenta", y ✕ al hover para olvidar una cuenta
+- [x] **Enter para login** — `.onSubmit` en email/password dispara sign-in, guard contra doble-submit con campos vacíos
+- [x] **Bug real de "Liked Music" vacío diagnosticado y arreglado**: `backend/internal/api/auth.go` fijaba `Secure: true` siempre en la cookie `sid`. Sobre `http://localhost:8080` (dev local) macOS descarta cookies Secure → cualquier endpoint autenticado (`/favorites/tracks`, etc.) fallaba 401 y el cliente lo mostraba como lista vacía en vez de error. Fix: `Secure` ahora depende de `isSecureRequest(r)` (TLS directo o `X-Forwarded-Proto: https` detrás de Traefik) — producción homelab sigue igual, dev local ahora funciona. **Nota: esto revierte la decisión de la sesión anterior de "no tocar" este flag** — se tocó porque el síntoma (favoritos vacíos) lo requería.
+- [x] Verificado con curl directo contra sesión real en DB: `/favorites/tracks` devuelve las 37 canciones correctamente con el fix aplicado
+- [x] Build macOS release compilado limpio (`swift build -c release` con `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer`) y copiado a `/Applications/VGRadio.app`
+- [x] Commit `647ffe4` con los 4 archivos tocados (AuthStore.swift, DownloadedView.swift, SidebarView.swift, backend/internal/api/auth.go)
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Verificar visualmente en browser real** los cambios de la sesión `22a1143`/`5e98786` (estrella álbum, fullscreen player, iconos agrandados) — sigue sin probarse en browser real
-- [ ] **Confirmar en la TV** que `http://192.168.0.104:8085` carga catálogo/reproducción tras el deploy de Drone
-- [ ] Decidir si se arma DNS local (Pi-hole/dnsmasq) para acceso por dominio `.lab` en todos los dispositivos LAN (discutido, no implementado)
-- [ ] Si se quiere login/favoritos desde IP:puerto plano: cambiar `Secure:true` → condicional en `backend/internal/api/auth.go:58` (usuario decidió **no** tocarlo por riesgo, queda descartado salvo que lo pida de nuevo)
+- [ ] Usuario debe hacer logout/login en la app para obtener cookie nueva sin `Secure` y confirmar que Liked Music vuelve a mostrar los 37 tracks
+- [ ] Push de los 3 commits pendientes a `origin` y `gitea` (`git push`, no hecho esta sesión)
+- [ ] Si se despliega este fix de `auth.go` al homelab (Drone CI), verificar que `X-Forwarded-Proto` efectivamente lo setea Traefik — si no, la cookie en prod dejaría de ser Secure. Chequear config de Traefik antes de asumir que anda igual.
+- [ ] `web/src/routes/browse/+page.svelte` tiene cambios sin commitear de una sesión anterior (LIMIT 1200→3000, paginación 7→12 páginas visibles) — no tocado esta sesión, decidir si commitear o descartar
 
 ### Pendientes de sesiones anteriores (sin tocar esta sesión)
 
-- [ ] ID3 tags reales (TIT2/TALB/APIC) — descartado sesión anterior, posible follow-up
+- [ ] ID3 tags reales (TIT2/TALB/APIC)
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync`
-- [ ] **Einhander tracks 3+** — necesita CF clearance (ver notas)
+- [ ] **Einhander tracks 3+** — necesita CF clearance
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
 - [ ] **Cover en Now Playing (menu bar widget)** — muestra placeholder gris
 - [ ] **feat: scrapear por año/consola/todo el catálogo khinsider**
 - [ ] **Mini-covers en Browse/catalog search**
 - [ ] **Cert mkcert roto para subdominios `.lab`** — wildcard `*.lab` estructuralmente inválido, requiere regenerar con SANs explícitos
+- [ ] Decidir si se arma DNS local (Pi-hole/dnsmasq) para acceso por dominio `.lab` en todos los dispositivos LAN
 
 ## Notas
 
-### Cookie `sid` y acceso por IP:puerto plano
+### Toolchain Xcode en disco externo
 
-`backend/internal/api/auth.go:58` fija `Secure: true` + `SameSite: None` en la cookie de sesión. Sobre HTTP plano (sin TLS) el browser nunca la guarda → login/favoritos no funcionan accediendo por `192.168.0.104:8086` directo. Catálogo y reproducción sí funcionan (no requieren sesión). CORS del backend (`router.go:190-203`) ya refleja cualquier origin, no es el bloqueante — es puramente el flag `Secure`. Usuario decidió no tocar esto esta sesión.
+`DEVELOPER_DIR` apunta a `/Volumes/ExtDevDisk/Xcode.app/Contents/Developer` — CommandLineTools solo (sin este disco montado) NO puede linkear ni el manifest de `swift build`. Si el disco se desmonta a mitad de sesión, `swift build` falla con `xcrun: error: missing DEVELOPER_DIR path`. Confirmar que el disco esté montado (`ls /Volumes/`) antes de compilar.
 
-### `.env.production` del frontend está stale/sin uso
+### Cookie `sid` — estado actualizado
 
-`web/.env.production` tiene `VITE_API_URL=https://api.vgradio.lab` (dominio que NO existe — el real es `vgradio-api.lab`, ver `.drone.yml:46`). No es un bug activo: el build real de CI usa el valor correcto vía `.drone.yml`, este `.env.production` no se lee en el pipeline. Podría confundir a futuro si alguien corre `vite build` local sin pasar el env var explícito.
+Ya NO es `Secure: true` fijo (ver Completado). Ahora condicional vía `isSecureRequest()` en `backend/internal/api/auth.go`. Esto reemplaza la nota de la sesión anterior que decía "usuario decidió no tocarlo" — se tocó esta sesión porque bloqueaba una feature real (Liked Music) en dev local.
 
-### Infraestructura homelab (actualizado)
+### Infraestructura homelab (sin cambios esta sesión)
 
 | Servicio        | Host          | Acceso                                  |
 |-----------------|---------------|------------------------------------------|
@@ -50,26 +58,28 @@ Nada en curso. Sesión corta: solo se confirmó/pusheó a `origin` (GitHub→Ver
 | Drone CI        | 192.168.0.103 | https://drone.lab                        |
 | Registry        | 192.168.0.103 | 192.168.0.103:5000 (HTTP)                |
 | Traefik         | 192.168.0.104 | —                                         |
-| VGRadio web     | 192.168.0.104 | https://vgradio.lab · **http://192.168.0.104:8085** (nuevo, sin login) |
-| VGRadio API     | 192.168.0.104 | https://vgradio-api.lab · **http://192.168.0.104:8086** (nuevo, sin login) |
+| VGRadio web     | 192.168.0.104 | https://vgradio.lab · http://192.168.0.104:8085 |
+| VGRadio API     | 192.168.0.104 | https://vgradio-api.lab · http://192.168.0.104:8086 |
 
 **Drone token:** `ZBnZ9g6QuAZDp3GUzDyL6H2NwSU63oT4`
-
-### Router ISP (VTR/Claro, cable no fibra)
-
-Para DNS local (`*.lab`) hace falta admin del router. Clave suele venir en sticker del equipo; si no, soporte técnico la da por teléfono. Riesgo: routers de cable VTR/Claro suelen venir bloqueados sin opción de DNS custom — salida típica es poner router propio en modo bridge/AP detrás del del ISP.
 
 ### Comandos útiles
 
 ```bash
-# Backend local
-kill $(lsof -t -i :8080) 2>/dev/null; sleep 1
-cd backend && go run ./cmd/server > /tmp/vgradio.log 2>&1 &
+# Backend local — matar server viejo (¡ojo! go run deja un hijo "server" corriendo, pkill por nombre de proceso "go run" no lo mata)
+lsof -i :8080 -sTCP:LISTEN   # ver PID real del binario compilado
+kill <PID>
+cd backend && go run ./cmd/server > /tmp/vgradio-server.log 2>&1 &
+
+# Verificar sesión real contra la API sin pasar por la app
+sqlite3 backend/data/vgradio.db "select id from sessions where user_id='<uid>' order by expires_at desc limit 1;"
+curl -s http://localhost:8080/favorites/tracks -H "Cookie: sid=<sid>"
+
+# Build + deploy macOS (ver skill build-mac)
+DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build -c release --package-path VGRadio
+pkill -x VGRadio; cp VGRadio/.build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
+open /Applications/VGRadio.app
 
 # Web dev (svelte-check antes de dar por bueno un cambio)
 cd web && npx svelte-check --tsconfig ./tsconfig.json
-
-# Ver build Drone
-curl -sk "https://drone.lab/api/repos/maaya/vgradio-app/builds?limit=3" \
-  -H "Authorization: Bearer ZBnZ9g6QuAZDp3GUzDyL6H2NwSU63oT4" | python3 -m json.tool
 ```
