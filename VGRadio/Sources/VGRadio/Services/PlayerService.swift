@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import MediaPlayer
 import Observation
@@ -30,6 +31,8 @@ final class PlayerService {
     private(set) var queue: [Track] = []
     private(set) var queueIndex: Int = 0
     private var timeObserver: Any?
+    private var artwork: MPMediaItemArtwork?
+    private var artworkTrackID: String?
 
     init() { setupRemoteCommands() }
 
@@ -160,16 +163,26 @@ final class PlayerService {
 
     private func setupRemoteCommands() {
         let cc = MPRemoteCommandCenter.shared()
+        // Commands we don't implement must be explicitly disabled: leaving them
+        // enabled makes the system think we handle them and then get no response,
+        // which costs us priority as the Now Playing app.
+        for cmd in [cc.skipForwardCommand, cc.skipBackwardCommand,
+                    cc.seekForwardCommand, cc.seekBackwardCommand,
+                    cc.changeRepeatModeCommand, cc.changeShuffleModeCommand,
+                    cc.ratingCommand, cc.likeCommand, cc.dislikeCommand,
+                    cc.bookmarkCommand, cc.enableLanguageOptionCommand] as [MPRemoteCommand] {
+            cmd.isEnabled = false
+        }
         cc.playCommand.isEnabled = true
         cc.playCommand.addTarget { [weak self] _ in
-            guard let self, !self.isPlaying else { return .commandFailed }
-            Task { @MainActor in self.togglePlay() }
+            guard let self else { return .commandFailed }
+            Task { @MainActor in if !self.isPlaying { self.togglePlay() } }
             return .success
         }
         cc.pauseCommand.isEnabled = true
         cc.pauseCommand.addTarget { [weak self] _ in
-            guard let self, self.isPlaying else { return .commandFailed }
-            Task { @MainActor in self.togglePlay() }
+            guard let self else { return .commandFailed }
+            Task { @MainActor in if self.isPlaying { self.togglePlay() } }
             return .success
         }
         cc.togglePlayPauseCommand.isEnabled = true
@@ -190,6 +203,7 @@ final class PlayerService {
             Task { @MainActor in self.previous() }
             return .success
         }
+        cc.changePlaybackPositionCommand.isEnabled = true
         cc.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let self, let e = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             Task { @MainActor in self.seek(to: e.positionTime) }
@@ -209,12 +223,40 @@ final class PlayerService {
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
+            MPNowPlayingInfoPropertyIsLiveStream: false,
         ]
         if let album = currentAlbum {
             info[MPMediaItemPropertyAlbumTitle] = album.title
+            info[MPMediaItemPropertyArtist] = album.platform
         }
+        if let art = artwork { info[MPMediaItemPropertyArtwork] = art }
         center.nowPlayingInfo = info
         center.playbackState = isPlaying ? .playing : .paused
+        loadArtworkIfNeeded()
+    }
+
+    /// Fetch the current cover once per track and re-publish it into the Now Playing
+    /// entry — without artwork macOS shows us as a blank tile next to fully-populated
+    /// apps like Spotify.
+    private func loadArtworkIfNeeded() {
+        guard let track = currentTrack else { return }
+        guard artworkTrackID != track.id else { return }
+        artworkTrackID = track.id
+        artwork = nil
+        let idx = min(currentCoverIndex, max(0, currentCovers.count - 1))
+        guard !currentCovers.isEmpty,
+              let url = AlbumCoverView.resolveURL(currentCovers[idx].url) else { return }
+        Task { [weak self] in
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  let image = NSImage(data: data) else { return }
+            await MainActor.run {
+                guard let self, self.currentTrack?.id == track.id else { return }
+                self.artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyArtwork] = self.artwork
+            }
+        }
     }
 
     private func updateNowPlayingElapsed() {

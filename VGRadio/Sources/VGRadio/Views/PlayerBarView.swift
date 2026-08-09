@@ -4,6 +4,7 @@ struct PlayerBarView: View {
     @Environment(PlayerService.self) var player
     @Environment(FavoritesStore.self) var favorites
     @Environment(LibraryStore.self) var library
+    @Environment(HiddenTracksStore.self) var hidden
     @State private var isVolumeHovered = false
 
     var body: some View {
@@ -119,21 +120,38 @@ struct PlayerBarView: View {
         library.pendingNavigation = album
     }
 
-    // MARK: – Star current track
+    // MARK: – Star / dislike current track
 
     private var actionsSection: some View {
         Group {
             if let track = player.currentTrack, let album = player.currentAlbum {
-                Button {
-                    favorites.toggle(track, album: album)
-                } label: {
-                    Image(systemName: favorites.isFavorite(track.id) ? "star.fill" : "star")
-                        .font(.system(size: 16))
-                        .foregroundStyle(favorites.isFavorite(track.id) ? Color.vgStar : Color.vgTextMuted)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Rectangle())
+                HStack(spacing: 0) {
+                    Button {
+                        favorites.toggle(track, album: album)
+                    } label: {
+                        Image(systemName: favorites.isFavorite(track.id) ? "star.fill" : "star")
+                            .font(.system(size: 16))
+                            .foregroundStyle(favorites.isFavorite(track.id) ? Color.vgStar : Color.vgTextMuted)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    // Dislike: hide the track so the queue skips it from now on, and
+                    // jump to the next playable one right away.
+                    Button {
+                        hidden.toggle(track.id)
+                        if hidden.isHidden(track.id) { player.next() }
+                    } label: {
+                        Image(systemName: hidden.isHidden(track.id) ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                            .font(.system(size: 15))
+                            .foregroundStyle(hidden.isHidden(track.id) ? Color.vgAccent : Color.vgTextMuted)
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("No me gusta — ocultar y saltar (⌘⌫)")
                 }
-                .buttonStyle(.plain)
             }
         }
     }

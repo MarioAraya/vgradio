@@ -198,11 +198,26 @@ func (s *Store) SearchCatalog(ctx context.Context, q, platform, letter string, o
 		}
 	}
 
+	// Rank matches by how well the whole query lines up with the title, so a
+	// short query like "doom" surfaces "DOOM Eternal" ahead of alphabetically
+	// earlier incidental matches ("2DOOM", "Akalabeth: World of Doom") instead
+	// of losing them past the limit.
+	orderBy := "ORDER BY title COLLATE NOCASE"
+	if trimmed := strings.TrimSpace(q); trimmed != "" {
+		orderBy = `ORDER BY CASE
+			 WHEN title = ? COLLATE NOCASE THEN 0
+			 WHEN title LIKE ? THEN 1
+			 WHEN title LIKE ? THEN 2
+			 ELSE 3
+		 END, title COLLATE NOCASE`
+		args = append(args, trimmed, trimmed+"%", "% "+trimmed+"%")
+	}
+
 	args = append(args, limit, offset)
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT title, source_url, platform, album_type, year FROM catalog_entries
 		 WHERE `+strings.Join(where, " AND ")+`
-		 ORDER BY title COLLATE NOCASE
+		 `+orderBy+`
 		 LIMIT ? OFFSET ?`,
 		args...,
 	)

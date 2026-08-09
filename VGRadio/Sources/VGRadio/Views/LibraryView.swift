@@ -72,7 +72,11 @@ struct LibraryView: View {
         ZStack {
             Group {
                 if let album = selected {
+                    // Identity keyed on the album so navigating between two albums
+                    // (or stepping back through history) rebuilds the detail view
+                    // instead of SwiftUI reusing the previous album's state.
                     AlbumDetailView(summary: album, onBack: goBack)
+                        .id(album.id)
                 } else {
                     libraryGrid
                 }

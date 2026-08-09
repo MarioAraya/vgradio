@@ -28,7 +28,7 @@ struct SearchOverlay: View {
         catalogSearchTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
-            guard let page = try? await APIClient.shared.catalog(q: q, limit: 8) else { return }
+            guard let page = try? await APIClient.shared.catalog(q: q, limit: 40) else { return }
             guard !Task.isCancelled, q == query else { return }
             catalogResults = page.items
         }
@@ -97,7 +97,7 @@ struct SearchOverlay: View {
                             }
                         }
                     }
-                    .frame(maxHeight: 320)
+                    .frame(maxHeight: 420)
                 }
             }
             .background(Color.vgSidebar.opacity(0.95))

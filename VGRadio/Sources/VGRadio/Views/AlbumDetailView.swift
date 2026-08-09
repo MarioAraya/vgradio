@@ -62,7 +62,7 @@ struct AlbumDetailView: View {
                 withAnimation(.easeOut(duration: 0.15)) { showBackButton = reveal }
             }
         }
-        .task { await load() }
+        .task(id: summary.id) { await load() }
         .sheet(isPresented: $showAddToPlaylist) {
             if let tid = addToPlaylistTrackId {
                 AddToPlaylistSheet(trackId: tid)
@@ -81,7 +81,6 @@ struct AlbumDetailView: View {
         .background {
             Group {
                 Button("") { trackSearchFocused = true }.keyboardShortcut("f", modifiers: .command)
-                Button("") { trackSearchFocused = true }.keyboardShortcut("k", modifiers: .command)
             }
             .hidden()
         }

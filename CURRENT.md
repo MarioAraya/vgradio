@@ -1,54 +1,103 @@
 # CURRENT — VGRadio
 
-Última sesión: 2026-08-02
+Última sesión: 2026-08-09
 
 ## En progreso
 
-Nada en curso. Sesión cerrada con commit `647ffe4` en `main`, build macOS release compilado y deployado a `/Applications/VGRadio.app`. Falta push a `origin`/`gitea`.
-
-**Preguntas pendientes antes de continuar:**
-1. Confirmar que el usuario ve "Liked Music" con sus 37 tracks tras re-login (logout/login) en la app — quedó pedido pero no confirmado en el chat.
-2. ¿Push de estos 3 commits (`647ffe4` + 2 previos) a `origin`/`gitea`? No se hizo esta sesión.
+Nada a medias. Los 4 ítems de esta sesión quedaron implementados, compilados y desplegados. Falta **confirmación en runtime del usuario** para 2 de ellos (media keys y búsqueda) y **commit de todo** (nada se commiteó).
 
 ## Completado esta sesión
 
-- [x] **Queue automático en Descargado**: tocar cualquier track en "Descargado" ahora arma la queue con *todas* las canciones descargadas (todos los álbumes, orden de la lista), no solo las del álbum clickeado — `DownloadedView.swift`
-- [x] **Context menu "Play Next" en Descargado** — faltaba, ya existía en AlbumDetailView, se replicó en `DownloadedTrackRow`
-- [x] **Selector de cuentas estilo Steam en login** — `AuthStore` guarda últimos 5 emails (nunca password) en UserDefaults (`vgradio.recentEmails`); `LoginSheet` abre en modo picker si hay cuentas guardadas, con avatar+inicial, botón "Otra cuenta", y ✕ al hover para olvidar una cuenta
-- [x] **Enter para login** — `.onSubmit` en email/password dispara sign-in, guard contra doble-submit con campos vacíos
-- [x] **Bug real de "Liked Music" vacío diagnosticado y arreglado**: `backend/internal/api/auth.go` fijaba `Secure: true` siempre en la cookie `sid`. Sobre `http://localhost:8080` (dev local) macOS descarta cookies Secure → cualquier endpoint autenticado (`/favorites/tracks`, etc.) fallaba 401 y el cliente lo mostraba como lista vacía en vez de error. Fix: `Secure` ahora depende de `isSecureRequest(r)` (TLS directo o `X-Forwarded-Proto: https` detrás de Traefik) — producción homelab sigue igual, dev local ahora funciona. **Nota: esto revierte la decisión de la sesión anterior de "no tocar" este flag** — se tocó porque el síntoma (favoritos vacíos) lo requería.
-- [x] Verificado con curl directo contra sesión real en DB: `/favorites/tracks` devuelve las 37 canciones correctamente con el fix aplicado
-- [x] Build macOS release compilado limpio (`swift build -c release` con `DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer`) y copiado a `/Applications/VGRadio.app`
-- [x] Commit `647ffe4` con los 4 archivos tocados (AuthStore.swift, DownloadedView.swift, SidebarView.swift, backend/internal/api/auth.go)
+### 1. Navegación a álbum desde ⌘K rota (y Back de dos clicks) — mismo bug
+
+**Causa raíz:** `AlbumDetailView` no tenía identidad estable por álbum. SwiftUI reusaba la misma instancia al cambiar de álbum, y `.task { await load() }` corría una sola vez → seguías viendo el álbum anterior. Por eso ⌘K "no hacía nada" y Back necesitaba dos clicks (el primero volvía al álbum previo, pero la pantalla no cambiaba).
+
+- [x] `LibraryView.swift:88` — `.id(album.id)` sobre `AlbumDetailView`
+- [x] `AlbumDetailView.swift:65` — `.task(id: summary.id)` en vez de `.task`
+- [x] `AlbumDetailView.swift:84` — eliminado `keyboardShortcut("k", .command)` que secuestraba ⌘K para el buscador de tracks. Ahora ⌘K siempre abre el overlay global; ⌘F sigue enfocando el buscador de tracks del álbum
+
+### 2. Botón Thumbs Down en player bar
+
+- [x] `PlayerBarView.swift` — botón junto a la estrella: `hidden.toggle(track.id)` + `player.next()`. `PlayerService.isSkippable` ya filtraba ocultos, así que no vuelve a sonar. Segundo click des-oculta sin saltar. Equivale al atajo ⌘⌫ que ya existía en `ContentView.swift:161`
+
+### 3. Media keys tomaban Spotify (pausado) en lugar de VGRadio (sonando)
+
+`PlayerService.swift`:
+- [x] `playCommand`/`pauseCommand` ya no devuelven `.commandFailed` cuando el estado no coincide — devolver failed hace que macOS degrade la app como candidata Now Playing
+- [x] Comandos no implementados **deshabilitados explícitamente** (skip/seek fwd-bwd, repeat, shuffle, rating, like, dislike, bookmark, language). Estaban enabled por default sin handler
+- [x] `changePlaybackPositionCommand.isEnabled = true` — tenía handler pero nunca se habilitó
+- [x] Metadata completa: **artwork** (descarga del cover, cacheado por track ID vía `loadArtworkIfNeeded()`), artista, `MediaType.audio`, `IsLiveStream: false`, `DefaultPlaybackRate`. Esto además cierra el pendiente viejo "Cover en Now Playing muestra placeholder gris"
+- [x] `import AppKit` agregado (`NSImage`)
+
+### 4. Buscador ⌘K no traía "DOOM Eternal" con query "doom"
+
+**Verificado contra la DB real:** `q=doom` tiene **162 matches** en `catalog_entries`. El overlay pedía `limit: 8` y el backend ordenaba alfabético → los 8 `Doom` sueltos (3DO, Jaguar, MS-DOS ×2, GBA, Saturn, PS1, SNES) se comían todos los slots.
+
+- [x] `SearchOverlay.swift` — `limit: 8` → `40`; altura de lista 320 → 420px (ya scrolleaba)
+- [x] `store/catalog.go:201` — `ORDER BY` rankea por relevancia antes que alfabético: título exacto → empieza con la query → la query arranca una palabra → resto. Sin esto, aun con limit 40 los `Doom (1993)...` copaban los primeros puestos
+- [x] Verificado por curl: `/catalog?q=doom&limit=40` devuelve Eternal dentro de los 40
+
+### Builds y deploy
+
+- [x] `swift build -c release` limpio, sin warnings nuevos → binario a `/Applications/VGRadio.app`, app abierta
+- [x] `go build ./...` + `go vet ./internal/store/` OK
+- [x] Backend recompilado y reiniciado con `backend/update.sh`
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] Usuario debe hacer logout/login en la app para obtener cookie nueva sin `Secure` y confirmar que Liked Music vuelve a mostrar los 37 tracks
-- [ ] Push de los 3 commits pendientes a `origin` y `gitea` (`git push`, no hecho esta sesión)
-- [ ] Si se despliega este fix de `auth.go` al homelab (Drone CI), verificar que `X-Forwarded-Proto` efectivamente lo setea Traefik — si no, la cookie en prod dejaría de ser Secure. Chequear config de Traefik antes de asumir que anda igual.
-- [ ] `web/src/routes/browse/+page.svelte` tiene cambios sin commitear de una sesión anterior (LIMIT 1200→3000, paginación 7→12 páginas visibles) — no tocado esta sesión, decidir si commitear o descartar
+- [ ] **Confirmar media keys en runtime.** Reproducir en VGRadio y presionar ⏭. Si sigue yendo a Spotify: hacer quit de Spotify y reprobar — eso separa "nuestra integración está mal" de "Spotify secuestra la tecla con event tap global, cosa que ninguna API de Now Playing sobreescribe"
+- [ ] Confirmar en la app que ⌘K desde vista Álbum navega, Back es de un click, y Thumbs Down oculta+salta
+- [ ] Confirmar que "doom" ahora trae Eternal en el overlay
+- [ ] **Commit.** Nada de esta sesión ni de las anteriores está commiteado (ver Notas — el working tree tiene mucho más de lo que tocó esta sesión)
+- [ ] `backend/vgradio-server.log` y `.err.log` están untracked — agregar a `.gitignore` antes de commitear
+
+### Ítem de UX detectado, no arreglado
+
+- [ ] En el overlay ⌘K hay 8 filas idénticas "Doom" porque la fila de khinsider solo muestra `platform · year` y varias comparten metadata. Distinguirlas requiere mostrar algo más (source URL, album type)
 
 ### Pendientes de sesiones anteriores (sin tocar esta sesión)
 
+- [ ] Drag-and-drop tracks/álbumes → playlist: probar end-to-end en macOS y web (el fix del gesture conflict en `DetailTrackRow` de la sesión previa sigue sin confirmar en runtime)
+- [ ] Auditar si `LibraryView.swift`/`PlaylistsView.swift` tienen el mismo patrón de `DragGesture` a nivel de row que compite con `.onDrag`
+- [ ] `TopView.swift` y `web/src/routes/top/` — archivos nuevos sin commitear, sin contexto de propósito/estado
 - [ ] ID3 tags reales (TIT2/TALB/APIC)
 - [ ] **Sincronizar catalog en homelab** — `POST https://vgradio-api.lab/catalog/sync`
 - [ ] **Einhander tracks 3+** — necesita CF clearance
 - [ ] **Mega Man: The Power Battle** — no está en DB, agregar vía Add URL
-- [ ] **Cover en Now Playing (menu bar widget)** — muestra placeholder gris
 - [ ] **feat: scrapear por año/consola/todo el catálogo khinsider**
 - [ ] **Mini-covers en Browse/catalog search**
 - [ ] **Cert mkcert roto para subdominios `.lab`** — wildcard `*.lab` estructuralmente inválido, requiere regenerar con SANs explícitos
-- [ ] Decidir si se arma DNS local (Pi-hole/dnsmasq) para acceso por dominio `.lab` en todos los dispositivos LAN
+- [ ] Decidir si se arma DNS local (Pi-hole/dnsmasq) para acceso por dominio `.lab` en LAN
 
 ## Notas
 
+### El working tree tiene mucho más de lo que tocó esta sesión
+
+`git status` lista ~40 archivos modificados, incluyendo casi todo `web/src/lib/components/` y `web/src/routes/`, más `web/src/lib/stores/theme.ts` (nuevo) y `web/src/app.css`. **Esta sesión no tocó nada de web.** Esos cambios vienen de trabajo previo sin commitear (aparentemente un theme switcher). Antes de commitear, revisar ese diff aparte — no meter todo en un commit.
+
+Archivos que **sí** tocó esta sesión:
+```
+VGRadio/Sources/VGRadio/Services/PlayerService.swift
+VGRadio/Sources/VGRadio/Views/AlbumDetailView.swift
+VGRadio/Sources/VGRadio/Views/LibraryView.swift
+VGRadio/Sources/VGRadio/Views/PlayerBarView.swift
+VGRadio/Sources/VGRadio/Views/SearchOverlay.swift
+backend/internal/store/catalog.go
+```
+
+### Backend corre como servicio launchd
+
+No es `go run`. Corre desde `backend/bin/vgradio-server` bajo `gui/$(id -u)/com.vgradio.server`. Para aplicar cambios de backend:
+
+```bash
+cd backend && ./update.sh   # go build -o bin/vgradio-server + launchctl kickstart -k
+```
+
+`update.sh` es untracked — commitearlo.
+
 ### Toolchain Xcode en disco externo
 
-`DEVELOPER_DIR` apunta a `/Volumes/ExtDevDisk/Xcode.app/Contents/Developer` — CommandLineTools solo (sin este disco montado) NO puede linkear ni el manifest de `swift build`. Si el disco se desmonta a mitad de sesión, `swift build` falla con `xcrun: error: missing DEVELOPER_DIR path`. Confirmar que el disco esté montado (`ls /Volumes/`) antes de compilar.
-
-### Cookie `sid` — estado actualizado
-
-Ya NO es `Secure: true` fijo (ver Completado). Ahora condicional vía `isSecureRequest()` en `backend/internal/api/auth.go`. Esto reemplaza la nota de la sesión anterior que decía "usuario decidió no tocarlo" — se tocó esta sesión porque bloqueaba una feature real (Liked Music) en dev local.
+`DEVELOPER_DIR` apunta a `/Volumes/ExtDevDisk/Xcode.app/Contents/Developer`. CommandLineTools solo (sin ese disco montado) NO puede linkear ni el manifest de `swift build`. Esta sesión compiló sin necesitar el override explícito.
 
 ### Infraestructura homelab (sin cambios esta sesión)
 
@@ -66,17 +115,17 @@ Ya NO es `Secure: true` fijo (ver Completado). Ahora condicional vía `isSecureR
 ### Comandos útiles
 
 ```bash
-# Backend local — matar server viejo (¡ojo! go run deja un hijo "server" corriendo, pkill por nombre de proceso "go run" no lo mata)
-lsof -i :8080 -sTCP:LISTEN   # ver PID real del binario compilado
-kill <PID>
-cd backend && go run ./cmd/server > /tmp/vgradio-server.log 2>&1 &
+# Backend: rebuild + restart del servicio
+cd backend && ./update.sh
 
-# Verificar sesión real contra la API sin pasar por la app
-sqlite3 backend/data/vgradio.db "select id from sessions where user_id='<uid>' order by expires_at desc limit 1;"
-curl -s http://localhost:8080/favorites/tracks -H "Cookie: sid=<sid>"
+# Inspeccionar catálogo directo en SQLite
+sqlite3 backend/data/vgradio.db "SELECT title, platform, year FROM catalog_entries WHERE title LIKE '%doom%' LIMIT 25;"
+
+# Probar el endpoint de búsqueda
+curl -s "http://localhost:8080/catalog?q=doom&limit=40" | python3 -m json.tool | head -40
 
 # Build + deploy macOS (ver skill build-mac)
-DEVELOPER_DIR=/Volumes/ExtDevDisk/Xcode.app/Contents/Developer swift build -c release --package-path VGRadio
+cd VGRadio && swift build -c release
 pkill -x VGRadio; cp VGRadio/.build/arm64-apple-macosx/release/VGRadio /Applications/VGRadio.app/Contents/MacOS/VGRadio
 open /Applications/VGRadio.app
 
