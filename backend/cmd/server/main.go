@@ -15,6 +15,7 @@ import (
 
 	"github.com/arayama/vgradio-app/backend/internal/api"
 	"github.com/arayama/vgradio-app/backend/internal/catalog"
+	"github.com/arayama/vgradio-app/backend/internal/connect"
 	"github.com/arayama/vgradio-app/backend/internal/fetcher"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
 	"github.com/arayama/vgradio-app/backend/internal/store"
@@ -57,6 +58,9 @@ func main() {
 	syn := catalog.New(s, log)
 	syn.SetCFClearance(cfClearance)
 
+	// Connect hub (remote control across a user's devices).
+	hub := connect.New(log, s)
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -65,10 +69,13 @@ func main() {
 
 	go runWeeklyCatalogSync(ctx, syn, log)
 
+	// Expires dead devices and flushes playback state on a ticker.
+	go hub.Run(ctx)
+
 	// HTTP server.
 	srv := &http.Server{
 		Addr:         cfg.addr,
-		Handler:      api.NewRouter(s, q, f, syn, cfg.dataDir, log),
+		Handler:      api.NewRouter(s, q, f, syn, hub, cfg.dataDir, log),
 		ReadTimeout: 15 * time.Second,
 		// No server-wide WriteTimeout: it also capped audio streams, zips and the
 		// synchronous scrape endpoints. The cap is applied per-route by the

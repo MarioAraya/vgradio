@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/arayama/vgradio-app/backend/internal/catalog"
+	"github.com/arayama/vgradio-app/backend/internal/connect"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
 	"github.com/arayama/vgradio-app/backend/internal/scraper"
 	"github.com/arayama/vgradio-app/backend/internal/store"
@@ -70,6 +71,21 @@ type storer interface {
 	ReorderPlaylistTracks(ctx context.Context, playlistID string, items []store.ReorderItem) error
 }
 
+// connectHub is the VGRadio Connect relay. Kept as its own dependency rather
+// than folded into storer: it is in-memory, per-user and unrelated to the album
+// store.
+type connectHub interface {
+	Register(userID string, meta connect.DeviceMeta) (connect.Device, error)
+	Touch(userID, deviceID string) error
+	Unregister(userID, deviceID string)
+	Devices(userID string) []connect.Device
+	Subscribe(userID, deviceID string) (<-chan connect.Event, func(), error)
+	PublishState(userID, deviceID string, st connect.PlaybackState) (connect.PlaybackState, error)
+	Transfer(userID, deviceID string, play bool) (connect.PlaybackState, error)
+	SendCommand(userID, fromDeviceID, targetDeviceID string, cmd connect.Command) error
+	State(ctx context.Context, userID string) connect.PlaybackState
+}
+
 type trackFetcher interface {
 	SongMP3(ctx context.Context, pageURL string) (string, error)
 	Download(ctx context.Context, url, destPath string) error
@@ -90,6 +106,7 @@ type handler struct {
 	queue   queuer
 	fetcher trackFetcher
 	syncer  catalogSyncer
+	hub     connectHub
 	dataDir string
 }
 
@@ -157,8 +174,8 @@ func writeDeadline(next http.Handler) http.Handler {
 }
 
 // NewRouter returns the API router. dataDir is the root for downloaded files.
-func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir string, log *slog.Logger) http.Handler {
-	h := &handler{store: s, queue: q, fetcher: f, syncer: syn, dataDir: dataDir}
+func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, hub connectHub, dataDir string, log *slog.Logger) http.Handler {
+	h := &handler{store: s, queue: q, fetcher: f, syncer: syn, hub: hub, dataDir: dataDir}
 	mux := http.NewServeMux()
 
 	// existing routes
@@ -210,6 +227,15 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("POST /playlists/{id}/tracks", requireAuth(h.postPlaylistTrack))
 	mux.HandleFunc("DELETE /playlists/{id}/tracks/{trackId}", requireAuth(h.deletePlaylistTrack))
 	mux.HandleFunc("PUT /playlists/{id}/tracks/reorder", requireAuth(h.putPlaylistReorder))
+
+	// connect (remote control across the user's devices)
+	mux.HandleFunc("GET /connect/events", requireAuth(h.getConnectEvents))
+	mux.HandleFunc("POST /connect/devices", requireAuth(h.postConnectDevice))
+	mux.HandleFunc("GET /connect/devices", requireAuth(h.getConnectDevices))
+	mux.HandleFunc("DELETE /connect/devices/{id}", requireAuth(h.deleteConnectDevice))
+	mux.HandleFunc("POST /connect/state", requireAuth(h.postConnectState))
+	mux.HandleFunc("POST /connect/command", requireAuth(h.postConnectCommand))
+	mux.HandleFunc("POST /connect/transfer", requireAuth(h.postConnectTransfer))
 
 	// admin
 	mux.HandleFunc("POST /admin/reset-password", h.postAdminResetPassword)

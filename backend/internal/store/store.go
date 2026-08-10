@@ -144,6 +144,14 @@ func (s *Store) migrate() error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
+		-- Last playback state per user, so VGRadio Connect can resume after a
+		-- backend restart. Devices themselves are never persisted.
+		CREATE TABLE IF NOT EXISTS playback_state (
+			user_id    TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			state_json TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS favorites (
 			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			album_id   TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,

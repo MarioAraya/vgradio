@@ -12,6 +12,7 @@ import (
 
 	"github.com/arayama/vgradio-app/backend/internal/api"
 	"github.com/arayama/vgradio-app/backend/internal/catalog"
+	"github.com/arayama/vgradio-app/backend/internal/connect"
 	"github.com/arayama/vgradio-app/backend/internal/fetcher"
 	"github.com/arayama/vgradio-app/backend/internal/jobs"
 	"github.com/arayama/vgradio-app/backend/internal/scraper"
@@ -27,7 +28,8 @@ func setup(t *testing.T) (http.Handler, *store.Store, *jobs.Queue) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go q.Start(ctx)
-	return api.NewRouter(s, q, f, syn, t.TempDir(), slog.Default()), s, q
+	hub := connect.New(slog.Default(), s)
+	return api.NewRouter(s, q, f, syn, hub, t.TempDir(), slog.Default()), s, q
 }
 
 func TestPostAlbums_MissingURL(t *testing.T) {

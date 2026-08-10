@@ -171,6 +171,64 @@ Lista de consolas/plataformas distintas (para filtros del cliente).
 
 ---
 
+## Connect — control remoto entre instancias
+
+Todas requieren sesión (`sid`). El backend es un **relay con estado**: no reproduce ni
+interpreta la cola. Un usuario tiene N *devices* vivos y como mucho **uno activo**, que es
+el único que puede publicar estado. Ver `PLAN.md` para el diseño completo.
+
+Límites: 8 devices por usuario, TTL de 45s (heartbeat por `POST /connect/devices`, por el
+ping del SSE o por cualquier `state`/`command`).
+
+### GET /connect/events
+SSE. Query: `deviceId` (obligatorio), `name`, `type`. Registra el device si no existe, así
+una reconexión tras expirar el TTL no necesita un request extra.
+
+Eventos: `hello` (snapshot inicial), `state`, `devices`, `command` (sólo al destinatario),
+`transfer`. Keepalive `: ping` cada 15s.
+
+```
+event: hello
+data: {"deviceId":"mac1","activeDeviceId":"","state":{…},"devices":[…]}
+```
+
+### POST /connect/devices
+Registro y heartbeat (idempotente). Body: `{ "id", "name", "type", "capabilities": [] }`.
+`type` ∈ `macos | web | tv`. → `200` con el device. `429` si se llegó al límite.
+
+### GET /connect/devices → `200` lista de devices vivos
+### DELETE /connect/devices/{id} → `204` (baja limpia)
+
+### POST /connect/state?deviceId=…
+Publica estado. **Sólo el device activo**; otro da `409`. El `rev` lo asigna el backend.
+
+```json
+{ "isPlaying": true, "positionSec": 42, "volume": 0.8, "isMuted": false,
+  "isShuffle": false, "repeatMode": "off", "queueIndex": 0, "coverIndex": 0,
+  "queue": [ { "trackId": "trk_1", "albumId": "alb_1" } ] }
+```
+
+La cola lleva **sólo IDs**: el cliente hidrata con `GET /albums/{id}`, que ya cachea.
+
+La posición se publica en cambios discretos y cada ~5s; los espectadores la **interpolan**
+desde `positionSec` + `updatedAt` en vez de pedir un update por segundo.
+
+### POST /connect/command?deviceId=…
+Body: `{ "targetDeviceId"?, "type", "payload"? }`. Sin `targetDeviceId` va al activo.
+→ `202`. `400` si el `type` no está en la allowlist; `404` si el device no es del usuario.
+
+`type` ∈ `play | pause | toggle | next | prev | seek | volume | mute | shuffle | repeat |
+playContext | queueAdd | queueRemove | queueMove`.
+
+`playContext` (`{albumId|playlistId, startTrackId, shuffle}`) deja que el device activo
+arme la cola desde su propia fuente en vez de mandar 72 ítems.
+
+### POST /connect/transfer
+Body: `{ "deviceId", "play" }`. Reclama el rol activo → `200` con el estado. El device
+anterior se entera por el evento `transfer`; no se le pregunta.
+
+---
+
 ## Notas de versionado
 - v1 sin auth (self-host, red local).
 - Cambios incompatibles → prefijo `/v2` o header de versión (decidir en su momento, ask first).
