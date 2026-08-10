@@ -69,9 +69,11 @@ func main() {
 	srv := &http.Server{
 		Addr:         cfg.addr,
 		Handler:      api.NewRouter(s, q, f, syn, cfg.dataDir, log),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout: 15 * time.Second,
+		// No server-wide WriteTimeout: it also capped audio streams, zips and the
+		// synchronous scrape endpoints. The cap is applied per-route by the
+		// writeDeadline middleware (see api.isLongWrite).
+		IdleTimeout: 120 * time.Second,
 	}
 
 	go func() {

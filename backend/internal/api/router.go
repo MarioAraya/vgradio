@@ -118,6 +118,44 @@ func (sw *statusWriter) WriteHeader(code int) {
 	sw.ResponseWriter.WriteHeader(code)
 }
 
+// Unwrap lets http.ResponseController reach the underlying writer, so handlers
+// wrapped by requestLogger can still set write deadlines and flush.
+func (sw *statusWriter) Unwrap() http.ResponseWriter { return sw.ResponseWriter }
+
+// defaultWriteTimeout caps how long a short response may take to write. It used
+// to live on http.Server.WriteTimeout, but that also capped responses whose
+// duration legitimately depends on the client's bandwidth or on upstream
+// scraping, so it is applied per-route here instead.
+const defaultWriteTimeout = 60 * time.Second
+
+// isLongWrite reports whether a route's response time is expected to exceed
+// defaultWriteTimeout by design: audio and zip bodies (bounded by client
+// bandwidth) and synchronous scrape endpoints that fetch upstream sequentially.
+func isLongWrite(path string) bool {
+	if strings.HasPrefix(path, "/connect/") {
+		return true
+	}
+	if path == "/scrape/pending" {
+		return true
+	}
+	return strings.HasSuffix(path, "/stream") ||
+		strings.HasSuffix(path, "/download") ||
+		strings.HasSuffix(path, "/fetch") ||
+		strings.HasSuffix(path, "/covers.zip") ||
+		strings.HasSuffix(path, "/scrape-tracks")
+}
+
+// writeDeadline applies defaultWriteTimeout to routes that should answer quickly.
+func writeDeadline(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLongWrite(r.URL.Path) {
+			//nolint:errcheck // best-effort: unsupported writers just keep no deadline
+			http.NewResponseController(w).SetWriteDeadline(time.Now().Add(defaultWriteTimeout))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // NewRouter returns the API router. dataDir is the root for downloaded files.
 func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir string, log *slog.Logger) http.Handler {
 	h := &handler{store: s, queue: q, fetcher: f, syncer: syn, dataDir: dataDir}
@@ -188,7 +226,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 		http.ServeFile(w, r, filepath.Join(dataDir, albumID, "covers", filename))
 	})
 
-	return requestLogger(log, cors(h.authMiddleware(mux)))
+	return requestLogger(log, writeDeadline(cors(h.authMiddleware(mux))))
 }
 
 // cors reflects the request Origin back so cookies work from any origin.
