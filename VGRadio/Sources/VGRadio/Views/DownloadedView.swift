@@ -206,12 +206,27 @@ private struct DownloadedTrackRow: View {
         .onHover { isHovered = $0 }
         .onTapGesture(count: 2) { play() }
         .contextMenu {
-            Button { player.playNext(asTrack()) } label: {
+            Button { player.playNext(asTrack(), album: groupAlbum()) } label: {
                 Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
         }
 
         Divider().overlay(Color.vgSeparator).padding(.horizontal, VGSpace.md)
+    }
+
+    /// The row's own album, so a track queued from here keeps its title and cover
+    /// instead of inheriting whatever album is playing.
+    private func groupAlbum() -> AlbumSummary {
+        AlbumSummary(id: group.albumId, title: group.albumTitle,
+                     platform: group.platform, year: group.year,
+                     albumType: "", trackCount: group.tracks.count, totalDurationSec: 0,
+                     coverUrls: resolvedCoverUrls())
+    }
+
+    private func resolvedCoverUrls() -> [String] {
+        group.coverUrl.isEmpty
+            ? (library.albums.first(where: { $0.id == group.albumId })?.coverUrls ?? [])
+            : [group.coverUrl]
     }
 
     private func asTrack() -> Track {
@@ -235,9 +250,7 @@ private struct DownloadedTrackRow: View {
             }
         }
         guard let current = allTracks.first(where: { $0.id == track.id }) else { return }
-        let resolvedCovers = group.coverUrl.isEmpty
-            ? (library.albums.first(where: { $0.id == group.albumId })?.coverUrls ?? [])
-            : [group.coverUrl]
+        let resolvedCovers = resolvedCoverUrls()
         let album = AlbumSummary(id: "downloaded", title: "Descargado",
                                  platform: group.platform, year: group.year,
                                  albumType: "", trackCount: allTracks.count, totalDurationSec: 0, coverUrls: resolvedCovers)

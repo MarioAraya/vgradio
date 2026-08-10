@@ -5,12 +5,22 @@ import Observation
 
 enum RepeatMode { case off, all, one }
 
+/// Each queue entry carries its own album/covers so a track queued from a
+/// different album (via "Play Next") shows its own cover and album title
+/// instead of whatever album the queue happened to start from.
+struct QueueItem {
+    let track: Track
+    let album: AlbumSummary
+    let covers: [Cover]
+}
+
 @MainActor
 @Observable
 final class PlayerService {
-    private(set) var currentTrack: Track?
-    private(set) var currentAlbum: AlbumSummary?
-    private(set) var currentCovers: [Cover] = []
+    private(set) var currentItem: QueueItem?
+    var currentTrack: Track? { currentItem?.track }
+    var currentAlbum: AlbumSummary? { currentItem?.album }
+    var currentCovers: [Cover] { currentItem?.covers ?? [] }
     var currentCoverIndex: Int = 0
     var hiddenTracks: HiddenTracksStore?
     var offline: OfflineStore?
@@ -42,7 +52,7 @@ final class PlayerService {
     private func stateDidChange() { onStateChange?(self) }
 
     private var player: AVPlayer?
-    private(set) var queue: [Track] = []
+    private(set) var queue: [QueueItem] = []
     private(set) var queueIndex: Int = 0
     private var timeObserver: Any?
     private var artwork: MPMediaItemArtwork?
@@ -53,12 +63,10 @@ final class PlayerService {
     // MARK: - Playback control
 
     func play(track: Track, in album: AlbumSummary, queue tracks: [Track], covers: [Cover] = []) {
-        self.queue = tracks
+        self.queue = tracks.map { QueueItem(track: $0, album: album, covers: covers) }
         self.queueIndex = tracks.firstIndex(where: { $0.id == track.id }) ?? 0
-        self.currentAlbum = album
-        self.currentCovers = covers
-        self.currentCoverIndex = 0
-        load(track: track)
+        guard queue.indices.contains(queueIndex) else { return }
+        load(item: queue[queueIndex])
     }
 
     func togglePlay() {
@@ -69,8 +77,8 @@ final class PlayerService {
         stateDidChange()
     }
 
-    private func isSkippable(_ track: Track) -> Bool {
-        hiddenTracks?.isHidden(track.id) == true
+    private func isSkippable(_ item: QueueItem) -> Bool {
+        hiddenTracks?.isHidden(item.track.id) == true
     }
 
     func next() {
@@ -80,7 +88,7 @@ final class PlayerService {
         if isShuffle {
             let candidates = queue.indices.filter { $0 != queueIndex && !isSkippable(queue[$0]) }
             guard let idx = candidates.randomElement() else { return }
-            queueIndex = idx; load(track: queue[idx]); return
+            queueIndex = idx; load(item: queue[idx]); return
         }
         var idx = queueIndex + 1
         while idx < queue.count && isSkippable(queue[idx]) { idx += 1 }
@@ -91,7 +99,7 @@ final class PlayerService {
             guard idx < queue.count else { return }
         }
         queueIndex = idx
-        load(track: queue[idx])
+        load(item: queue[idx])
     }
 
     func removeFromQueue(at index: Int) {
@@ -104,7 +112,7 @@ final class PlayerService {
 
     func moveInQueue(from source: IndexSet, to destination: Int) {
         queue.move(fromOffsets: source, toOffset: destination)
-        queueIndex = queue.firstIndex(where: { $0.id == currentTrack?.id }) ?? queueIndex
+        queueIndex = queue.firstIndex(where: { $0.track.id == currentTrack?.id }) ?? queueIndex
         stateDidChange()
     }
 
@@ -114,11 +122,16 @@ final class PlayerService {
         while idx >= 0 && isSkippable(queue[idx]) { idx -= 1 }
         guard idx >= 0 else { return }
         queueIndex = idx
-        load(track: queue[idx])
+        load(item: queue[idx])
     }
 
-    func playNext(_ track: Track) {
-        queue.insert(track, at: min(queueIndex + 1, queue.count))
+    /// Inserts right after the current position. `album`/`covers` default to those
+    /// of whatever is playing, for callers queueing from the same album.
+    func playNext(_ track: Track, album: AlbumSummary? = nil, covers: [Cover] = []) {
+        guard let itemAlbum = album ?? currentItem?.album else { return }
+        let item = QueueItem(track: track, album: itemAlbum,
+                             covers: album == nil ? (currentItem?.covers ?? []) : covers)
+        queue.insert(item, at: min(queueIndex + 1, queue.count))
         stateDidChange()
     }
 
@@ -131,20 +144,24 @@ final class PlayerService {
 
     // MARK: - Private
 
-    private func load(track: Track) {
+    private func load(item: QueueItem) {
+        let track = item.track
         // Local file preferred (faster, works offline); otherwise stream — even
         // in offline mode. Offline mode no longer hard-blocks non-downloaded
         // tracks; if there's really no network, AVPlayer just fails to load.
         guard let url = offline?.localURL(for: track.id) ?? APIClient.shared.streamURL(for: track) else { return }
         removeTimeObserver()
-        let item = AVPlayerItem(url: url)
+        let playerItem = AVPlayerItem(url: url)
         if player == nil {
-            player = AVPlayer(playerItem: item)
+            player = AVPlayer(playerItem: playerItem)
             player?.volume = Float(volume)
         } else {
-            player?.replaceCurrentItem(with: item)
+            player?.replaceCurrentItem(with: playerItem)
         }
-        currentTrack = track
+        // Reset the cover picker only when moving to a different album, so paging
+        // through one album's covers survives a track change.
+        if currentItem?.album.id != item.album.id { currentCoverIndex = 0 }
+        currentItem = item
         duration = Double(track.durationSec)
         currentTime = 0
         player?.play()

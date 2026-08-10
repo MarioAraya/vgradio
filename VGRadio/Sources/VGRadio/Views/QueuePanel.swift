@@ -40,8 +40,8 @@ struct QueuePanel: View {
                     List {
                         ForEach(player.queue.indices, id: \.self) { i in
                             QueueRow(
-                                track: player.queue[i],
-                                albumTitle: player.currentAlbum?.title,
+                                track: player.queue[i].track,
+                                albumTitle: player.queue[i].album.title,
                                 index: i,
                                 isCurrent: i == player.queueIndex
                             ) {

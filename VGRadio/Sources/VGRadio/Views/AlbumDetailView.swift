@@ -372,6 +372,7 @@ struct AlbumDetailView: View {
                 DetailTrackRow(
                     track: track,
                     album: summary,
+                    covers: album.covers,
                     isAltRow: idx % 2 == 1,
                     isHovered: hoveredTrackID == track.id,
                     isPlaying: player.currentTrack?.id == track.id,
@@ -804,6 +805,7 @@ struct AlbumCoverView: View {
 private struct DetailTrackRow: View {
     let track: Track
     let album: AlbumSummary
+    var covers: [Cover] = []
     let isAltRow: Bool
     let isHovered: Bool
     let isPlaying: Bool
@@ -967,7 +969,7 @@ private struct DetailTrackRow: View {
                 }
                 Divider()
             }
-            Button { player.playNext(track) } label: {
+            Button { player.playNext(track, album: album, covers: covers) } label: {
                 Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
             }
             Button { favorites.toggle(track, album: album) } label: {
