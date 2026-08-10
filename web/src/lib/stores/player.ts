@@ -41,6 +41,28 @@ const initial: PlayerState = {
 
 const { subscribe, update, set } = writable<PlayerState>(initial);
 
+export type PlayerStateListener = (s: PlayerState) => void;
+
+const listeners = new Set<PlayerStateListener>();
+
+/** Observes discrete state changes (track, play/pause, seek, volume, queue).
+ * High-frequency position ticks are deliberately excluded — a consumer that
+ * needs the live position interpolates it from `currentTime` plus wall time. */
+export function onPlayerStateChange(fn: PlayerStateListener): () => void {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+/** Single mutation point for discrete state changes. Use plain `update` only for
+ * high-frequency or purely local UI state that observers must not see. */
+function commit(fn: (s: PlayerState) => PlayerState) {
+  update(s => {
+    const next = fn(s);
+    for (const l of listeners) l(next);
+    return next;
+  });
+}
+
 let audio: HTMLAudioElement | null = null;
 
 function getAudio(): HTMLAudioElement {
@@ -50,15 +72,15 @@ function getAudio(): HTMLAudioElement {
       update(s => ({ ...s, currentTime: audio!.currentTime }));
     });
     audio.addEventListener('loadedmetadata', () => {
-      update(s => ({ ...s, duration: audio!.duration || s.duration }));
+      commit(s => ({ ...s, duration: audio!.duration || s.duration }));
     });
     audio.addEventListener('ended', () => next());
     audio.addEventListener('play', () => {
-      update(s => ({ ...s, isPlaying: true }));
+      commit(s => ({ ...s, isPlaying: true }));
       updateMediaSessionState(true);
     });
     audio.addEventListener('pause', () => {
-      update(s => ({ ...s, isPlaying: false }));
+      commit(s => ({ ...s, isPlaying: false }));
       updateMediaSessionState(false);
     });
     audio.addEventListener('error', async () => {
@@ -163,7 +185,7 @@ export const player = {
   subscribe,
 
   play(track: Track, album: AlbumSummary, queue: Track[], covers: Cover[] = []) {
-    update(s => {
+    commit(s => {
       const idx = queue.findIndex(t => t.id === track.id);
       const qi = idx >= 0 ? idx : 0;
       const items: QueueItem[] = queue.map(t => ({ track: t, album, covers }));
@@ -185,18 +207,18 @@ export const player = {
   seek(secs: number) {
     const a = getAudio();
     a.currentTime = secs;
-    update(s => ({ ...s, currentTime: secs }));
+    commit(s => ({ ...s, currentTime: secs }));
   },
 
   setVolume(v: number) {
     const a = getAudio();
     a.volume = v;
     localStorage.setItem('vgradio.volume', String(v));
-    update(s => ({ ...s, volume: v, isMuted: v === 0 ? true : s.isMuted }));
+    commit(s => ({ ...s, volume: v, isMuted: v === 0 ? true : s.isMuted }));
   },
 
   toggleMute() {
-    update(s => {
+    commit(s => {
       const a = getAudio();
       const muted = !s.isMuted;
       a.volume = muted ? 0 : s.volume;
@@ -207,7 +229,7 @@ export const player = {
   /** Inserts track right after the current queue position, using the album/covers
    * of whatever is currently playing (or the caller's, if the queue is empty). */
   playNext(track: Track, album?: AlbumSummary, covers: Cover[] = []) {
-    update(s => {
+    commit(s => {
       const fallback = s.queue[s.queueIndex];
       const itemAlbum = album ?? fallback?.album;
       if (!itemAlbum) return s;
@@ -219,7 +241,7 @@ export const player = {
   },
 
   removeFromQueue(index: number) {
-    update(s => {
+    commit(s => {
       const q = [...s.queue];
       q.splice(index, 1);
       let qi = s.queueIndex;
@@ -230,7 +252,7 @@ export const player = {
   },
 
   moveInQueue(from: number, to: number) {
-    update(s => {
+    commit(s => {
       const q = [...s.queue];
       const [item] = q.splice(from, 1);
       q.splice(to, 0, item);
@@ -241,12 +263,14 @@ export const player = {
   },
 
   setCoverIndex(albumId: string, index: number) {
-    update(s => {
+    commit(s => {
       if (s.queue[s.queueIndex]?.album.id !== albumId) return s;
       return { ...s, currentCoverIndex: index };
     });
   },
 
+  // Panel visibility is local UI, not playback state: plain `update` so observers
+  // don't see it.
   toggleQueue() {
     update(s => {
       const showQueue = !s.showQueue;
@@ -254,9 +278,9 @@ export const player = {
       return { ...s, showQueue };
     });
   },
-  toggleShuffle() { update(s => ({ ...s, isShuffle: !s.isShuffle })); },
+  toggleShuffle() { commit(s => ({ ...s, isShuffle: !s.isShuffle })); },
   cycleRepeat() {
-    update(s => {
+    commit(s => {
       const modes: RepeatMode[] = ['off', 'all', 'one'];
       const next = modes[(modes.indexOf(s.repeatMode) + 1) % 3];
       return { ...s, repeatMode: next };
@@ -276,7 +300,7 @@ function next() {
     const candidates = s.queue.map((_, i) => i).filter(i => i !== s.queueIndex && !isHidden(s.queue[i]));
     if (!candidates.length) return;
     const idx = candidates[Math.floor(Math.random() * candidates.length)];
-    update(state => loadTrack(advance(state, idx)));
+    commit(state => loadTrack(advance(state, idx)));
     return;
   }
   let idx = s.queueIndex + 1;
@@ -287,7 +311,7 @@ function next() {
     while (idx < s.queue.length && isHidden(s.queue[idx])) idx++;
     if (idx >= s.queue.length) return;
   }
-  update(state => loadTrack(advance(state, idx)));
+  commit(state => loadTrack(advance(state, idx)));
 }
 
 // Moves to queue index `idx`, resetting the cover picker when the new track
@@ -310,5 +334,5 @@ export function playerPrev() {
   let idx = s.queueIndex - 1;
   while (idx >= 0 && isHidden(s.queue[idx])) idx--;
   if (idx < 0) return;
-  update(state => loadTrack(advance(state, idx)));
+  commit(state => loadTrack(advance(state, idx)));
 }
