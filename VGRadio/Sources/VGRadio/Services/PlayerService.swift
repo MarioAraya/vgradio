@@ -18,14 +18,28 @@ final class PlayerService {
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
     var volume: Double = 0.8 {
-        didSet { player?.volume = Float(volume); if volume > 0 { isMuted = false } }
+        didSet { player?.volume = Float(volume); if volume > 0 { isMuted = false }; stateDidChange() }
     }
     var isMuted: Bool = false {
-        didSet { player?.isMuted = isMuted }
+        didSet { player?.isMuted = isMuted; stateDidChange() }
     }
-    var isShuffle = false
-    var repeatMode: RepeatMode = .off
+    var isShuffle = false {
+        didSet { stateDidChange() }
+    }
+    var repeatMode: RepeatMode = .off {
+        didSet { stateDidChange() }
+    }
+    /// Panel visibility is local UI, not playback state — deliberately not observed.
     var showQueue = false
+
+    /// Called after every discrete state change (track, play/pause, seek, volume,
+    /// queue). High-frequency position ticks are excluded: an observer that needs
+    /// the live position interpolates it from `currentTime` plus wall time.
+    /// Observers that publish over the network must throttle — `volume` fires on
+    /// every step of a slider drag.
+    var onStateChange: ((PlayerService) -> Void)?
+
+    private func stateDidChange() { onStateChange?(self) }
 
     private var player: AVPlayer?
     private(set) var queue: [Track] = []
@@ -52,6 +66,7 @@ final class PlayerService {
         if isPlaying { player.pause() } else { player.play() }
         isPlaying = !isPlaying
         updateNowPlayingInfo()
+        stateDidChange()
     }
 
     private func isSkippable(_ track: Track) -> Bool {
@@ -84,11 +99,13 @@ final class PlayerService {
         queue.remove(at: index)
         if index < queueIndex { queueIndex -= 1 }
         else if index == queueIndex { queueIndex = min(queueIndex, queue.count - 1) }
+        stateDidChange()
     }
 
     func moveInQueue(from source: IndexSet, to destination: Int) {
         queue.move(fromOffsets: source, toOffset: destination)
         queueIndex = queue.firstIndex(where: { $0.id == currentTrack?.id }) ?? queueIndex
+        stateDidChange()
     }
 
     func previous() {
@@ -102,12 +119,14 @@ final class PlayerService {
 
     func playNext(_ track: Track) {
         queue.insert(track, at: min(queueIndex + 1, queue.count))
+        stateDidChange()
     }
 
     func seek(to seconds: Double) {
         player?.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
         currentTime = seconds
         updateNowPlayingInfo()
+        stateDidChange()
     }
 
     // MARK: - Private
@@ -136,6 +155,7 @@ final class PlayerService {
         if let albumId = currentAlbum?.id {
             Task { await APIClient.shared.recordHistory(trackId: track.id, albumId: albumId) }
         }
+        stateDidChange()
     }
 
     private func observeTime() {
