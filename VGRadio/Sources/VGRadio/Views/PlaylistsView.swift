@@ -32,7 +32,7 @@ struct LikedMusicView: View {
                                         Image(systemName: "play.fill").font(.system(size: 11))
                                         Text("Play all").font(.system(size: 13, weight: .semibold))
                                     }
-                                    .foregroundStyle(Color.vgBg)
+                                    .foregroundStyle(Color.vgOnAccent)
                                     .padding(.horizontal, 18)
                                     .padding(.vertical, 7)
                                     .background(Color.vgAccent)
@@ -54,7 +54,7 @@ struct LikedMusicView: View {
                                         }
                                         .foregroundStyle(Color.vgTextSec)
                                         .frame(width: 36, height: 36)
-                                        .background(Color.white.opacity(0.05))
+                                        .background(Color.vgHover)
                                         .clipShape(Circle())
                                     }
                                     .buttonStyle(.plain)
@@ -200,7 +200,7 @@ struct PlaylistDetailView: View {
                                 Image(systemName: "play.fill").font(.system(size: 11))
                                 Text("Play").font(.system(size: 13, weight: .semibold))
                             }
-                            .foregroundStyle(Color.vgBg)
+                            .foregroundStyle(Color.vgOnAccent)
                             .padding(.horizontal, 18)
                             .padding(.vertical, 7)
                             .background(Color.vgAccent)
@@ -222,7 +222,7 @@ struct PlaylistDetailView: View {
                                 }
                                 .foregroundStyle(Color.vgTextSec)
                                 .frame(width: 32, height: 32)
-                                .background(Color.white.opacity(0.06))
+                                .background(Color.vgHoverMd)
                                 .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
@@ -237,7 +237,7 @@ struct PlaylistDetailView: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(Color.vgTextSec)
                                 .frame(width: 32, height: 32)
-                                .background(Color.white.opacity(0.06))
+                                .background(Color.vgHoverMd)
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -270,7 +270,7 @@ struct PlaylistDetailView: View {
             .foregroundStyle(Color.vgTextMuted)
             .frame(height: 32)
             .padding(.horizontal, 12)
-            .background(Color.white.opacity(0.02))
+            .background(Color.vgHover)
 
             ForEach(Array(pl.tracks.enumerated()), id: \.element.id) { idx, track in
                 PlaylistTrackRow(
@@ -366,7 +366,7 @@ private struct PlaylistTrackRow: View {
                 Color.vgAccentBg
                 Color.vgAccent.frame(width: 2)
             } else if isHovered {
-                Color.white.opacity(0.04)
+                Color.vgHover
             }
 
             HStack(spacing: 0) {
@@ -528,7 +528,7 @@ struct PlaylistEditSheet: View {
                     dismiss()
                 }
                 .disabled(editName.trimmingCharacters(in: .whitespaces).isEmpty)
-                .foregroundStyle(Color.vgBg)
+                .foregroundStyle(Color.vgOnAccent)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 7)
                 .background(editName.isEmpty ? Color.vgAccent.opacity(0.4) : Color.vgAccent)
@@ -584,7 +584,7 @@ struct AddToPlaylistSheet: View {
                             }
                             .padding(.horizontal, 10)
                             .frame(height: 32)
-                            .background(Color.white.opacity(0.03))
+                            .background(Color.vgHover)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
                         .buttonStyle(.plain)

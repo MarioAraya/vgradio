@@ -199,7 +199,7 @@ struct AlbumDetailView: View {
                             Image(systemName: "play.fill").font(.system(size: 12))
                             Text("Play").font(.system(size: 13, weight: .semibold))
                         }
-                        .foregroundStyle(Color.vgBg)
+                        .foregroundStyle(Color.vgOnAccent)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 8)
                         .background(Color.vgAccent)
@@ -225,7 +225,7 @@ struct AlbumDetailView: View {
                                 }
                             }
                             .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.05))
+                            .background(Color.vgHover)
                             .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
@@ -248,7 +248,7 @@ struct AlbumDetailView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(allFav ? Color.vgStar : Color.vgTextSec)
                             .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.05))
+                            .background(Color.vgHover)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -267,7 +267,7 @@ struct AlbumDetailView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(Color.vgTextSec)
                             .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.05))
+                            .background(Color.vgHover)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -324,7 +324,7 @@ struct AlbumDetailView: View {
                 }
                 .padding(.horizontal, VGSpace.sm)
                 .padding(.vertical, 6)
-                .background(Color.white.opacity(0.04))
+                .background(Color.vgHover)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 8)
             }
@@ -347,7 +347,7 @@ struct AlbumDetailView: View {
             .foregroundStyle(Color.vgTextMuted)
             .frame(height: 32)
             .padding(.horizontal, 12)
-            .background(Color.white.opacity(0.02))
+            .background(Color.vgHover)
 
             if !trackSearchText.isEmpty && filteredTracks(album.tracks).isEmpty {
                 Text("No results for \"\(trackSearchText)\"")
@@ -393,7 +393,7 @@ struct AlbumDetailView: View {
                     Spacer()
                 }
                 .padding(.vertical, 10)
-                .background(Color.white.opacity(0.02))
+                .background(Color.vgHover)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -820,9 +820,9 @@ private struct DetailTrackRow: View {
                 Color.vgAccentBg
                 Color.vgAccent.frame(width: 2)
             } else if isHovered && !isHidden {
-                Color.white.opacity(0.04)
+                Color.vgHover
             } else if isAltRow {
-                Color.white.opacity(0.015)
+                Color.vgHover
             }
 
             HStack(spacing: 0) {
@@ -983,7 +983,7 @@ private struct CircleIconButton: View {
                 .font(.system(size: 14))
                 .foregroundStyle(Color.vgTextSec)
                 .frame(width: 36, height: 36)
-                .background(Color.white.opacity(0.05))
+                .background(Color.vgHover)
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)

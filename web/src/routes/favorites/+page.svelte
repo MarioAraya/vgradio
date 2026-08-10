@@ -142,7 +142,7 @@
     padding: 8px; border-radius: var(--r-sm);
     cursor: pointer; margin-bottom: 4px;
   }
-  .album-header:hover { background: rgba(255,255,255,0.04); }
+  .album-header:hover { background: var(--hover); }
   .album-meta { display: flex; flex-direction: column; gap: 2px; }
   .album-title { font-size: 14px; font-weight: 600; color: var(--text); }
   .album-sub { font-size: 11px; color: var(--text-muted); }
@@ -156,7 +156,7 @@
     border-radius: var(--r-sm);
     height: 36px;
   }
-  .track-row:hover { background: rgba(255,255,255,0.04); }
+  .track-row:hover { background: var(--hover); }
   .track-name {
     text-align: left; font-size: 13px; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -173,5 +173,5 @@
     transition: opacity 0.1s;
   }
   .track-row:hover .unfav { opacity: 1; }
-  .unfav:hover { background: rgba(203,168,39,0.12); }
+  .unfav:hover { background: var(--accent-soft); }
 </style>

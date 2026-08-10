@@ -168,7 +168,7 @@
   .owner { font-size: 12px; color: var(--text-sec); }
   .meta { font-size: 12px; color: var(--text-sec); }
   .actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-  .play-btn { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #000; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .play-btn { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
   .play-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .play-btn:not(:disabled):hover { opacity: 0.88; }
   .icon-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-hi); font-size: 14px; display: flex; align-items: center; justify-content: center; }

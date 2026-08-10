@@ -92,7 +92,7 @@
 <style>
   .backdrop {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--scrim);
     display: flex; align-items: center; justify-content: center;
     z-index: 200;
   }
@@ -139,7 +139,7 @@
     font-weight: 700;
   }
   .create-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .create-btn:not(:disabled):hover { background: rgba(203,168,39,0.18); }
+  .create-btn:not(:disabled):hover { background: var(--accent-hi); }
   .cancel {
     align-self: flex-end;
     padding: 6px 14px;

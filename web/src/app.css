@@ -7,12 +7,22 @@
   --accent:      #CBA827;
   --accent-soft: rgba(203, 168, 39, 0.10);
   --accent-bg:   rgba(203, 168, 39, 0.08);
+  --accent-hi:   rgba(203, 168, 39, 0.18);
+  --on-accent:   #131320;
   --text:        #F0F0F5;
   --text-sec:    #8A8AA0;
   --text-muted:  rgba(138, 138, 160, 0.60);
   --separator:   rgba(255, 255, 255, 0.08);
   --border60:    rgba(255, 255, 255, 0.048);
   --red:         #e05555;
+  --green:       #4caf50;
+
+  /* Neutral overlays: hover states, chips, inputs, scrims, shadows */
+  --hover:       rgba(255, 255, 255, 0.04);
+  --hover-md:    rgba(255, 255, 255, 0.06);
+  --hover-hi:    rgba(255, 255, 255, 0.12);
+  --scrim:       rgba(0, 0, 0, 0.60);
+  --shadow:      rgba(0, 0, 0, 0.40);
 
   --player-bar-h: 72px;
   --sidebar-w:    220px;
@@ -25,6 +35,67 @@
   --sp-md: 16px;
   --sp-lg: 24px;
   --sp-xl: 32px;
+}
+
+/* Green light theme. Applied explicitly, or via `auto` when the OS prefers light. */
+:root[data-theme='light'],
+:root[data-theme='auto'] {
+  color-scheme: light;
+
+  --bg:          #F2F6F2;
+  --sidebar:     #E6EEE7;
+  --surface:     #FFFFFF;
+  --surface-hi:  #EDF3EE;
+  --muted:       #E1EAE2;
+  --accent:      #2F8F4E;
+  --accent-soft: rgba(47, 143, 78, 0.12);
+  --accent-bg:   rgba(47, 143, 78, 0.09);
+  --accent-hi:   rgba(47, 143, 78, 0.22);
+  --on-accent:   #FFFFFF;
+  --text:        #14251B;
+  --text-sec:    #55685C;
+  --text-muted:  rgba(85, 104, 92, 0.70);
+  --separator:   rgba(20, 37, 27, 0.12);
+  --border60:    rgba(20, 37, 27, 0.07);
+  --red:         #c0392b;
+  --green:       #2E7D32;
+
+  --hover:       rgba(20, 37, 27, 0.05);
+  --hover-md:    rgba(20, 37, 27, 0.08);
+  --hover-hi:    rgba(20, 37, 27, 0.16);
+  --scrim:       rgba(20, 37, 27, 0.38);
+  --shadow:      rgba(20, 37, 27, 0.20);
+}
+
+/* `auto` follows the OS: revert to the dark palette when the OS prefers dark. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='auto'] {
+    color-scheme: dark;
+
+    --bg:          #131320;
+    --sidebar:     #0F0F1A;
+    --surface:     #17172A;
+    --surface-hi:  #1C1C30;
+    --muted:       #1B1B2C;
+    --accent:      #CBA827;
+    --accent-soft: rgba(203, 168, 39, 0.10);
+    --accent-bg:   rgba(203, 168, 39, 0.08);
+    --accent-hi:   rgba(203, 168, 39, 0.18);
+    --on-accent:   #131320;
+    --text:        #F0F0F5;
+    --text-sec:    #8A8AA0;
+    --text-muted:  rgba(138, 138, 160, 0.60);
+    --separator:   rgba(255, 255, 255, 0.08);
+    --border60:    rgba(255, 255, 255, 0.048);
+    --red:         #e05555;
+    --green:       #4caf50;
+
+    --hover:       rgba(255, 255, 255, 0.04);
+    --hover-md:    rgba(255, 255, 255, 0.06);
+    --hover-hi:    rgba(255, 255, 255, 0.12);
+    --scrim:       rgba(0, 0, 0, 0.60);
+    --shadow:      rgba(0, 0, 0, 0.40);
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -59,5 +130,5 @@ a { color: inherit; text-decoration: none; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb { background: var(--hover-hi); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--hover-hi); filter: brightness(1.4); }

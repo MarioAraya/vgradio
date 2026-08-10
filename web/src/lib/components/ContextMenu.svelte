@@ -40,9 +40,9 @@
     min-width: 180px;
     padding: 4px;
     background: var(--surface, #1a1a20);
-    border: 1px solid var(--separator, rgba(255,255,255,0.1));
+    border: 1px solid var(--separator, var(--hover-hi));
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 24px var(--shadow);
   }
   .menu :global(button) {
     display: flex; align-items: center; gap: 8px;
@@ -56,11 +56,11 @@
     cursor: pointer;
   }
   .menu :global(button:hover) {
-    background: rgba(255,255,255,0.08);
+    background: var(--hover-md);
   }
   .menu :global(.divider) {
     height: 1px;
     margin: 4px 6px;
-    background: var(--separator, rgba(255,255,255,0.1));
+    background: var(--separator, var(--hover-hi));
   }
 </style>

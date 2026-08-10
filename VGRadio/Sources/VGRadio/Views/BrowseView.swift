@@ -11,7 +11,7 @@ struct BrowseView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbarRow
-            Divider().background(Color.white.opacity(0.06))
+            Divider().background(Color.vgHoverMd)
             if catalog.entries.isEmpty && !catalog.isLoading {
                 emptyState
             } else {
@@ -49,12 +49,12 @@ struct BrowseView: View {
                         .foregroundStyle(Color.vgTextMuted)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.08))
+                        .background(Color.vgHoverMd)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .padding(.horizontal, VGSpace.sm)
                 .padding(.vertical, 6)
-                .background(Color.white.opacity(0.05))
+                .background(Color.vgHover)
                 .clipShape(RoundedRectangle(cornerRadius: 7))
                 .frame(maxWidth: 280)
 
@@ -149,7 +149,7 @@ struct BrowseView: View {
         .foregroundStyle(sel ? Color.vgAccent : Color.vgTextSec)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(sel ? Color.vgAccentSoft : Color.white.opacity(0.04))
+        .background(sel ? Color.vgAccentSoft : Color.vgHover)
         .clipShape(Capsule())
     }
 
@@ -356,7 +356,7 @@ private struct CatalogEntryRow: View {
 
     private var placeholderCover: some View {
         RoundedRectangle(cornerRadius: 5)
-            .fill(Color.white.opacity(0.04))
+            .fill(Color.vgHover)
             .frame(width: 44, height: 44)
             .overlay(
                 Image(systemName: "music.note")

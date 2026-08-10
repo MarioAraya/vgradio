@@ -113,7 +113,7 @@
 <style>
   .backdrop {
     position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.55);
+    background: var(--scrim);
     display: flex; align-items: flex-start; justify-content: center;
     padding-top: 80px;
   }
@@ -122,7 +122,7 @@
     border: 1px solid var(--separator);
     border-radius: var(--r-lg, 12px);
     width: 560px; max-width: calc(100vw - 32px);
-    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    box-shadow: 0 20px 60px var(--shadow);
     overflow: hidden;
   }
   .search-row {
@@ -145,7 +145,7 @@
     display: flex; align-items: center; justify-content: center;
     border-radius: 50%;
   }
-  .clear:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+  .clear:hover { color: var(--text); background: var(--hover-md); }
   .results {
     list-style: none;
     max-height: 380px;
@@ -158,7 +158,7 @@
     border-radius: var(--r-sm);
     cursor: pointer;
   }
-  .result.active { background: rgba(255,255,255,0.07); }
+  .result.active { background: var(--hover-md); }
   .info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .title {
     font-size: 13px; font-weight: 500; color: var(--text);

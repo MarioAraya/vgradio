@@ -171,7 +171,7 @@
     align-items: center;
     gap: 6px;
     padding: 5px 10px;
-    background: rgba(255,255,255,0.06);
+    background: var(--hover-md);
     border-radius: var(--r-sm);
     width: 220px;
   }
@@ -189,7 +189,7 @@
     display: flex;
     gap: 2px;
     padding: 2px;
-    background: rgba(255,255,255,0.06);
+    background: var(--hover-md);
     border-radius: var(--r-sm);
   }
   .view-toggle button {
@@ -199,7 +199,7 @@
     border-radius: 5px;
     display: flex; align-items: center; justify-content: center;
   }
-  .view-toggle button.active { color: var(--accent); background: rgba(203,168,39,0.12); }
+  .view-toggle button.active { color: var(--accent); background: var(--accent-soft); }
   .center {
     display: flex;
     flex-direction: column;
@@ -228,8 +228,8 @@
     transition: background 0.15s;
     cursor: pointer;
   }
-  .card:hover { background: rgba(255,255,255,0.04); }
-  .card.playing { background: rgba(203, 168, 39, 0.10); }
+  .card:hover { background: var(--hover); }
+  .card.playing { background: var(--accent-soft); }
   .card.playing .card-title { color: var(--accent); }
   .cover-wrap {
     border-radius: var(--r-md);
@@ -297,7 +297,7 @@
     cursor: pointer;
     transition: background 0.1s;
   }
-  .row:hover { background: rgba(255,255,255,0.04); }
+  .row:hover { background: var(--hover); }
   .row.playing .row-title { color: var(--accent); }
   .row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .row-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

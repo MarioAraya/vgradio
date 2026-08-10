@@ -148,7 +148,7 @@
     flex-shrink: 0;
     transition: background 0.1s, color 0.1s;
   }
-  .hamburger:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+  .hamburger:hover { background: var(--hover-md); color: var(--text); }
   .logo-text {
     font-size: 16px;
     font-weight: 700;
@@ -175,7 +175,7 @@
     white-space: nowrap;
   }
   .sidebar.collapsed .nav-item { justify-content: center; padding: 8px 6px; gap: 0; }
-  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .nav-item:hover { background: var(--hover); color: var(--text); }
   .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
 
@@ -229,7 +229,7 @@
     border-radius: var(--r-md);
     margin-top: 4px;
   }
-  .new-pl-btn:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .new-pl-btn:hover { background: var(--hover); color: var(--text); }
 
   .collapsed-playlists {
     padding: 4px 6px;
@@ -260,5 +260,5 @@
     font-weight: 600;
     transition: background 0.15s;
   }
-  .add-btn:hover { background: rgba(203,168,39,0.18); }
+  .add-btn:hover { background: var(--accent-hi); }
 </style>

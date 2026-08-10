@@ -89,7 +89,7 @@
 <style>
   .backdrop {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--scrim);
     display: flex; align-items: center; justify-content: center;
     z-index: 200;
   }
@@ -127,7 +127,7 @@
   .save {
     padding: 8px 20px;
     background: var(--accent);
-    color: #000;
+    color: var(--on-accent);
     border-radius: var(--r-md);
     font-size: 13px;
     font-weight: 600;

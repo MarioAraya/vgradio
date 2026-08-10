@@ -259,7 +259,7 @@ private struct PlayPauseButton: View {
                 .font(.system(size: 18))
                 .foregroundStyle(Color.vgBg)
                 .frame(width: 52, height: 52)
-                .background(Color.white)
+                .background(Color.vgText)
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)

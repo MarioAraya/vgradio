@@ -73,7 +73,7 @@
     border-radius: var(--r-md);
     transition: background 0.1s;
   }
-  .entry:hover { background: rgba(255,255,255,0.04); }
+  .entry:hover { background: var(--hover); }
   .cover-btn { flex-shrink: 0; border-radius: 6px; overflow: hidden; }
   .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .track-name { text-align: left; font-size: 13px; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

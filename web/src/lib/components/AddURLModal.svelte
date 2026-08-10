@@ -84,7 +84,7 @@
 <style>
   .overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.55);
+    background: var(--scrim);
     display: flex; align-items: center; justify-content: center;
     z-index: 500;
   }
@@ -114,7 +114,7 @@
   input {
     width: 100%;
     padding: 8px 10px;
-    background: rgba(255,255,255,0.06);
+    background: var(--hover-md);
     border: 1px solid var(--separator);
     border-radius: var(--r-sm);
     font-size: 13px;
@@ -122,7 +122,7 @@
   }
   input:focus { border-color: var(--accent); }
   .err { font-size: 12px; color: var(--red); }
-  .ok { font-size: 12px; color: #4caf50; }
+  .ok { font-size: 12px; color: var(--green); }
   .footer {
     display: flex;
     justify-content: flex-end;
@@ -140,7 +140,7 @@
   .add {
     padding: 7px 16px;
     background: var(--accent);
-    color: #131320;
+    color: var(--on-accent);
     border-radius: var(--r-sm);
     font-size: 13px;
     font-weight: 600;

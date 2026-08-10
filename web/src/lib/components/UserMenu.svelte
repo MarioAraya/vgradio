@@ -62,7 +62,7 @@
     color: var(--text-sec);
     width: 100%;
   }
-  .user-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .user-btn:hover { background: var(--hover); color: var(--text); }
   .user-btn.collapsed { justify-content: center; padding: 6px; gap: 0; }
 
   .avatar {
@@ -96,7 +96,7 @@
     border-radius: var(--r-md, 8px);
     overflow: hidden;
     z-index: 1000;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 16px var(--shadow);
   }
   .dropdown-email {
     padding: 8px 12px;
@@ -115,7 +115,7 @@
     font-size: 13px;
     color: var(--text);
   }
-  .dropdown-item:hover { background: rgba(255,255,255,0.05); }
+  .dropdown-item:hover { background: var(--hover); }
   .logout { color: var(--red, #f87171); }
   .logout:hover { background: rgba(248,113,113,0.1); }
 
@@ -129,5 +129,5 @@
     font-weight: 600;
     transition: background 0.15s;
   }
-  .login-btn:hover { background: rgba(203,168,39,0.18); }
+  .login-btn:hover { background: var(--accent-hi); }
 </style>

@@ -24,7 +24,7 @@ struct DownloadedView: View {
                                 Image(systemName: "play.fill").font(.system(size: 11))
                                 Text("Play all").font(.system(size: 13, weight: .semibold))
                             }
-                            .foregroundStyle(Color.vgBg)
+                            .foregroundStyle(Color.vgOnAccent)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 7)
                             .background(Color.vgAccent)

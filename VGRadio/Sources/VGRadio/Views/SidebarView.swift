@@ -385,7 +385,7 @@ struct LoginSheet: View {
                     Task { await login() }
                 }
                 .disabled(loading || email.isEmpty || password.isEmpty)
-                .foregroundStyle(Color.vgBg)
+                .foregroundStyle(Color.vgOnAccent)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 7)
                 .background(Color.vgAccent)

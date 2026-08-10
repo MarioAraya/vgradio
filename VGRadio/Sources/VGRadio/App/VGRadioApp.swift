@@ -19,6 +19,7 @@ struct VGRadioApp: App {
     @State private var auth = AuthStore()
     @State private var playlistsStore = PlaylistsStore()
     @State private var offline = OfflineStore()
+    @State private var themeStore = ThemeStore()
 
     var body: some Scene {
         WindowGroup {
@@ -30,11 +31,13 @@ struct VGRadioApp: App {
                 .environment(auth)
                 .environment(playlistsStore)
                 .environment(offline)
+                .environment(themeStore)
                 .frame(minWidth: 900, minHeight: 600)
                 .onAppear {
                     player.hiddenTracks = hidden
                     player.offline = offline
                     offline.startMonitoring()
+                    themeStore.apply()
                 }
         }
         .windowStyle(.hiddenTitleBar)

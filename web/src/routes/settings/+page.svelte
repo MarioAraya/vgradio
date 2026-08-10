@@ -3,7 +3,14 @@
   import { api } from '$lib/api';
   import { goto } from '$app/navigation';
   import CoverImage from '$lib/components/CoverImage.svelte';
+  import { theme, setTheme, type Theme } from '$lib/stores/theme';
   import type { LibraryStats, DownloadedAlbum } from '$lib/types';
+
+  const themes: { id: Theme; label: string; hint: string }[] = [
+    { id: 'dark',  label: 'Oscuro', hint: 'Dorado' },
+    { id: 'light', label: 'Claro',  hint: 'Verde' },
+    { id: 'auto',  label: 'Auto',   hint: 'Según el sistema' }
+  ];
 
   // --- Section 1: Connection ---
   let backendURL = '';
@@ -108,6 +115,25 @@
 
 <div class="page">
   <h1>Settings</h1>
+
+  <!-- ─── Section 0: Appearance ─── -->
+  <section>
+    <h2>Apariencia</h2>
+    <div class="theme-row">
+      {#each themes as t}
+        <button
+          class="theme-btn"
+          class:active={$theme === t.id}
+          aria-pressed={$theme === t.id}
+          on:click={() => setTheme(t.id)}
+        >
+          <span class="theme-label">{t.label}</span>
+          <span class="theme-hint">{t.hint}</span>
+        </button>
+      {/each}
+    </div>
+    <p class="hint">Se guarda en localStorage. «Auto» sigue el tema claro/oscuro del sistema.</p>
+  </section>
 
   <!-- ─── Section 1: Connection ─── -->
   <section>
@@ -231,11 +257,25 @@
   h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
        color: var(--text-muted); margin-bottom: 14px; border-bottom: 1px solid var(--separator); padding-bottom: 6px; }
 
+  /* Appearance */
+  .theme-row { display: flex; gap: 8px; }
+  .theme-btn {
+    display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+    padding: 8px 14px; min-width: 110px;
+    background: var(--hover); border: 1px solid var(--separator);
+    border-radius: var(--r-md); transition: background 0.1s, border-color 0.1s;
+  }
+  .theme-btn:hover { background: var(--hover-md); }
+  .theme-btn.active { background: var(--accent-soft); border-color: var(--accent); }
+  .theme-label { font-size: 13px; font-weight: 600; color: var(--text); }
+  .theme-btn.active .theme-label { color: var(--accent); }
+  .theme-hint { font-size: 11px; color: var(--text-muted); }
+
   .field-row { display: flex; flex-direction: column; gap: 6px; }
   label { font-size: 13px; color: var(--text-sec); }
   .input-group { display: flex; gap: 8px; }
   input[type="text"] {
-    flex: 1; background: var(--bg-input, rgba(255,255,255,0.06)); border: 1px solid var(--separator);
+    flex: 1; background: var(--bg-input, var(--hover-md)); border: 1px solid var(--separator);
     border-radius: var(--r-md); padding: 7px 10px; font-size: 13px; color: var(--text);
     font-family: monospace;
   }
@@ -244,7 +284,7 @@
     padding: 7px 14px; background: var(--accent-soft); color: var(--accent);
     border-radius: var(--r-md); font-size: 13px; font-weight: 600; white-space: nowrap;
   }
-  .btn-sm:hover { background: rgba(203,168,39,0.18); }
+  .btn-sm:hover { background: var(--accent-hi); }
   .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
   .status-ok { font-size: 12px; color: #4ade80; }
   .status-err { font-size: 12px; color: #f87171; }
@@ -256,7 +296,7 @@
     display: flex; align-items: center; gap: 12px;
     padding: 8px; border-radius: var(--r-md); transition: background 0.1s;
   }
-  .dl-row:hover { background: rgba(255,255,255,0.04); }
+  .dl-row:hover { background: var(--hover); }
   .cover-btn { flex-shrink: 0; border-radius: 5px; overflow: hidden; }
   .dl-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .dl-title { text-align: left; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -273,7 +313,7 @@
   /* Stats */
   .stats-grid { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
   .stat { display: flex; flex-direction: column; align-items: center; gap: 2px;
-          background: rgba(255,255,255,0.04); border-radius: var(--r-md); padding: 12px 16px; min-width: 80px; }
+          background: var(--hover); border-radius: var(--r-md); padding: 12px 16px; min-width: 80px; }
   .stat-val { font-size: 22px; font-weight: 700; color: var(--text); }
   .stat-lbl { font-size: 11px; color: var(--text-muted); }
   .stat-pending .stat-val { color: var(--accent); }
@@ -283,7 +323,7 @@
     padding: 7px 16px; background: var(--accent-soft); color: var(--accent);
     border-radius: var(--r-md); font-size: 13px; font-weight: 600;
   }
-  .btn-scrape:hover:not(:disabled) { background: rgba(203,168,39,0.18); }
+  .btn-scrape:hover:not(:disabled) { background: var(--accent-hi); }
   .btn-scrape:disabled { opacity: 0.4; cursor: not-allowed; }
   .scrape-result { font-size: 13px; color: var(--text-sec); margin-top: 8px; }
 </style>

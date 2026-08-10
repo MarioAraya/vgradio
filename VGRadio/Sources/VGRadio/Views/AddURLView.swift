@@ -44,11 +44,11 @@ struct AddURLView: View {
                     .foregroundStyle(Color.vgText)
                     .padding(.horizontal, 12)
                     .frame(height: 40)
-                    .background(Color.white.opacity(0.05))
+                    .background(Color.vgHover)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                            .stroke(Color.vgHoverHi, lineWidth: 1)
                     )
                     .focused($urlFocused)
                     .disabled(isLoading)
@@ -76,7 +76,7 @@ struct AddURLView: View {
                         // Animated progress bar
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                Capsule().fill(Color.white.opacity(0.10))
+                                Capsule().fill(Color.vgHoverHi)
                                 Capsule()
                                     .fill(Color.vgAccent)
                                     .frame(width: geo.size.width * fakeProgress)
@@ -103,7 +103,7 @@ struct AddURLView: View {
                     Spacer()
                     Button("Import") { Task { await submit() } }
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.vgBg)
+                        .foregroundStyle(Color.vgOnAccent)
                         .padding(.horizontal, 16)
                         .frame(height: 32)
                         .background(Color.vgAccent.opacity(urlText.trimmingCharacters(in: .whitespaces).isEmpty || isLoading ? 0.5 : 1))
@@ -156,7 +156,7 @@ struct VGButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Color.vgBg)
+            .foregroundStyle(Color.vgOnAccent)
             .padding(.horizontal, 16)
             .frame(height: 32)
             .background(Color.vgAccent.opacity(configuration.isPressed ? 0.7 : 1))

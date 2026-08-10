@@ -410,10 +410,10 @@
     width: 44px; height: 44px;
     border-radius: 50%;
     background: var(--accent);
-    color: #131320;
+    color: var(--on-accent);
     font-size: 16px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px var(--shadow);
     opacity: 0;
     transform: translateY(4px);
     transition: opacity 0.15s, transform 0.15s;
@@ -438,7 +438,7 @@
   .btn-primary {
     padding: 7px 16px;
     background: var(--accent);
-    color: #131320;
+    color: var(--on-accent);
     border-radius: var(--r-sm);
     font-size: 13px;
     font-weight: 600;
@@ -535,8 +535,8 @@
     height: 32px;
     transition: background 0.1s;
   }
-  .track-row:hover { background: rgba(255,255,255,0.04); }
-  .track-row.current { background: rgba(203, 168, 39, 0.12); }
+  .track-row:hover { background: var(--hover); }
+  .track-row.current { background: var(--accent-soft); }
   .track-row.current .track-name { color: var(--accent); font-weight: 700; }
   .track-row.current .col-num { color: var(--accent); }
   .track-row.hidden-track { opacity: 0.35; }
@@ -570,7 +570,7 @@
   .track-row:hover .fav-btn,
   .track-row.current .fav-btn,
   .track-row.hidden-track .fav-btn { opacity: 1; }
-  .fav-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .fav-btn:hover { color: var(--text); background: var(--hover-md); }
   .fav-btn.fav-active { color: var(--accent) !important; opacity: 1; }
   .act {
     font-size: 13px;
@@ -579,7 +579,7 @@
     color: var(--text-muted);
     border-radius: var(--r-sm);
   }
-  .act:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .act:hover { color: var(--text); background: var(--hover-md); }
 
   .hide-btn { filter: grayscale(1); opacity: 0.35; }
   .hide-btn:hover { filter: none; opacity: 1; }
@@ -600,7 +600,7 @@
   .act-dl-local  { color: #4ade80; }
   .act-dl-local:hover { color: #86efac; background: rgba(74,222,128,0.08); }
   .act-scraped   { color: var(--accent); opacity: 0.7; }
-  .act-scraped:hover { opacity: 1; background: rgba(203,168,39,0.08); }
+  .act-scraped:hover { opacity: 1; background: var(--accent-bg); }
   .act-unscrape  { opacity: 0.2; font-size: 11px; }
   .act-unscrape:hover { opacity: 1; color: var(--text); }
   @keyframes spin { to { transform: rotate(360deg); } }

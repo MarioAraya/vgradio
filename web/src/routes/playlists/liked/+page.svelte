@@ -162,7 +162,7 @@
   .owner { font-size: 12px; color: var(--text-sec); }
   .meta { font-size: 12px; color: var(--text-sec); }
   .actions { margin-top: 10px; }
-  .play-btn { padding: 10px 28px; background: var(--accent); color: #000; border-radius: 999px; font-size: 14px; font-weight: 700; }
+  .play-btn { padding: 10px 28px; background: var(--accent); color: var(--on-accent); border-radius: 999px; font-size: 14px; font-weight: 700; }
   .play-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .play-btn:not(:disabled):hover { opacity: 0.88; }
 

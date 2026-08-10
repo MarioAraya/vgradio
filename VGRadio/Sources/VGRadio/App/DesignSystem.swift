@@ -1,23 +1,41 @@
 import SwiftUI
+import AppKit
 
 // MARK: - Colors
 
 extension Color {
-    // Converted from oklch values in styles.css
-    static let vgBg         = Color(hex: "#131320")  // oklch(0.18 0.02 270)
-    static let vgSidebar    = Color(hex: "#0F0F1A")  // oklch(0.155 0.018 270)
-    static let vgSurface    = Color(hex: "#17172A")  // oklch(0.21 0.022 270) card
-    static let vgSurfaceHi  = Color(hex: "#1C1C30")  // oklch(0.25 0.022 270) secondary
-    static let vgMuted      = Color(hex: "#1B1B2C")  // oklch(0.24 0.02 270)
-    static let vgAccent     = Color(hex: "#CBA827")  // oklch(0.78 0.14 75) primary
-    static let vgAccentSoft = Color(hex: "#CBA827").opacity(0.10)   // primary/10
-    static let vgAccentBg   = Color(hex: "#CBA827").opacity(0.08)   // primary/8 (playing row)
-    static let vgStar       = Color(hex: "#CBA827")  // same as accent (fill-primary)
-    static let vgText       = Color(hex: "#F0F0F5")  // oklch(0.95 0.005 270) foreground
-    static let vgTextSec    = Color(hex: "#8A8AA0")  // oklch(0.65 0.015 270) muted-foreground
-    static let vgTextMuted  = Color(hex: "#8A8AA0").opacity(0.60)
-    static let vgSeparator  = Color(white: 1, opacity: 0.08)   // oklch(1 0 0 / 8%) border
-    static let vgBorder60   = Color(white: 1, opacity: 0.048)  // border/60
+    /// Resolves per appearance, so every token follows the dark/green-light theme
+    /// selected in Settings (which drives `NSApp.appearance`).
+    static func vgDynamic(dark: String, light: String) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? NSColor(hex: dark)
+                : NSColor(hex: light)
+        })
+    }
+
+    // Dark values converted from oklch in styles.css; light values are the green theme.
+    static let vgBg         = vgDynamic(dark: "#131320", light: "#F2F6F2")
+    static let vgSidebar    = vgDynamic(dark: "#0F0F1A", light: "#E6EEE7")
+    static let vgSurface    = vgDynamic(dark: "#17172A", light: "#FFFFFF")
+    static let vgSurfaceHi  = vgDynamic(dark: "#1C1C30", light: "#EDF3EE")
+    static let vgMuted      = vgDynamic(dark: "#1B1B2C", light: "#E1EAE2")
+    static let vgAccent     = vgDynamic(dark: "#CBA827", light: "#2F8F4E")
+    static let vgAccentSoft = vgDynamic(dark: "#CBA8271A", light: "#2F8F4E1F")  // primary/10
+    static let vgAccentBg   = vgDynamic(dark: "#CBA82714", light: "#2F8F4E17")  // primary/8 (playing row)
+    static let vgAccentHi   = vgDynamic(dark: "#CBA8272E", light: "#2F8F4E38")  // primary/18
+    static let vgOnAccent   = vgDynamic(dark: "#131320", light: "#FFFFFF")      // text on an accent fill
+    static let vgStar       = vgAccent  // same as accent (fill-primary)
+    static let vgText       = vgDynamic(dark: "#F0F0F5", light: "#14251B")
+    static let vgTextSec    = vgDynamic(dark: "#8A8AA0", light: "#55685C")
+    static let vgTextMuted  = vgDynamic(dark: "#8A8AA099", light: "#55685CB3")
+    static let vgSeparator  = vgDynamic(dark: "#FFFFFF14", light: "#14251B1F")  // border
+    static let vgBorder60   = vgDynamic(dark: "#FFFFFF0C", light: "#14251B12")  // border/60
+
+    // Neutral overlays: hover states, chips, inputs.
+    static let vgHover      = vgDynamic(dark: "#FFFFFF0A", light: "#14251B0D")
+    static let vgHoverMd    = vgDynamic(dark: "#FFFFFF0F", light: "#14251B14")
+    static let vgHoverHi    = vgDynamic(dark: "#FFFFFF1F", light: "#14251B29")
 
     init(hex: String) {
         var s = hex.trimmingCharacters(in: .init(charactersIn: "#"))
@@ -28,6 +46,20 @@ extension Color {
             green: Double((v >> 16) & 0xFF) / 255,
             blue:  Double((v >>  8) & 0xFF) / 255,
             opacity: Double(v & 0xFF) / 255
+        )
+    }
+}
+
+extension NSColor {
+    convenience init(hex: String) {
+        var s = hex.trimmingCharacters(in: .init(charactersIn: "#"))
+        if s.count == 6 { s += "FF" }
+        let v = UInt64(s, radix: 16) ?? 0
+        self.init(
+            srgbRed: CGFloat((v >> 24) & 0xFF) / 255,
+            green:   CGFloat((v >> 16) & 0xFF) / 255,
+            blue:    CGFloat((v >>  8) & 0xFF) / 255,
+            alpha:   CGFloat(v & 0xFF) / 255
         )
     }
 }
@@ -75,7 +107,7 @@ struct ThinProgressTrack: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.12))
+                Capsule().fill(Color.vgHoverHi)
                 Capsule()
                     .fill(Color.vgAccent)
                     .frame(width: max(0, min(geo.size.width, geo.size.width * fraction)))

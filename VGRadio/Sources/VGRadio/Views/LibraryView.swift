@@ -216,7 +216,7 @@ struct LibraryView: View {
                         }
                         .padding(.horizontal, VGSpace.sm)
                         .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.06))
+                        .background(Color.vgHoverMd)
                         .clipShape(RoundedRectangle(cornerRadius: 7))
                     }
                     .frame(width: 220)
@@ -247,7 +247,7 @@ struct LibraryView: View {
                         .help("List view")
                     }
                     .padding(2)
-                    .background(Color.white.opacity(0.06))
+                    .background(Color.vgHoverMd)
                     .clipShape(RoundedRectangle(cornerRadius: 7))
                 }
                 .padding(.top, VGSpace.sm)

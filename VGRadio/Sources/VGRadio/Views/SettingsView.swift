@@ -7,6 +7,7 @@ private enum BackendStatus {
 struct SettingsView: View {
     @Environment(OfflineStore.self) var offline
     @Environment(LibraryStore.self) var library
+    @Environment(ThemeStore.self) var themeStore
     @State private var status: BackendStatus = .checking
     @State private var pendingDeleteAlbumID: String?
 
@@ -17,6 +18,39 @@ struct SettingsView: View {
                     .font(VGFont.title())
                     .foregroundStyle(Color.vgText)
                     .padding(.top, VGSpace.md)
+
+                VStack(alignment: .leading, spacing: VGSpace.sm) {
+                    Text("APARIENCIA")
+                        .font(VGFont.label(10))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.vgTextMuted)
+
+                    @Bindable var themeStore = themeStore
+
+                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Tema")
+                                .font(VGFont.body())
+                                .foregroundStyle(Color.vgTextSec)
+                            Text("Claro usa la paleta verde. Auto sigue al sistema.")
+                                .font(VGFont.caption(11))
+                                .foregroundStyle(Color.vgTextMuted)
+                        }
+                        Spacer()
+                        Picker("", selection: $themeStore.theme) {
+                            ForEach(VGTheme.allCases) { t in
+                                Text(t.label).tag(t)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 220)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .background(Color.vgHover)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
 
                 VStack(alignment: .leading, spacing: VGSpace.sm) {
                     Text("BACKEND")
@@ -42,7 +76,7 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)
-                    .background(Color.white.opacity(0.05))
+                    .background(Color.vgHover)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
@@ -70,7 +104,7 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)
-                    .background(Color.white.opacity(0.05))
+                    .background(Color.vgHover)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
 
                     HStack(spacing: 8) {
@@ -101,7 +135,7 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)
-                    .background(Color.white.opacity(0.05))
+                    .background(Color.vgHover)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
@@ -181,7 +215,7 @@ struct SettingsView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(Color.white.opacity(0.03))
+        .background(Color.vgHover)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 

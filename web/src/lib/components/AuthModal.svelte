@@ -125,7 +125,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--scrim);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -181,7 +181,7 @@
     font-weight: 500;
   }
   input {
-    background: var(--surface-hi, rgba(255,255,255,0.06));
+    background: var(--surface-hi, var(--hover-md));
     border: 1px solid var(--separator);
     border-radius: var(--r-sm, 6px);
     padding: 8px 10px;
@@ -200,7 +200,7 @@
     margin-top: 4px;
     padding: 9px;
     background: var(--accent);
-    color: #131320;
+    color: var(--on-accent);
     border-radius: var(--r-sm, 6px);
     font-size: 13px;
     font-weight: 700;

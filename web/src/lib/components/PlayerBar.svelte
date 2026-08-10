@@ -347,7 +347,7 @@
   .scrub-track {
     width: 100%;
     height: 4px;
-    background: rgba(255,255,255,0.14);
+    background: var(--hover-hi);
     border-radius: 2px;
     overflow: hidden;
     transition: height 0.15s;
@@ -393,7 +393,7 @@
   }
   .vol-track {
     width: 100%; height: 4px;
-    background: rgba(255,255,255,0.12);
+    background: var(--hover-hi);
     border-radius: 2px; overflow: hidden;
   }
   .vol-fill { height: 100%; background: var(--accent); }
@@ -403,7 +403,7 @@
     width: 40px; height: 40px;
     border-radius: 50%;
     background: white;
-    color: #131320;
+    color: var(--on-accent);
     font-size: 20px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
@@ -489,7 +489,7 @@
     width: min(400px, 60vw); height: min(400px, 60vw);
     object-fit: cover;
     border-radius: 12px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+    box-shadow: 0 16px 48px var(--shadow);
   }
   .fs-art-placeholder {
     background: var(--surface-hi);

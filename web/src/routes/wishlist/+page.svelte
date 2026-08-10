@@ -64,7 +64,7 @@
   .add-row { display: flex; gap: 8px; margin-bottom: 20px; }
   .add-row input {
     flex: 1; padding: 8px 12px;
-    background: rgba(255,255,255,0.06);
+    background: var(--hover-md);
     border: 1px solid var(--separator);
     border-radius: var(--r-sm);
     font-size: 13px; color: var(--text);
@@ -73,7 +73,7 @@
   .add-btn {
     padding: 8px 16px;
     background: var(--accent);
-    color: #131320;
+    color: var(--on-accent);
     border-radius: var(--r-sm);
     font-size: 13px;
     font-weight: 600;
@@ -89,7 +89,7 @@
     border-radius: var(--r-sm);
     transition: background 0.1s;
   }
-  .row:hover { background: rgba(255,255,255,0.04); }
+  .row:hover { background: var(--hover); }
   .item-title { flex: 1; font-size: 13px; color: var(--text); }
   .actions { display: flex; align-items: center; gap: 8px; }
   .import-btn {
@@ -98,7 +98,7 @@
     background: var(--accent-soft);
     border-radius: var(--r-sm);
   }
-  .check { font-size: 12px; color: #4caf50; }
+  .check { font-size: 12px; color: var(--green); }
   .err { font-size: 12px; color: var(--red); }
   .rm { font-size: 12px; color: var(--text-muted); opacity: 0; }
   .row:hover .rm { opacity: 1; }

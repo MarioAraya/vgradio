@@ -112,7 +112,7 @@
     transition: background 0.1s;
   }
   .row.current {
-    background: rgba(203, 168, 39, 0.18);
+    background: var(--accent-hi);
     border-left: 2px solid var(--accent);
   }
   .row:hover .rm { opacity: 1; }

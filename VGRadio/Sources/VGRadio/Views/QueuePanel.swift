@@ -19,7 +19,7 @@ struct QueuePanel: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.vgTextMuted)
                         .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.06))
+                        .background(Color.vgHoverMd)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -121,7 +121,7 @@ private struct QueueRow: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Color.vgTextMuted)
                         .frame(width: 20, height: 20)
-                        .background(Color.white.opacity(0.08))
+                        .background(Color.vgHoverMd)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -133,7 +133,7 @@ private struct QueueRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .frame(height: 50)
-        .background(isCurrent ? Color.vgAccentBg : isHovered ? Color.white.opacity(0.04) : Color.clear)
+        .background(isCurrent ? Color.vgAccentBg : isHovered ? Color.vgHover : Color.clear)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovered)
     }
