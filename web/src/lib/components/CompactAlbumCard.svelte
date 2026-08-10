@@ -22,6 +22,9 @@
   on:mouseenter={onEnter}
   on:mouseleave={onLeave}
   on:click
+  on:contextmenu
+  draggable="true"
+  on:dragstart
   role="button"
   tabindex="0"
   on:keydown

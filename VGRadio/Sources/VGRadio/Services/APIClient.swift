@@ -62,6 +62,16 @@ final class APIClient {
         return try JSONDecoder().decode(ScrapeJob.self, from: data)
     }
 
+    func top12(platform: String) async throws -> [Top12Entry] {
+        guard var comps = URLComponents(url: try url("/catalog/top12"), resolvingAgainstBaseURL: false) else {
+            throw URLError(.badURL)
+        }
+        comps.queryItems = [URLQueryItem(name: "platform", value: platform)]
+        guard let reqURL = comps.url else { throw URLError(.badURL) }
+        let (data, _) = try await session.data(from: reqURL)
+        return try JSONDecoder().decode([Top12Entry].self, from: data)
+    }
+
     func deleteAlbum(_ id: String) async throws {
         var req = URLRequest(url: try url("/albums/\(id)"))
         req.httpMethod = "DELETE"

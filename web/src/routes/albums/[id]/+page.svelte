@@ -16,6 +16,7 @@
   import { currentUser } from '$lib/stores/auth';
   import AddToPlaylistModal from '$lib/components/AddToPlaylistModal.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import { setDragPayload } from '$lib/dnd';
 
   let ctxMenu: { x: number; y: number; track: import('$lib/types').Track } | null = null;
 
@@ -24,13 +25,20 @@
     ctxMenu = { x: e.clientX, y: e.clientY, track };
   }
 
+  let albumCtxMenu: { x: number; y: number } | null = null;
+
+  function openAlbumContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    albumCtxMenu = { x: e.clientX, y: e.clientY };
+  }
+
   let lightboxOpen = false;
   let lightboxIndex = 0;
-  let addToPlaylistTrackId = '';
+  let addToPlaylistTrackIds: string[] = [];
   let addToPlaylistOpen = false;
 
-  function openAddToPlaylist(trackId: string) {
-    addToPlaylistTrackId = trackId;
+  function openAddToPlaylist(trackIds: string[]) {
+    addToPlaylistTrackIds = trackIds;
     addToPlaylistOpen = true;
   }
 
@@ -215,8 +223,8 @@
   {:else if error}
     <div class="center"><span class="err">{error}</span></div>
   {:else if album}
-    <div class="top">
-      <div class="cover-wrap">
+    <div class="top" on:contextmenu={openAlbumContextMenu}>
+      <div class="cover-wrap" draggable="true" on:dragstart={(e) => setDragPayload(e, { albumId: id })}>
         <CoverCarousel
           covers={album.covers}
           index={coverIdx}
@@ -295,6 +303,8 @@
           class:hidden-track={isHid}
           on:dblclick={() => playTrack(track)}
           on:contextmenu={(e) => openTrackContextMenu(e, track)}
+          draggable="true"
+          on:dragstart={(e) => setDragPayload(e, { trackIds: [track.id] })}
           role="row"
         >
           <span class="col-num">
@@ -321,7 +331,7 @@
             <div class="acts">
             <button class="act" title="Play next" on:click={() => player.playNext(track, album ? toSummary(album) : undefined, album?.covers ?? [])}>▶+</button>
             {#if $currentUser}
-              <button class="act" title="Add to playlist" on:click={() => openAddToPlaylist(track.id)}>+</button>
+              <button class="act" title="Add to playlist" on:click={() => openAddToPlaylist([track.id])}>+</button>
             {/if}
             <button class="act hide-btn" class:hide-active={isHid} title={isHid ? 'Unhide' : 'Hide'}
               on:click={() => {
@@ -374,7 +384,16 @@
   {/if}
 </div>
 
-<AddToPlaylistModal bind:open={addToPlaylistOpen} trackId={addToPlaylistTrackId} />
+<AddToPlaylistModal bind:open={addToPlaylistOpen} trackIds={addToPlaylistTrackIds} />
+
+{#if albumCtxMenu && album}
+  <ContextMenu x={albumCtxMenu.x} y={albumCtxMenu.y} onClose={() => albumCtxMenu = null}>
+    {#if $currentUser}
+      <button on:click={() => { openAddToPlaylist(album!.tracks.map(t => t.id)); albumCtxMenu = null; }}>+ Add Album to Playlist…</button>
+    {/if}
+    <button on:click={() => { playAll(false); albumCtxMenu = null; }}>▶ Play All</button>
+  </ContextMenu>
+{/if}
 
 {#if ctxMenu}
   {@const track = ctxMenu.track}
@@ -383,7 +402,7 @@
   <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => ctxMenu = null}>
     <button on:click={() => { player.playNext(track, album ? toSummary(album) : undefined, album?.covers ?? []); ctxMenu = null; }}>▶+ Play Next</button>
     {#if $currentUser}
-      <button on:click={() => { openAddToPlaylist(track.id); ctxMenu = null; }}>+ Add to Playlist…</button>
+      <button on:click={() => { openAddToPlaylist([track.id]); ctxMenu = null; }}>+ Add to Playlist…</button>
     {/if}
     <div class="divider"></div>
     <button on:click={() => { toggleTrackFav(track); ctxMenu = null; }}>

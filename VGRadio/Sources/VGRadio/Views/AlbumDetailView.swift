@@ -17,7 +17,7 @@ struct AlbumDetailView: View {
     @State private var downloadingTrackID: String?
     @State private var downloadedIDs: Set<String> = []
     @State private var isDownloadingAlbumOffline = false
-    @State private var addToPlaylistTrackId: String?
+    @State private var addToPlaylistTrackIds: [String] = []
     @State private var showAddToPlaylist = false
     @State private var trackSearchText = ""
     @State private var showDeleteConfirm = false
@@ -64,8 +64,8 @@ struct AlbumDetailView: View {
         }
         .task(id: summary.id) { await load() }
         .sheet(isPresented: $showAddToPlaylist) {
-            if let tid = addToPlaylistTrackId {
-                AddToPlaylistSheet(trackId: tid)
+            if !addToPlaylistTrackIds.isEmpty {
+                AddToPlaylistSheet(trackIds: addToPlaylistTrackIds)
             }
         }
         .overlay {
@@ -123,6 +123,17 @@ struct AlbumDetailView: View {
                     Task { await downloadCoversZip(album.covers, title: album.title) }
                 }
             )
+            .contextMenu {
+                if auth.isLoggedIn {
+                    Button {
+                        addToPlaylistTrackIds = album.tracks.map(\.id)
+                        showAddToPlaylist = true
+                    } label: {
+                        Label("Add Album to Playlist…", systemImage: "music.note.list")
+                    }
+                }
+            }
+            .onDrag { PlaylistDragItem(albumId: album.id).makeItemProvider() }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(album.albumType.isEmpty ? "SOUNDTRACK" : album.albumType.uppercased())
@@ -371,17 +382,17 @@ struct AlbumDetailView: View {
                     isDownloadingOffline: offline.downloadingTrackIDs.contains(track.id),
                     onDownloadOffline: offline.hasFolder ? { Task { await offline.downloadOffline(track, album: summary) } } : nil,
                     onAddToPlaylist: auth.isLoggedIn ? {
-                        addToPlaylistTrackId = track.id
+                        addToPlaylistTrackIds = [track.id]
                         showAddToPlaylist = true
                     } : nil
                 )
                 .id(track.id)
                 .onHover { hoveredTrackID = $0 ? track.id : nil }
-                .onTapGesture(count: 2) {
+                .simultaneousGesture(TapGesture(count: 2).onEnded {
                     let playable = album.tracks.filter { !hidden.isHidden($0.id) }
                     player.play(track: track, in: summary, queue: playable, covers: album.covers)
                     player.currentCoverIndex = CoverPrefsStore.shared.index(for: summary.id)
-                }
+                })
             }
 
             if !album.totalDurationFormatted.isEmpty {
@@ -701,7 +712,7 @@ struct AlbumCoverView: View {
             }
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .onTapGesture { onTap?() }
+            .simultaneousGesture(TapGesture().onEnded { onTap?() })
             // allowsHitTesting(false) when no tap handler so parent gestures (library card) still fire
             .allowsHitTesting(onTap != nil)
 
@@ -844,6 +855,15 @@ private struct DetailTrackRow: View {
                     }
                 }
                 .frame(width: 40, alignment: .center)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 12)
+                        .onEnded { v in
+                            if v.translation.height > 20 && abs(v.translation.width) < 40 {
+                                hidden.toggle(track.id)
+                            }
+                        }
+                )
 
                 Text(track.name)
                     .font(VGFont.body(13))
@@ -855,6 +875,7 @@ private struct DetailTrackRow: View {
                     .strikethrough(isHidden, color: Color.vgTextMuted)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .onDrag { PlaylistDragItem(trackIds: [track.id]).makeItemProvider() }
 
                 Text(track.durationFormatted)
                     .font(VGFont.mono(12))
@@ -960,14 +981,6 @@ private struct DetailTrackRow: View {
                 }
             }
         }
-        .gesture(
-            DragGesture(minimumDistance: 12)
-                .onEnded { v in
-                    if v.translation.height > 20 && abs(v.translation.width) < 40 {
-                        hidden.toggle(track.id)
-                    }
-                }
-        )
     }
 }
 

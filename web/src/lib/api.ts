@@ -1,6 +1,6 @@
 import type {
   Album, AlbumSummary, CatalogConsole, CatalogPage,
-  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, SyncedLetter, Track, User,
+  CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, SyncedLetter, Top12Entry, Track, User,
   PlaylistSummary, PlaylistDetail
 } from './types';
 
@@ -91,6 +91,7 @@ export const api = {
     return get<CatalogPage>(`/catalog?${p}`);
   },
   catalogConsoles: () => get<CatalogConsole[]>('/catalog/consoles'),
+  top12: (platform: string) => get<Top12Entry[]>(`/catalog/top12?platform=${encodeURIComponent(platform)}`),
   startCatalogSync: () => post<void>('/catalog/sync'),
   startLetterSync: (letter: string) => post<{ status: string; letter: string }>(`/catalog/sync?letter=${encodeURIComponent(letter)}`),
   catalogSyncProgress: () => get<CatalogSyncProgress>('/catalog/sync'),

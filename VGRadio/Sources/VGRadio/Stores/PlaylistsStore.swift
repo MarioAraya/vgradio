@@ -60,6 +60,12 @@ final class PlaylistsStore {
         invalidate(id: playlistId)
     }
 
+    func addTracks(playlistId: String, trackIds: [String]) async throws {
+        for trackId in trackIds {
+            try await addTrack(playlistId: playlistId, trackId: trackId)
+        }
+    }
+
     func removeTrack(playlistId: String, trackId: String) async throws {
         try await APIClient.shared.removeTrackFromPlaylist(playlistId: playlistId, trackId: trackId)
         playlists = playlists.map { p in

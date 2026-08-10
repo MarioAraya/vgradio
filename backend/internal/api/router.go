@@ -82,6 +82,7 @@ type catalogSyncer interface {
 	SetCFClearance(v string)
 	Progress() catalog.SyncProgress
 	Top40(ctx context.Context) ([]scraper.Top40Entry, error)
+	Top12(ctx context.Context, platform string) ([]scraper.Top12Entry, error)
 }
 
 type handler struct {
@@ -138,6 +139,7 @@ func NewRouter(s storer, q queuer, f trackFetcher, syn catalogSyncer, dataDir st
 	mux.HandleFunc("GET /catalog/consoles", h.getCatalogConsoles)
 	mux.HandleFunc("GET /catalog/synced-letters", h.getSyncedLetters)
 	mux.HandleFunc("GET /catalog/top40", h.getTop40)
+	mux.HandleFunc("GET /catalog/top12", h.getTop12)
 	mux.HandleFunc("PUT /config/cf-clearance", h.putCFClearance)
 	mux.HandleFunc("POST /history", h.postHistory)
 	mux.HandleFunc("GET /history", h.getHistory)

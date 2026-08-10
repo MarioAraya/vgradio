@@ -212,6 +212,15 @@ struct CatalogConsole: Decodable, Identifiable {
     var albumCount: Int
 }
 
+/// A ranked entry from a platform's "Top 12 [Platform] Albums" box on khinsider.
+struct Top12Entry: Decodable, Identifiable {
+    var rank: Int
+    var title: String
+    var sourceUrl: String
+    var coverThumbUrl: String
+    var id: String { sourceUrl }
+}
+
 struct HistoryEntry: Decodable, Identifiable {
     var trackId: String
     var trackName: String

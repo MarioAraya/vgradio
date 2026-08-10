@@ -15,6 +15,7 @@ private enum LibraryViewMode: String {
 struct LibraryView: View {
     @Environment(LibraryStore.self) var library
     @Environment(PlayerService.self) var player
+    @Environment(AuthStore.self) var auth
     // Browser-style navigation history: nil = grid, non-nil = album detail
     @State private var history: [AlbumSummary?] = [nil]
     @State private var historyIndex = 0
@@ -26,6 +27,8 @@ struct LibraryView: View {
     @State private var searchFocused = false
     @State private var pendingDeleteAlbum: AlbumSummary?
     @State private var isDeletingAlbum = false
+    @State private var addToPlaylistTrackIds: [String] = []
+    @State private var showAddToPlaylist = false
     @FocusState private var searchFieldFocused: Bool
     @AppStorage("vgradio.libraryViewMode") private var viewMode = LibraryViewMode.grid
 
@@ -56,6 +59,14 @@ struct LibraryView: View {
     private func goForward() {
         guard historyIndex < history.count - 1 else { return }
         DispatchQueue.main.async { historyIndex += 1 }
+    }
+
+    private func addAlbumToPlaylist(_ album: AlbumSummary) {
+        Task {
+            guard let full = try? await APIClient.shared.album(album.id) else { return }
+            addToPlaylistTrackIds = full.tracks.map(\.id)
+            showAddToPlaylist = true
+        }
     }
 
     private var backSwipeProgress: CGFloat {
@@ -172,6 +183,11 @@ struct LibraryView: View {
         } message: {
             Text("Esto borra el álbum, sus tracks y descargas locales. No se puede deshacer.")
         }
+        .sheet(isPresented: $showAddToPlaylist) {
+            if !addToPlaylistTrackIds.isEmpty {
+                AddToPlaylistSheet(trackIds: addToPlaylistTrackIds)
+            }
+        }
     }
 
     private var libraryGrid: some View {
@@ -272,12 +288,19 @@ struct LibraryView: View {
                                 ForEach(filteredAlbums) { album in
                                     AlbumListRow(album: album, isHovered: hoveredID == album.id)
                                         .onHover { hoveredID = $0 ? album.id : nil }
-                                        .onTapGesture { navigate(to: album) }
+                                        .simultaneousGesture(TapGesture().onEnded { navigate(to: album) })
                                         .contextMenu {
+                                            if auth.isLoggedIn {
+                                                Button { addAlbumToPlaylist(album) } label: {
+                                                    Label("Add Album to Playlist…", systemImage: "music.note.list")
+                                                }
+                                                Divider()
+                                            }
                                             Button(role: .destructive) { pendingDeleteAlbum = album } label: {
                                                 Label("Eliminar de la library", systemImage: "trash")
                                             }
                                         }
+                                        .onDrag { PlaylistDragItem(albumId: album.id).makeItemProvider() }
                                 }
                             }
                             .padding(.horizontal, VGSpace.xl)
@@ -286,12 +309,19 @@ struct LibraryView: View {
                             LazyVGrid(columns: compactColumns, spacing: 2) {
                                 ForEach(filteredAlbums) { album in
                                     CompactAlbumCard(album: album)
-                                        .onTapGesture { navigate(to: album) }
+                                        .simultaneousGesture(TapGesture().onEnded { navigate(to: album) })
                                         .contextMenu {
+                                            if auth.isLoggedIn {
+                                                Button { addAlbumToPlaylist(album) } label: {
+                                                    Label("Add Album to Playlist…", systemImage: "music.note.list")
+                                                }
+                                                Divider()
+                                            }
                                             Button(role: .destructive) { pendingDeleteAlbum = album } label: {
                                                 Label("Eliminar de la library", systemImage: "trash")
                                             }
                                         }
+                                        .onDrag { PlaylistDragItem(albumId: album.id).makeItemProvider() }
                                 }
                             }
                             .padding(.horizontal, VGSpace.xl)
@@ -301,12 +331,19 @@ struct LibraryView: View {
                                 ForEach(filteredAlbums) { album in
                                     AlbumCard(album: album, isHovered: hoveredID == album.id)
                                         .onHover { hoveredID = $0 ? album.id : nil }
-                                        .onTapGesture { navigate(to: album) }
+                                        .simultaneousGesture(TapGesture().onEnded { navigate(to: album) })
                                         .contextMenu {
+                                            if auth.isLoggedIn {
+                                                Button { addAlbumToPlaylist(album) } label: {
+                                                    Label("Add Album to Playlist…", systemImage: "music.note.list")
+                                                }
+                                                Divider()
+                                            }
                                             Button(role: .destructive) { pendingDeleteAlbum = album } label: {
                                                 Label("Eliminar de la library", systemImage: "trash")
                                             }
                                         }
+                                        .onDrag { PlaylistDragItem(albumId: album.id).makeItemProvider() }
                                 }
                             }
                             .padding(.horizontal, VGSpace.xl)

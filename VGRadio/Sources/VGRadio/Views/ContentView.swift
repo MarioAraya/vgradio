@@ -11,6 +11,7 @@ private final class SwipeAccumulator {
 enum SidebarItem: Hashable {
     case library
     case browse
+    case top
     case downloaded
     case recentlyPlayed
     case playlistLiked
@@ -183,6 +184,7 @@ struct ContentView: View {
         case .library:       LibraryView()
         case .downloaded:    DownloadedView()
         case .browse:        BrowseView()
+        case .top:           TopView()
         case .recentlyPlayed: RecentlyPlayedView()
         case .playlistLiked: LikedMusicView()
         case .playlist(let id): PlaylistDetailView(playlistId: id)

@@ -64,7 +64,30 @@ type Syncer struct {
 	top40Mu        sync.Mutex
 	top40Cache     []scraper.Top40Entry
 	top40FetchedAt time.Time
+
+	top12Mu        sync.Mutex
+	top12Cache     map[string][]scraper.Top12Entry
+	top12FetchedAt map[string]time.Time
 }
+
+// platformSlugs maps our internal platform IDs to khinsider URL path segments
+// (https://downloads.khinsider.com/game-soundtracks/<slug>), taken from the
+// /console-list page.
+var platformSlugs = map[string]string{
+	"ps1":    "playstation",
+	"ps2":    "playstation-2",
+	"ps3":    "playstation-3",
+	"ps4":    "playstation-4",
+	"ps5":    "playstation-5",
+	"switch": "nintendo-switch",
+	"wii":    "nintendo-wii",
+	"wiiu":   "nintendo-wii-u",
+	"n64":    "nintendo-64",
+	"xbox":   "xbox",
+}
+
+// Top12Platforms lists the platform IDs supported by Top12, in menu display order.
+var Top12Platforms = []string{"ps1", "ps2", "ps3", "ps4", "ps5", "switch", "wii", "wiiu", "n64", "xbox"}
 
 // New creates a Syncer.
 func New(st catalogStore, log *slog.Logger) *Syncer {
@@ -106,6 +129,46 @@ func (s *Syncer) Top40(ctx context.Context) ([]scraper.Top40Entry, error) {
 	s.top40Cache = entries
 	s.top40FetchedAt = time.Now()
 	s.top40Mu.Unlock()
+	return entries, nil
+}
+
+// Top12 returns the "Top 12 [Platform] Albums" box for a platform ID (see
+// Top12Platforms), cached for 6 hours to avoid hammering the origin site.
+func (s *Syncer) Top12(ctx context.Context, platform string) ([]scraper.Top12Entry, error) {
+	slug, ok := platformSlugs[platform]
+	if !ok {
+		return nil, fmt.Errorf("unknown platform %q", platform)
+	}
+
+	s.top12Mu.Lock()
+	if cached, ok := s.top12Cache[platform]; ok && time.Since(s.top12FetchedAt[platform]) < 6*time.Hour {
+		s.top12Mu.Unlock()
+		return cached, nil
+	}
+	s.top12Mu.Unlock()
+
+	s.mu.Lock()
+	cf := s.cfClearance
+	s.mu.Unlock()
+
+	pageURL := baseURL + "/game-soundtracks/" + slug
+	html, err := s.httpGet(ctx, cf, pageURL)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := scraper.ParseTop12Platform(html, pageURL)
+	if err != nil {
+		return nil, err
+	}
+
+	s.top12Mu.Lock()
+	if s.top12Cache == nil {
+		s.top12Cache = map[string][]scraper.Top12Entry{}
+		s.top12FetchedAt = map[string]time.Time{}
+	}
+	s.top12Cache[platform] = entries
+	s.top12FetchedAt[platform] = time.Now()
+	s.top12Mu.Unlock()
 	return entries, nil
 }
 

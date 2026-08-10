@@ -210,6 +210,44 @@ func ParseTop40(html []byte, sourceURL string) ([]Top40Entry, error) {
 	return out, nil
 }
 
+// Top12Entry is a ranked album entry from a platform page's "Top 12 [Platform]
+// Albums" box (e.g. https://downloads.khinsider.com/game-soundtracks/playstation).
+type Top12Entry struct {
+	Rank      int
+	Title     string
+	SourceURL string
+	ThumbURL  string
+}
+
+// ParseTop12Platform parses a platform listing page and returns its "Top 12
+// [Platform] Albums" box. The box is a <table> of <td class="albumIconLarge">
+// cells (rank order, top-left to bottom-right), distinct from the full
+// album-list table further down the page (class "albumList").
+func ParseTop12Platform(html []byte, sourceURL string) ([]Top12Entry, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(html))
+	if err != nil {
+		return nil, err
+	}
+	base, _ := url.Parse(sourceURL)
+	var out []Top12Entry
+	doc.Find("td.albumIconLarge").Each(func(i int, cell *goquery.Selection) {
+		link := cell.Find("a").First()
+		href, _ := link.Attr("href")
+		title := strings.TrimSpace(link.Find("p").Text())
+		thumb, _ := link.Find("img").Attr("src")
+		if href == "" || title == "" {
+			return
+		}
+		out = append(out, Top12Entry{
+			Rank:      i + 1,
+			Title:     title,
+			SourceURL: absURL(base, href),
+			ThumbURL:  absURL(base, thumb),
+		})
+	})
+	return out, nil
+}
+
 // parseNameCount extracts name and count from strings like "Nintendo SNES (3266)" or "Nintendo SNES".
 func parseNameCount(text, slug string) (name string, count int) {
 	if m := reParenCount.FindStringSubmatch(text); len(m) == 2 {

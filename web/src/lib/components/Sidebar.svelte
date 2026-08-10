@@ -1,15 +1,51 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { currentUser } from '$lib/stores/auth';
-  import { playlists, loadPlaylists } from '$lib/stores/playlists';
+  import { playlists, loadPlaylists, addTrackToPlaylist } from '$lib/stores/playlists';
   import PlaylistEditModal from '$lib/components/PlaylistEditModal.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import { api } from '$lib/api';
+  import { addToast } from '$lib/stores/toasts';
+  import { hasDragPayload, getDragPayload } from '$lib/dnd';
 
   export let onAddURL: () => void = () => {};
 
   let editOpen = false;
   let collapsed = false;
+  let dropTargetId: string | null = null;
+
+  function onDragOver(e: DragEvent, playlistId: string) {
+    if (!hasDragPayload(e)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    dropTargetId = playlistId;
+  }
+
+  function onDragLeave(playlistId: string) {
+    if (dropTargetId === playlistId) dropTargetId = null;
+  }
+
+  async function onDrop(e: DragEvent, playlistId: string, playlistName: string) {
+    e.preventDefault();
+    dropTargetId = null;
+    const payload = getDragPayload(e);
+    if (!payload) return;
+    try {
+      let trackIds: string[];
+      if ('trackIds' in payload) {
+        trackIds = payload.trackIds;
+      } else {
+        const album = await api.album(payload.albumId);
+        trackIds = album.tracks.map(t => t.id);
+      }
+      if (!trackIds.length) return;
+      await Promise.all(trackIds.map(id => addTrackToPlaylist(playlistId, id)));
+      addToast(trackIds.length > 1 ? `Added ${trackIds.length} tracks to "${playlistName}"` : `Added to "${playlistName}"`);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error', 'error');
+    }
+  }
 
   onMount(() => {
     collapsed = localStorage.getItem('vgradio.sidebar.collapsed') === '1';
@@ -23,6 +59,7 @@
   const nav = [
     { href: '/',          label: 'Library',   icon: '♫' },
     { href: '/browse',    label: 'Browse',    icon: '🔍' },
+    { href: '/top',       label: 'Top 12',    icon: '🏆' },
     { href: '/history',   label: 'Recientes', icon: '🕐' },
     { href: '/settings',  label: 'Settings',  icon: '⚙' },
   ];
@@ -78,7 +115,11 @@
 
       {#each myPlaylists as pl}
         <a href="/playlists/{pl.id}" class="nav-item pl-item"
-          class:active={$page.url.pathname === `/playlists/${pl.id}`}>
+          class:active={$page.url.pathname === `/playlists/${pl.id}`}
+          class:drop-target={dropTargetId === pl.id}
+          on:dragover={(e) => onDragOver(e, pl.id)}
+          on:dragleave={() => onDragLeave(pl.id)}
+          on:drop={(e) => onDrop(e, pl.id, pl.name)}>
           <span class="icon">♪</span>
           <div class="pl-info">
             <span class="pl-name">{pl.name}</span>
@@ -211,13 +252,14 @@
     justify-content: center;
     border-radius: var(--r-sm);
   }
-  .new-pl-icon:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .new-pl-icon:hover { color: var(--text); background: var(--hover-md); }
 
   .pl-item { align-items: flex-start; padding: 6px 10px; }
   .pl-info { display: flex; flex-direction: column; min-width: 0; }
   .pl-name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-sub { font-size: 10px; color: var(--text-sec); }
   .nav-item.active .pl-name { color: var(--accent); }
+  .nav-item.drop-target { background: var(--accent-soft); outline: 1.5px solid var(--accent); outline-offset: -1.5px; }
 
   .new-pl-btn {
     display: flex;

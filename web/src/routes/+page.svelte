@@ -6,8 +6,13 @@
   import CoverImage from '$lib/components/CoverImage.svelte';
   import CompactAlbumCard from '$lib/components/CompactAlbumCard.svelte';
   import FavoriteButton from '$lib/components/FavoriteButton.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import AddToPlaylistModal from '$lib/components/AddToPlaylistModal.svelte';
   import { player } from '$lib/stores/player';
+  import { currentUser } from '$lib/stores/auth';
+  import { addToast } from '$lib/stores/toasts';
   import { fmtDuration } from '$lib/utils';
+  import { setDragPayload } from '$lib/dnd';
 
   $: currentAlbumId = $player.queue[$player.queueIndex]?.album.id ?? null;
 
@@ -44,6 +49,26 @@
     catch (e) { error = e instanceof Error ? e.message : String(e); }
     finally { loading = false; }
   });
+
+  let ctxMenu: { x: number; y: number; album: AlbumSummary } | null = null;
+
+  function openAlbumContextMenu(e: MouseEvent, album: AlbumSummary) {
+    e.preventDefault();
+    ctxMenu = { x: e.clientX, y: e.clientY, album };
+  }
+
+  let addToPlaylistTrackIds: string[] = [];
+  let addToPlaylistOpen = false;
+
+  async function addAlbumToPlaylist(summary: AlbumSummary) {
+    try {
+      const album = await api.album(summary.id);
+      addToPlaylistTrackIds = album.tracks.map(t => t.id);
+      addToPlaylistOpen = true;
+    } catch (e) {
+      addToast('Error: ' + (e instanceof Error ? e.message : String(e)), 'error');
+    }
+  }
 
   async function playAlbum(e: MouseEvent, summary: AlbumSummary) {
     e.stopPropagation();
@@ -103,7 +128,7 @@
   {:else if viewMode === 'list'}
     <div class="rows">
       {#each filteredAlbums as album}
-        <div class="row" class:playing={album.id === currentAlbumId} on:click={() => goto(`/albums/${album.id}`)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
+        <div class="row" class:playing={album.id === currentAlbumId} on:click={() => goto(`/albums/${album.id}`)} on:contextmenu={(e) => openAlbumContextMenu(e, album)} draggable="true" on:dragstart={(e) => setDragPayload(e, { albumId: album.id })} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
           <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={44} radius={6} />
           <div class="row-info">
             <span class="row-title">{album.title}</span>
@@ -117,13 +142,13 @@
   {:else if viewMode === 'compact'}
     <div class="compact-grid">
       {#each filteredAlbums as album}
-        <CompactAlbumCard {album} on:click={() => goto(`/albums/${album.id}`)} on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)} />
+        <CompactAlbumCard {album} on:click={() => goto(`/albums/${album.id}`)} on:contextmenu={(e) => openAlbumContextMenu(e, album)} on:dragstart={(e) => setDragPayload(e, { albumId: album.id })} on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)} />
       {/each}
     </div>
   {:else}
     <div class="grid">
       {#each filteredAlbums as album}
-        <div class="card" class:playing={album.id === currentAlbumId} on:click={() => goto(`/albums/${album.id}`)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
+        <div class="card" class:playing={album.id === currentAlbumId} on:click={() => goto(`/albums/${album.id}`)} on:contextmenu={(e) => openAlbumContextMenu(e, album)} draggable="true" on:dragstart={(e) => setDragPayload(e, { albumId: album.id })} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/albums/${album.id}`)}>
           <div class="cover-wrap">
             <CoverImage url={album.coverUrls[0] ?? ''} title={album.title} size={120} radius={8} />
             <div class="play-overlay">
@@ -154,6 +179,18 @@
     </div>
   {/if}
 </div>
+
+<AddToPlaylistModal bind:open={addToPlaylistOpen} trackIds={addToPlaylistTrackIds} />
+
+{#if ctxMenu}
+  {@const album = ctxMenu.album}
+  <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onClose={() => ctxMenu = null}>
+    <button on:click={() => { goto(`/albums/${album.id}`); ctxMenu = null; }}>↗ Open Album</button>
+    {#if $currentUser}
+      <button on:click={() => { addAlbumToPlaylist(album); ctxMenu = null; }}>+ Add Album to Playlist…</button>
+    {/if}
+  </ContextMenu>
+{/if}
 
 <style>
   .page { padding: var(--sp-md); }

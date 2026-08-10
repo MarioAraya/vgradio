@@ -10,6 +10,23 @@ struct SidebarView: View {
 
     @State private var showLogin = false
     @State private var showNewPlaylist = false
+    @State private var dropTargetPlaylistId: String?
+
+    private func resolveTrackIds(_ item: PlaylistDragItem) async -> [String] {
+        if let albumId = item.albumId {
+            if let full = try? await APIClient.shared.album(albumId) { return full.tracks.map(\.id) }
+            return []
+        }
+        return item.trackIds
+    }
+
+    private func handleDrop(_ item: PlaylistDragItem, playlistId: String) {
+        Task {
+            let ids = await resolveTrackIds(item)
+            guard !ids.isEmpty else { return }
+            try? await playlists.addTracks(playlistId: playlistId, trackIds: ids)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,6 +52,7 @@ struct SidebarView: View {
             SidebarSection(title: "My Music") {
                 SidebarRow(icon: "music.note.list", label: "Library",         item: .library,        selection: $selection)
                 SidebarRow(icon: "globe",           label: "Browse",          item: .browse,         selection: $selection)
+                SidebarRow(icon: "trophy",          label: "Top 12",          item: .top,            selection: $selection)
                 SidebarRow(icon: "checkmark.icloud", label: "Descargado",     item: .downloaded,     selection: $selection)
                 SidebarRow(icon: "clock",           label: "Recently Played", item: .recentlyPlayed, selection: $selection)
             }
@@ -151,12 +169,32 @@ struct SidebarView: View {
                     .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(minHeight: 34)
-                    .background(selection == .playlist(id: pl.id) ? Color.vgAccentSoft : Color.clear)
+                    .background(dropTargetPlaylistId == pl.id ? Color.vgAccentSoft
+                                 : selection == .playlist(id: pl.id) ? Color.vgAccentSoft : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .strokeBorder(Color.vgAccent, lineWidth: dropTargetPlaylistId == pl.id ? 1.5 : 0)
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 4)
+                .onDrop(of: [PlaylistDragItem.typeIdentifier], isTargeted: Binding(
+                    get: { dropTargetPlaylistId == pl.id },
+                    set: { targeted in
+                        dropTargetPlaylistId = targeted ? pl.id : (dropTargetPlaylistId == pl.id ? nil : dropTargetPlaylistId)
+                    }
+                )) { providers in
+                    guard let provider = providers.first else { return false }
+                    PlaylistDragItem.from(provider) { item in
+                        guard let item else { return }
+                        DispatchQueue.main.async {
+                            handleDrop(item, playlistId: pl.id)
+                        }
+                    }
+                    return true
+                }
             }
 
             // New playlist button

@@ -127,6 +127,32 @@ func (h *handler) getTop40(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, items, http.StatusOK)
 }
 
+// GET /catalog/top12?platform=ps1 — returns the "Top 12 [Platform] Albums" box
+// for one of catalog.Top12Platforms.
+func (h *handler) getTop12(w http.ResponseWriter, r *http.Request) {
+	platform := r.URL.Query().Get("platform")
+	if platform == "" {
+		jsonError(w, "missing platform", http.StatusBadRequest)
+		return
+	}
+	entries, err := h.syncer.Top12(r.Context(), platform)
+	if err != nil {
+		jsonError(w, "fetch error", http.StatusBadGateway)
+		return
+	}
+	type item struct {
+		Rank          int    `json:"rank"`
+		Title         string `json:"title"`
+		SourceURL     string `json:"sourceUrl"`
+		CoverThumbURL string `json:"coverThumbUrl"`
+	}
+	items := make([]item, len(entries))
+	for i, e := range entries {
+		items[i] = item{e.Rank, e.Title, e.SourceURL, e.ThumbURL}
+	}
+	jsonOK(w, items, http.StatusOK)
+}
+
 // PUT /config/cf-clearance — sets the Cloudflare clearance cookie at runtime.
 func (h *handler) putCFClearance(w http.ResponseWriter, r *http.Request) {
 	var body struct {

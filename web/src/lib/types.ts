@@ -58,6 +58,13 @@ export interface CatalogEntry {
   year: number
 }
 
+export interface Top12Entry {
+  rank: number
+  title: string
+  sourceUrl: string
+  coverThumbUrl: string
+}
+
 export interface CatalogPage {
   total: number
   offset: number

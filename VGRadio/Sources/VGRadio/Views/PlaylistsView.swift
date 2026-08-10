@@ -552,7 +552,7 @@ struct AddToPlaylistSheet: View {
     @Environment(\.dismiss) var dismiss
     @Environment(PlaylistsStore.self) var store
     @Environment(AuthStore.self) var auth
-    let trackId: String
+    let trackIds: [String]
     var onAdded: (() -> Void)? = nil
 
     @State private var newName = ""
@@ -626,8 +626,8 @@ struct AddToPlaylistSheet: View {
     private func addTo(_ pl: PlaylistSummary) async {
         adding = true
         do {
-            try await store.addTrack(playlistId: pl.id, trackId: trackId)
-            statusMsg = "Added to \"\(pl.name)\""
+            try await store.addTracks(playlistId: pl.id, trackIds: trackIds)
+            statusMsg = trackIds.count > 1 ? "Added \(trackIds.count) tracks to \"\(pl.name)\"" : "Added to \"\(pl.name)\""
             onAdded?()
             try? await Task.sleep(nanoseconds: 800_000_000)
             dismiss()
@@ -643,7 +643,7 @@ struct AddToPlaylistSheet: View {
         adding = true
         do {
             let pl = try await store.create(name: name)
-            try await store.addTrack(playlistId: pl.id, trackId: trackId)
+            try await store.addTracks(playlistId: pl.id, trackIds: trackIds)
             statusMsg = "Added to new playlist \"\(pl.name)\""
             newName = ""
             onAdded?()

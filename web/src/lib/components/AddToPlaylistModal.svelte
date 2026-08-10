@@ -5,7 +5,7 @@
   import { addToast } from '$lib/stores/toasts';
 
   export let open = false;
-  export let trackId = '';
+  export let trackIds: string[] = [];
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -24,8 +24,8 @@
 
   async function addTo(playlistId: string, playlistName: string) {
     try {
-      await addTrackToPlaylist(playlistId, trackId);
-      addToast(`Added to "${playlistName}"`);
+      await Promise.all(trackIds.map(id => addTrackToPlaylist(playlistId, id)));
+      addToast(trackIds.length > 1 ? `Added ${trackIds.length} tracks to "${playlistName}"` : `Added to "${playlistName}"`);
       close();
     } catch (err: any) {
       if (err.message?.includes('already in playlist') || err.message?.includes('Conflict')) {
@@ -41,7 +41,7 @@
     creating = true;
     try {
       const pl = await createPlaylist(newName.trim());
-      await addTrackToPlaylist(pl.id, trackId);
+      await Promise.all(trackIds.map(id => addTrackToPlaylist(pl.id, id)));
       addToast(`Added to "${pl.name}"`);
       close();
     } catch (err: any) {
