@@ -4,9 +4,17 @@
 
 ## En progreso
 
-Nada a medias. El tema claro quedó implementado y compilando en ambos clientes, pero **sin verificación visual** — ver Pendiente.
+Nada a medias en código. Tema claro verificado visualmente por el usuario en ambos clientes.
 
-`main` está **4 commits adelante de `origin/main`** y sin pushear a `gitea`. Lo único sin commitear es este `CURRENT.md` y `features.json`.
+Todo pusheado a `origin` y `gitea` hasta `4b2c85c`. Sin commitear: este `CURRENT.md` y `PLAN.md`.
+
+### PLAN.md — VGRadio Connect (diseño, sin implementar)
+
+Diseño completo de control remoto entre instancias (tipo Spotify Connect) escrito en otra sesión y **todavía untracked**. Transporte SSE + POST, hub en memoria en `backend/internal/connect/`, 7 endpoints bajo `/connect`, 4 fases entregables por separado.
+
+**Bloqueante identificado antes de escribir código:** `srv.WriteTimeout = 60s` en `backend/cmd/server/main.go:71` mata cualquier conexión SSE al minuto. Es el primer ítem de la Fase 1 — sin eso todo lo demás parece roto por red.
+
+Nota de continuidad con esta sesión: el plan ya prevé **desactivar `MPRemoteCommandCenter`/`MPNowPlayingInfoCenter` en modo espectador** en macOS, para no repelear la prioridad de media keys que se arregló en `79ee273`.
 
 ## Completado esta sesión
 
@@ -70,10 +78,8 @@ Los cuatro **confirmados en runtime por el usuario**.
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Push**: `main` tiene 4 commits locales. Usar el skill `/deploy` (empuja a `origin` + `gitea` a la vez)
-- [ ] **Verificar el tema claro visualmente** en ambos clientes. No se hizo: el MCP de browser se desconectó a mitad de sesión. Mirar en particular:
-  - Lightbox de portadas y tarjetas sobre arte de álbum (`CoverLightbox`, `CoverImage`, `CoverCarousel`, `CompactAlbumCard`) — se dejaron **a propósito** con overlays claros fijos porque van sobre arte oscuro
-  - Modo `auto` cambiando el tema del sistema con la app abierta
+- [ ] **Commitear `PLAN.md`** — está untracked; es el único lugar donde vive el diseño de Connect
+- [ ] Modo `auto` del tema: cambiar el tema del sistema con la app abierta y ver que siga. El light/dark manual ya está verificado por el usuario en ambos clientes
 - [ ] Drag-and-drop tracks/álbumes → playlist: probar end-to-end en macOS y web (sigue sin confirmación en runtime)
 - [ ] Auditar si `LibraryView.swift`/`PlaylistsView.swift` tienen el patrón de `DragGesture` a nivel de row que compite con `.onDrag`
 
@@ -129,9 +135,14 @@ No es `go run`. Corre desde `backend/bin/vgradio-server` bajo `gui/$(id -u)/com.
 cd backend && ./update.sh   # go build -o bin/vgradio-server + launchctl kickstart -k
 ```
 
-### Toolchain Xcode en disco externo
+### Toolchain Xcode
 
-`DEVELOPER_DIR` apunta a `/Volumes/ExtDevDisk/Xcode.app/Contents/Developer`. CommandLineTools solo (sin ese disco montado) NO puede linkear ni el manifest de `swift build`.
+Xcode está en `/Applications/Xcode.app` y `xcode-select -p` ya apunta ahí, así que
+`swift build` funciona sin exportar nada. **No hace falta `DEVELOPER_DIR`.**
+
+Antes vivía en `/Volumes/ExtDevDisk/Xcode.app` y sin ese disco montado no linkeaba
+(CommandLineTools solo no alcanza ni para el manifest). `scripts/build-mac.sh` mantiene
+ese path como fallback por si se vuelve al disco externo.
 
 ### Infraestructura homelab (sin cambios esta sesión)
 

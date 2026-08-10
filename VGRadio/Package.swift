@@ -10,6 +10,11 @@ let package = Package(
             path: "Sources/VGRadio",
             resources: [.copy("Resources/AppIcon.icns")],
             linkerSettings: [.linkedFramework("MediaPlayer")]
+        ),
+        .testTarget(
+            name: "VGRadioTests",
+            dependencies: ["VGRadio"],
+            path: "Tests/VGRadioTests"
         )
     ]
 )
