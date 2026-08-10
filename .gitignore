@@ -1,6 +1,8 @@
 # Go backend
 /backend/bin/
 /backend/data/          # cache: SQLite + audio scrapeado (no versionar)
+# stdout/stderr del servicio launchd (gitignore no soporta comentarios inline)
+/backend/*.log
 *.test
 *.out
 

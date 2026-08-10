@@ -4,7 +4,9 @@
 
 ## En progreso
 
-Nada a medias. Los 4 ítems de esta sesión quedaron implementados, compilados y desplegados. Falta **confirmación en runtime del usuario** para 2 de ellos (media keys y búsqueda) y **commit de todo** (nada se commiteó).
+Nada a medias. Los 4 ítems de esta sesión quedaron implementados, compilados, desplegados y **confirmados en runtime por el usuario** (incluidas las media keys: ⏭ toma VGRadio, ya no Spotify).
+
+Commiteados en `79ee273`, branch **`fix/album-nav-media-keys-search`** (sin mergear a `main`, sin push).
 
 ## Completado esta sesión
 
@@ -45,11 +47,9 @@ Nada a medias. Los 4 ítems de esta sesión quedaron implementados, compilados y
 
 ## Pendiente (próximos pasos inmediatos)
 
-- [ ] **Confirmar media keys en runtime.** Reproducir en VGRadio y presionar ⏭. Si sigue yendo a Spotify: hacer quit de Spotify y reprobar — eso separa "nuestra integración está mal" de "Spotify secuestra la tecla con event tap global, cosa que ninguna API de Now Playing sobreescribe"
-- [ ] Confirmar en la app que ⌘K desde vista Álbum navega, Back es de un click, y Thumbs Down oculta+salta
-- [ ] Confirmar que "doom" ahora trae Eternal en el overlay
-- [ ] **Commit.** Nada de esta sesión ni de las anteriores está commiteado (ver Notas — el working tree tiene mucho más de lo que tocó esta sesión)
-- [ ] `backend/vgradio-server.log` y `.err.log` están untracked — agregar a `.gitignore` antes de commitear
+- [ ] **Decidir qué hacer con `fix/album-nav-media-keys-search`**: merge a `main` (`git checkout main && git merge fix/album-nav-media-keys-search`) y push, o dejarla viva
+- [ ] `backend/vgradio-server.log` y `.err.log` están untracked — agregar a `.gitignore`
+- [ ] **El resto del working tree sigue sin commitear** (~35 archivos, casi todo `web/`) — ver Notas
 
 ### Ítem de UX detectado, no arreglado
 
