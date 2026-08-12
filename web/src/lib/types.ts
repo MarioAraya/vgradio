@@ -173,3 +173,33 @@ export interface HistoryEntry {
   coverUrl: string
   playedAt: string
 }
+
+export interface ConnectDevice {
+  id: string
+  name: string
+  type: 'macos' | 'web' | 'tv'
+  capabilities?: string[]
+  isActive: boolean
+  lastSeen: string
+}
+
+/** Queue entries carry only IDs; clients hydrate album metadata themselves. */
+export interface ConnectQueueEntry {
+  trackId: string
+  albumId: string
+}
+
+export interface ConnectState {
+  rev: number
+  deviceId: string
+  isPlaying: boolean
+  positionSec: number
+  updatedAt: string
+  volume: number
+  isMuted: boolean
+  isShuffle: boolean
+  repeatMode: 'off' | 'all' | 'one'
+  queueIndex: number
+  coverIndex: number
+  queue: ConnectQueueEntry[] | null
+}

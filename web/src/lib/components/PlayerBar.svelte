@@ -7,6 +7,10 @@
   import { requireAuth } from '$lib/stores/authModal';
   import { favoritedTrackIDs, setTrackFavorited } from '$lib/stores/trackFavorites';
   import { hidden } from '$lib/stores/hidden';
+  import DevicePicker from './DevicePicker.svelte';
+  import {
+    isRemote, remoteView, remotePosition, activeDevice, deviceId, transferTo,
+  } from '$lib/stores/connect';
 
   let volumeHovered = false;
   let scrubDragging = false;
@@ -16,18 +20,37 @@
   let scrubHoverTime: string | null = null;
   let fullscreen = false;
 
-  $: queueItem = $player.queue[$player.queueIndex] ?? null;
+  // While another device owns playback this bar is a remote control: every
+  // reading below comes from the hub's state instead of the local <audio>.
+  $: rv = $isRemote ? $remoteView : null;
+  $: queueItem = rv ? rv.current : ($player.queue[$player.queueIndex] ?? null);
   $: track = queueItem?.track ?? null;
   $: album = queueItem?.album ?? null;
   $: covers = queueItem?.covers ?? [];
-  $: coverUrl = covers[$player.currentCoverIndex]?.url ?? covers[0]?.url ?? '';
+  $: coverIdx = rv ? rv.state.coverIndex : $player.currentCoverIndex;
+  $: coverUrl = covers[coverIdx]?.url ?? covers[0]?.url ?? '';
+
+  $: isPlaying = rv ? rv.state.isPlaying : $player.isPlaying;
+  // Interpolated locally between state events, so the scrubber stays smooth.
+  $: curTime = rv ? $remotePosition : $player.currentTime;
+  $: duration = rv ? (track?.durationSec ?? 0) : $player.duration;
+  $: isShuffleOn = rv ? rv.state.isShuffle : $player.isShuffle;
+  $: repeatMode = rv ? rv.state.repeatMode : $player.repeatMode;
+  $: isMutedNow = rv ? rv.state.isMuted : $player.isMuted;
+  $: volumeNow = rv ? rv.state.volume : $player.volume;
+
+  // The bar grows by the banner's height; every other element positions off
+  // --player-bar-h, so overriding it keeps the queue panel and toasts aligned.
+  $: if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('connect-remote', $isRemote);
+  }
   $: isFav = track ? $favoritedTrackIDs.has(track.id) : false;
   $: isHid = track ? $hidden.has(track.id) : false;
 
   function toggleTrackHidden() {
     if (!track) return;
     hidden.toggle(track.id);
-    if ($player.isPlaying) playerNext();
+    if (isPlaying) playerNext();
   }
 
   async function doToggleTrackFav() {
@@ -44,11 +67,11 @@
   function toggleTrackFav() {
     requireAuth(doToggleTrackFav);
   }
-  $: fraction = $player.duration > 0 ? $player.currentTime / $player.duration : 0;
-  $: volFrac = $player.isMuted ? 0 : $player.volume;
-  $: repeatTitle = $player.repeatMode === 'off'
+  $: fraction = duration > 0 ? curTime / duration : 0;
+  $: volFrac = isMutedNow ? 0 : volumeNow;
+  $: repeatTitle = repeatMode === 'off'
     ? 'Activar repetición'
-    : $player.repeatMode === 'all'
+    : repeatMode === 'all'
     ? 'Activar repetición de canción'
     : 'Desactivar repetición';
 
@@ -60,7 +83,7 @@
   function onScrubDown(el: HTMLElement) {
     return (e: MouseEvent) => {
       scrubDragging = true;
-      player.seek(getFrac(el, e.clientX) * $player.duration);
+      player.seek(getFrac(el, e.clientX) * duration);
     };
   }
 
@@ -68,7 +91,7 @@
     return (e: MouseEvent) => {
       const rect = el.getBoundingClientRect();
       scrubHoverX = e.clientX - rect.left;
-      scrubHoverTime = $player.duration > 0 ? fmtTime(getFrac(el, e.clientX) * $player.duration) : null;
+      scrubHoverTime = duration > 0 ? fmtTime(getFrac(el, e.clientX) * duration) : null;
     };
   }
 
@@ -80,7 +103,7 @@
   function onWindowMouseMove(e: MouseEvent) {
     if (!scrubDragging) return;
     const el = fullscreen && fsScrubEl ? fsScrubEl : scrubEl;
-    if (el) player.seek(getFrac(el, e.clientX) * $player.duration);
+    if (el) player.seek(getFrac(el, e.clientX) * duration);
   }
 
   function onVolClick(e: MouseEvent) {
@@ -105,7 +128,15 @@
 />
 
 <!-- ───── Player Bar ───── -->
-<div class="player-bar">
+<div class="player-bar" class:remote={$isRemote}>
+  {#if $isRemote}
+    <div class="remote-banner">
+      <span class="rb-what">⧉ Sonando en <strong>{$activeDevice?.name ?? 'otro dispositivo'}</strong></span>
+      <button class="rb-take" on:click={() => transferTo(deviceId, true)}>
+        Reproducir acá →
+      </button>
+    </div>
+  {/if}
   <div class="bar-inner">
 
     <!-- LEFT: cover + info + fav -->
@@ -129,20 +160,20 @@
     <!-- CENTER: transport + scrubber -->
     <div class="bar-center">
       <div class="transport">
-        <button class="icon-btn indicator-btn" class:active={$player.isShuffle}
-          class:mode-off={!$player.isShuffle}
+        <button class="icon-btn indicator-btn" class:active={isShuffleOn}
+          class:mode-off={!isShuffleOn}
           on:click={() => player.toggleShuffle()} title="Shuffle">🔀</button>
         <button class="icon-btn" on:click={playerPrev} title="Previous">⏮</button>
         <button class="play-btn" on:click={() => player.togglePlay()} title="Play/Pause">
-          {#if $player.isPlaying}⏸{:else}▶{/if}
+          {#if isPlaying}⏸{:else}▶{/if}
         </button>
         <button class="icon-btn" on:click={playerNext} title="Next">⏭</button>
         <button class="icon-btn indicator-btn"
-          class:active={$player.repeatMode !== 'off'}
-          class:mode-off={$player.repeatMode === 'off'}
+          class:active={repeatMode !== 'off'}
+          class:mode-off={repeatMode === 'off'}
           on:click={() => player.cycleRepeat()}
           title={repeatTitle}>
-          {#if $player.repeatMode === 'one'}
+          {#if repeatMode === 'one'}
             <span class="repeat-wrap">↻<sup class="repeat-1">1</sup></span>
           {:else}↻{/if}
         </button>
@@ -151,7 +182,7 @@
         {/if}
       </div>
       <div class="scrub-row">
-        <span class="time-lbl">{fmtTime($player.currentTime)}</span>
+        <span class="time-lbl">{fmtTime(curTime)}</span>
         <div class="scrubber" bind:this={scrubEl}
           on:mousedown|preventDefault={onScrubDown(scrubEl)}
           on:mousemove={onScrubMove(scrubEl)}
@@ -164,7 +195,7 @@
             <div class="scrub-fill" style="width:{fraction*100}%"></div>
           </div>
         </div>
-        <span class="time-lbl">{fmtTime($player.duration)}</span>
+        <span class="time-lbl">{fmtTime(duration)}</span>
       </div>
     </div>
 
@@ -174,7 +205,7 @@
         on:mouseenter={() => volumeHovered = true}
         on:mouseleave={() => volumeHovered = false}>
         <button class="icon-btn" on:click={() => player.toggleMute()} title="Mute">
-          {$player.isMuted || $player.volume === 0 ? '🔇' : $player.volume < 0.4 ? '🔉' : '🔊'}
+          {isMutedNow || volumeNow === 0 ? '🔇' : volumeNow < 0.4 ? '🔉' : '🔊'}
         </button>
         {#if volumeHovered}
           <div class="vol-slider" on:click={onVolClick}
@@ -183,6 +214,7 @@
           </div>
         {/if}
       </div>
+      <DevicePicker />
       <button class="icon-btn" class:active={$player.showQueue}
         on:click={() => player.toggleQueue()} title="Queue">≡</button>
       <button class="icon-btn" on:click={() => fullscreen = true} title="Pantalla completa">⛶</button>
@@ -215,8 +247,8 @@
 
     <div class="fs-controls">
       <div class="transport">
-        <button class="icon-btn indicator-btn" class:active={$player.isShuffle}
-          class:mode-off={!$player.isShuffle}
+        <button class="icon-btn indicator-btn" class:active={isShuffleOn}
+          class:mode-off={!isShuffleOn}
           on:click={() => player.toggleShuffle()} title="Shuffle">🔀</button>
         {#if track}
           <button class="icon-btn star" class:active={isFav} on:click={toggleTrackFav} title="Favorite">
@@ -225,14 +257,14 @@
         {/if}
         <button class="icon-btn" on:click={playerPrev} title="Previous">⏮</button>
         <button class="play-btn play-btn-lg" on:click={() => player.togglePlay()}>
-          {#if $player.isPlaying}⏸{:else}▶{/if}
+          {#if isPlaying}⏸{:else}▶{/if}
         </button>
         <button class="icon-btn" on:click={playerNext} title="Next">⏭</button>
         <button class="icon-btn indicator-btn"
-          class:active={$player.repeatMode !== 'off'}
-          class:mode-off={$player.repeatMode === 'off'}
+          class:active={repeatMode !== 'off'}
+          class:mode-off={repeatMode === 'off'}
           on:click={() => player.cycleRepeat()} title={repeatTitle}>
-          {#if $player.repeatMode === 'one'}
+          {#if repeatMode === 'one'}
             <span class="repeat-wrap">↻<sup class="repeat-1">1</sup></span>
           {:else}↻{/if}
         </button>
@@ -241,7 +273,7 @@
         {/if}
       </div>
       <div class="scrub-row fs-scrub">
-        <span class="time-lbl">{fmtTime($player.currentTime)}</span>
+        <span class="time-lbl">{fmtTime(curTime)}</span>
         <div class="scrubber" bind:this={fsScrubEl}
           on:mousedown|preventDefault={onScrubDown(fsScrubEl)}
           on:mousemove={onScrubMove(fsScrubEl)}
@@ -254,7 +286,7 @@
             <div class="scrub-fill" style="width:{fraction*100}%"></div>
           </div>
         </div>
-        <span class="time-lbl">{fmtTime($player.duration)}</span>
+        <span class="time-lbl">{fmtTime(duration)}</span>
       </div>
     </div>
   </div>
@@ -262,6 +294,33 @@
 
 <style>
   /* ── Player Bar ── */
+  /* The banner grows the bar; --player-bar-h is raised globally (see app.css)
+     so the layout padding, queue panel and toasts follow along. */
+  .remote-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-md);
+    height: 28px;
+    padding: 0 var(--sp-md);
+    background: var(--accent-hi);
+    border-bottom: 1px solid var(--separator);
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .rb-what strong { font-weight: 600; }
+  .rb-take {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--r-sm);
+  }
+  .rb-take:hover { background: var(--accent-soft); }
+
   .player-bar {
     position: fixed;
     bottom: 0; left: 0; right: 0;

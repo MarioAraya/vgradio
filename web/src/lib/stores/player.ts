@@ -15,7 +15,7 @@ export interface QueueItem {
   covers: Cover[];
 }
 
-interface PlayerState {
+export interface PlayerState {
   queue: QueueItem[];
   queueIndex: number;
   queuedEnd: number; // last index of manually-queued tracks; resets on track change
@@ -61,6 +61,27 @@ function commit(fn: (s: PlayerState) => PlayerState) {
     for (const l of listeners) l(next);
     return next;
   });
+}
+
+/** Returns true when the action was handled remotely and must not run locally. */
+export type RemoteSink = (type: string, payload?: unknown) => boolean;
+
+let remoteSink: RemoteSink | null = null;
+
+/** Installed by the connect store while another device owns playback. Kept as a
+ * callback rather than an import so this store stays free of connect's
+ * dependencies. */
+export function setRemoteSink(fn: RemoteSink | null) {
+  remoteSink = fn;
+}
+
+function remote(type: string, payload?: unknown): boolean {
+  return remoteSink?.(type, payload) ?? false;
+}
+
+/** Stops local audio when this tab hands playback to another device. */
+export function stopLocalPlayback() {
+  if (audio) audio.pause();
 }
 
 let audio: HTMLAudioElement | null = null;
@@ -185,6 +206,9 @@ export const player = {
   subscribe,
 
   play(track: Track, album: AlbumSummary, queue: Track[], covers: Cover[] = []) {
+    // The remote device rebuilds the queue from its own source, so only the
+    // context travels — not 72 track objects.
+    if (remote('playContext', { albumId: album.id, startTrackId: track.id })) return;
     commit(s => {
       const idx = queue.findIndex(t => t.id === track.id);
       const qi = idx >= 0 ? idx : 0;
@@ -199,25 +223,31 @@ export const player = {
   },
 
   togglePlay() {
+    if (remote('toggle')) return;
     const a = getAudio();
     if (!a.src) return;
     a.paused ? a.play().catch(() => {}) : a.pause();
   },
 
   seek(secs: number) {
+    if (remote('seek', { positionSec: secs })) return;
     const a = getAudio();
     a.currentTime = secs;
     commit(s => ({ ...s, currentTime: secs }));
   },
 
   setVolume(v: number) {
+    // Volume is remembered per device even while controlling another one, so the
+    // slider still reflects this tab when playback comes back.
+    localStorage.setItem('vgradio.volume', String(v));
+    if (remote('volume', { volume: v })) return;
     const a = getAudio();
     a.volume = v;
-    localStorage.setItem('vgradio.volume', String(v));
     commit(s => ({ ...s, volume: v, isMuted: v === 0 ? true : s.isMuted }));
   },
 
   toggleMute() {
+    if (remote('mute')) return;
     commit(s => {
       const a = getAudio();
       const muted = !s.isMuted;
@@ -229,6 +259,8 @@ export const player = {
   /** Inserts track right after the current queue position, using the album/covers
    * of whatever is currently playing (or the caller's, if the queue is empty). */
   playNext(track: Track, album?: AlbumSummary, covers: Cover[] = []) {
+    const albumId = album?.id ?? get({ subscribe }).queue[get({ subscribe }).queueIndex]?.album.id;
+    if (albumId && remote('queueAdd', { trackId: track.id, albumId })) return;
     commit(s => {
       const fallback = s.queue[s.queueIndex];
       const itemAlbum = album ?? fallback?.album;
@@ -241,6 +273,7 @@ export const player = {
   },
 
   removeFromQueue(index: number) {
+    if (remote('queueRemove', { index })) return;
     commit(s => {
       const q = [...s.queue];
       q.splice(index, 1);
@@ -252,6 +285,7 @@ export const player = {
   },
 
   moveInQueue(from: number, to: number) {
+    if (remote('queueMove', { from, to })) return;
     commit(s => {
       const q = [...s.queue];
       const [item] = q.splice(from, 1);
@@ -278,8 +312,12 @@ export const player = {
       return { ...s, showQueue };
     });
   },
-  toggleShuffle() { commit(s => ({ ...s, isShuffle: !s.isShuffle })); },
+  toggleShuffle() {
+    if (remote('shuffle')) return;
+    commit(s => ({ ...s, isShuffle: !s.isShuffle }));
+  },
   cycleRepeat() {
+    if (remote('repeat')) return;
     commit(s => {
       const modes: RepeatMode[] = ['off', 'all', 'one'];
       const next = modes[(modes.indexOf(s.repeatMode) + 1) % 3];
@@ -289,6 +327,7 @@ export const player = {
 };
 
 function next() {
+  if (remote('next')) return;
   const s = get({ subscribe });
   if (s.queue.length === 0) return;
   if (s.repeatMode === 'one') {
@@ -328,6 +367,7 @@ function advance(state: PlayerState, idx: number): PlayerState {
 export function playerNext() { next(); }
 
 export function playerPrev() {
+  if (remote('prev')) return;
   const s = get({ subscribe });
   const a = getAudio();
   if (a.currentTime > 3) { player.seek(0); return; }

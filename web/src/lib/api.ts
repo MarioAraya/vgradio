@@ -1,7 +1,7 @@
 import type {
   Album, AlbumSummary, CatalogConsole, CatalogPage,
   CatalogSyncProgress, DownloadedAlbum, HistoryEntry, LibraryStats, ScrapeJob, SyncedLetter, Top12Entry, Track, User,
-  PlaylistSummary, PlaylistDetail
+  PlaylistSummary, PlaylistDetail, ConnectDevice, ConnectState
 } from './types';
 
 const BASE = () => {
@@ -155,6 +155,22 @@ export const api = {
     del<void>(`/playlists/${playlistId}/tracks/${trackId}`),
   reorderPlaylistTracks: (playlistId: string, items: { trackId: string; position: number }[]) =>
     put<void>(`/playlists/${playlistId}/tracks/reorder`, items),
+
+  // connect (remote control across the user's devices)
+  connectEventsURL: (deviceId: string, name: string) =>
+    `${BASE()}/connect/events?deviceId=${encodeURIComponent(deviceId)}` +
+    `&name=${encodeURIComponent(name)}&type=web`,
+  connectDevices: () => get<ConnectDevice[]>('/connect/devices'),
+  registerDevice: (device: { id: string; name: string; type: string }) =>
+    post<ConnectDevice>('/connect/devices', device),
+  unregisterDevice: (id: string) => del<void>(`/connect/devices/${id}`),
+  publishState: (deviceId: string, state: Partial<ConnectState>) =>
+    post<ConnectState>(`/connect/state?deviceId=${encodeURIComponent(deviceId)}`, state),
+  sendCommand: (deviceId: string, type: string, payload?: unknown, targetDeviceId?: string) =>
+    post<void>(`/connect/command?deviceId=${encodeURIComponent(deviceId)}`,
+      { type, payload, targetDeviceId }),
+  transferPlayback: (deviceId: string, play: boolean) =>
+    post<ConnectState>('/connect/transfer', { deviceId, play }),
 };
 
 export async function pollJob(jobId: string, onDone: (albumId: string) => void) {

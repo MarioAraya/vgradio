@@ -10,6 +10,7 @@
   import UserMenu from '$lib/components/UserMenu.svelte';
   import { player } from '$lib/stores/player';
   import { initAuth, currentUser } from '$lib/stores/auth';
+  import { startConnect, stopConnect } from '$lib/stores/connect';
   import { initTrackFavorites } from '$lib/stores/trackFavorites';
   import { showAuthModal, pendingAuthAction } from '$lib/stores/authModal';
   import { api } from '$lib/api';
@@ -19,9 +20,17 @@
   let showAddURL = false;
   let showSearch = false;
 
-  onMount(async () => {
-    await initAuth(api.baseURL());
-    if ($currentUser) initTrackFavorites();
+  onMount(() => {
+    (async () => {
+      await initAuth(api.baseURL());
+      if ($currentUser) initTrackFavorites();
+    })();
+
+    // Connect is per account: it starts on login and tears down on logout, so a
+    // logged-out tab never registers a device. onMount must stay synchronous to
+    // be allowed to return this cleanup.
+    const unsub = currentUser.subscribe(u => (u ? startConnect() : stopConnect()));
+    return () => { unsub(); stopConnect(); };
   });
 
   function onAuthDone() {

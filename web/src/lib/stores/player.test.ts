@@ -1,5 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { player, onPlayerStateChange } from './player';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { get } from 'svelte/store';
+import {
+  player, onPlayerStateChange, setRemoteSink, playerNext, playerPrev,
+} from './player';
 import type { Track, AlbumSummary } from '$lib/types';
 
 const track = (id: string, index: number): Track => ({
@@ -38,5 +41,53 @@ describe('onPlayerStateChange', () => {
     player.toggleQueue();
     expect(seen).not.toHaveBeenCalled();
     off();
+  });
+});
+
+describe('remote sink', () => {
+  afterEach(() => setRemoteSink(null));
+
+  // Every control must consult the sink. A single missed guard means one button
+  // silently plays here instead of on the device the user is controlling.
+  it('routes every control through the sink instead of acting locally', () => {
+    const tracks = [track('trk_1', 1), track('trk_2', 2)];
+    player.play(tracks[0], album, tracks);
+
+    const sent: string[] = [];
+    setRemoteSink(type => { sent.push(type); return true; });
+
+    const before = get(player);
+
+    player.play(tracks[1], album, tracks);
+    player.togglePlay();
+    player.seek(10);
+    player.setVolume(0.3);
+    player.toggleMute();
+    player.playNext(track('trk_9', 9));
+    player.removeFromQueue(0);
+    player.moveInQueue(0, 1);
+    player.toggleShuffle();
+    player.cycleRepeat();
+    playerNext();
+    playerPrev();
+
+    expect(sent).toEqual([
+      'playContext', 'toggle', 'seek', 'volume', 'mute', 'queueAdd',
+      'queueRemove', 'queueMove', 'shuffle', 'repeat', 'next', 'prev',
+    ]);
+
+    // Nothing was applied locally.
+    const after = get(player);
+    expect(after.queue).toHaveLength(before.queue.length);
+    expect(after.queueIndex).toBe(before.queueIndex);
+    expect(after.isShuffle).toBe(before.isShuffle);
+    expect(after.repeatMode).toBe(before.repeatMode);
+  });
+
+  it('acts locally again once the sink declines', () => {
+    setRemoteSink(() => false);
+    const before = get(player).isShuffle;
+    player.toggleShuffle();
+    expect(get(player).isShuffle).toBe(!before);
   });
 });

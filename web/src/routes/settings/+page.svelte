@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import CoverImage from '$lib/components/CoverImage.svelte';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
+  import { deviceName } from '$lib/stores/connect';
   import type { LibraryStats, DownloadedAlbum } from '$lib/types';
 
   const themes: { id: Theme; label: string; hint: string }[] = [
@@ -159,6 +160,22 @@
       {/if}
     </div>
     <p class="hint">Se guarda en localStorage. Útil cuando el backend corre en otra IP (LAN, VPS).</p>
+
+    <div class="field-row">
+      <label for="device-name">Nombre de este dispositivo</label>
+      <div class="input-group">
+        <input
+          id="device-name"
+          type="text"
+          bind:value={$deviceName}
+          placeholder="Navegador"
+        />
+      </div>
+    </div>
+    <p class="hint">
+      Con el que aparece en el selector de dispositivos de tus otras instancias.
+      Cada pestaña es un dispositivo distinto.
+    </p>
   </section>
 
   <!-- ─── Section CF Clearance ─── -->
