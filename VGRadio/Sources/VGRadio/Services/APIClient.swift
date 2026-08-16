@@ -146,6 +146,77 @@ final class APIClient {
         _ = try? await session.data(for: req)
     }
 
+    // MARK: - Connect
+
+    func connectEventsRequest(deviceID: String, name: String) throws -> URLRequest {
+        guard var comps = URLComponents(string: baseURL + "/connect/events") else {
+            throw URLError(.badURL)
+        }
+        comps.queryItems = [
+            .init(name: "deviceId", value: deviceID),
+            .init(name: "name", value: name),
+            .init(name: "type", value: "macos"),
+        ]
+        guard let u = comps.url else { throw URLError(.badURL) }
+        var req = URLRequest(url: u)
+        req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        return req
+    }
+
+    @discardableResult
+    func registerDevice(id: String, name: String) async throws -> ConnectDevice {
+        var req = URLRequest(url: try url("/connect/devices"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(
+            ["id": id, "name": name, "type": "macos"])
+        let (data, _) = try await session.data(for: req)
+        return try JSONDecoder().decode(ConnectDevice.self, from: data)
+    }
+
+    func unregisterDevice(id: String) async {
+        guard var req = try? URLRequest(url: url("/connect/devices/\(id)")) else { return }
+        req.httpMethod = "DELETE"
+        _ = try? await session.data(for: req)
+    }
+
+    func publishState(deviceID: String, state: ConnectState) async {
+        guard var comps = URLComponents(string: baseURL + "/connect/state") else { return }
+        comps.queryItems = [.init(name: "deviceId", value: deviceID)]
+        guard let u = comps.url else { return }
+        var req = URLRequest(url: u)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONEncoder().encode(state)
+        _ = try? await session.data(for: req)
+    }
+
+    func sendCommand(deviceID: String, type: String, payload: ConnectPayload?) async {
+        guard var comps = URLComponents(string: baseURL + "/connect/command") else { return }
+        comps.queryItems = [.init(name: "deviceId", value: deviceID)]
+        guard let u = comps.url else { return }
+        struct Body: Encodable { let type: String; let payload: ConnectPayload? }
+        var req = URLRequest(url: u)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONEncoder().encode(Body(type: type, payload: payload))
+        _ = try? await session.data(for: req)
+    }
+
+    func transferPlayback(to deviceID: String, play: Bool) async throws {
+        var req = URLRequest(url: try url("/connect/transfer"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(
+            withJSONObject: ["deviceId": deviceID, "play": play])
+        let (_, resp) = try await session.data(for: req)
+        if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
+            throw VGError.jobFailed("transfer failed (\(http.statusCode))")
+        }
+    }
+
+    // MARK: - History
+
     func history(limit: Int = 100) async throws -> [HistoryEntry] {
         var comps = URLComponents(string: baseURL + "/history")!
         comps.queryItems = [.init(name: "limit", value: String(limit))]

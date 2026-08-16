@@ -139,6 +139,70 @@ struct Track: Codable, Identifiable, Hashable {
     static func == (l: Track, r: Track) -> Bool { l.id == r.id }
 }
 
+// MARK: - Connect (remote control across the user's devices)
+
+struct ConnectDevice: Codable, Identifiable, Hashable {
+    let id: String
+    var name: String
+    var type: String        // macos | web | tv
+    var isActive: Bool
+    var lastSeen: String
+}
+
+/// Queue entries carry only IDs; each client hydrates album metadata itself.
+struct ConnectQueueEntry: Codable, Hashable {
+    var trackId: String
+    var albumId: String
+}
+
+struct ConnectState: Codable {
+    var rev: Int64 = 0
+    var deviceId: String = ""
+    var isPlaying: Bool = false
+    var positionSec: Double = 0
+    var updatedAt: String = ""
+    var volume: Double = 0.8
+    var isMuted: Bool = false
+    var isShuffle: Bool = false
+    var repeatMode: String = "off"
+    var queueIndex: Int = 0
+    var coverIndex: Int = 0
+    var queue: [ConnectQueueEntry]? = nil
+}
+
+/// Every command payload field the hub can carry. All optional: a command uses
+/// only the ones it needs, which keeps this a single Codable type instead of an
+/// enum with a dozen cases.
+struct ConnectPayload: Codable {
+    var positionSec: Double?
+    var volume: Double?
+    var albumId: String?
+    var startTrackId: String?
+    var trackId: String?
+    var index: Int?
+    var from: Int?
+    var to: Int?
+}
+
+struct ConnectCommand: Codable {
+    var type: String
+    var payload: ConnectPayload?
+    var from: String?
+}
+
+struct ConnectHello: Codable {
+    var deviceId: String
+    var activeDeviceId: String
+    var state: ConnectState
+    var devices: [ConnectDevice]
+}
+
+struct ConnectTransfer: Codable {
+    var activeDeviceId: String
+    var play: Bool
+    var state: ConnectState
+}
+
 struct Cover: Codable {
     var url: String
     var width: Int

@@ -51,6 +51,36 @@ final class PlayerService {
 
     private func stateDidChange() { onStateChange?(self) }
 
+    /// Returns true when the action was handled by another device and must not
+    /// run locally. Installed by ConnectService; nil means everything is local.
+    var remoteSink: ((String, ConnectPayload?) -> Bool)?
+
+    /// True while another device owns playback. Silences this app's Now Playing
+    /// entry: leaving it registered makes macOS treat us as a playing app and
+    /// the media keys get fought over between the two instances.
+    var isRemote = false {
+        didSet {
+            guard isRemote != oldValue else { return }
+            if isRemote {
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+                MPNowPlayingInfoCenter.default().playbackState = .stopped
+            } else {
+                updateNowPlayingInfo()
+            }
+        }
+    }
+
+    private func remote(_ type: String, _ payload: ConnectPayload? = nil) -> Bool {
+        remoteSink?(type, payload) ?? false
+    }
+
+    /// Stops audio without touching shared state, for when playback moves to
+    /// another device.
+    func pauseForHandoff() {
+        player?.pause()
+        isPlaying = false
+    }
+
     private var player: AVPlayer?
     private(set) var queue: [QueueItem] = []
     private(set) var queueIndex: Int = 0
@@ -63,6 +93,9 @@ final class PlayerService {
     // MARK: - Playback control
 
     func play(track: Track, in album: AlbumSummary, queue tracks: [Track], covers: [Cover] = []) {
+        // The remote device rebuilds the queue from its own source, so only the
+        // context travels — not every track in the album.
+        if remote("playContext", ConnectPayload(albumId: album.id, startTrackId: track.id)) { return }
         self.queue = tracks.map { QueueItem(track: $0, album: album, covers: covers) }
         self.queueIndex = tracks.firstIndex(where: { $0.id == track.id }) ?? 0
         guard queue.indices.contains(queueIndex) else { return }
@@ -70,6 +103,7 @@ final class PlayerService {
     }
 
     func togglePlay() {
+        if remote("toggle") { return }
         guard let player else { return }
         if isPlaying { player.pause() } else { player.play() }
         isPlaying = !isPlaying
@@ -82,6 +116,7 @@ final class PlayerService {
     }
 
     func next() {
+        if remote("next") { return }
         if repeatMode == .one {
             seek(to: 0); player?.play(); isPlaying = true; return
         }
@@ -103,6 +138,7 @@ final class PlayerService {
     }
 
     func removeFromQueue(at index: Int) {
+        if remote("queueRemove", ConnectPayload(index: index)) { return }
         guard index < queue.count else { return }
         queue.remove(at: index)
         if index < queueIndex { queueIndex -= 1 }
@@ -111,12 +147,14 @@ final class PlayerService {
     }
 
     func moveInQueue(from source: IndexSet, to destination: Int) {
+        if let f = source.first, remote("queueMove", ConnectPayload(from: f, to: destination)) { return }
         queue.move(fromOffsets: source, toOffset: destination)
         queueIndex = queue.firstIndex(where: { $0.track.id == currentTrack?.id }) ?? queueIndex
         stateDidChange()
     }
 
     func previous() {
+        if remote("prev") { return }
         if currentTime > 3 { seek(to: 0); return }
         var idx = queueIndex - 1
         while idx >= 0 && isSkippable(queue[idx]) { idx -= 1 }
@@ -129,13 +167,42 @@ final class PlayerService {
     /// of whatever is playing, for callers queueing from the same album.
     func playNext(_ track: Track, album: AlbumSummary? = nil, covers: [Cover] = []) {
         guard let itemAlbum = album ?? currentItem?.album else { return }
+        if remote("queueAdd", ConnectPayload(albumId: itemAlbum.id, trackId: track.id)) { return }
         let item = QueueItem(track: track, album: itemAlbum,
                              covers: album == nil ? (currentItem?.covers ?? []) : covers)
         queue.insert(item, at: min(queueIndex + 1, queue.count))
         stateDidChange()
     }
 
+    // Volume, mute, shuffle and repeat are plain stored properties so views can
+    // read them, but mutating them has to go through these so the action can be
+    // routed to another device instead.
+    func setVolume(_ v: Double) {
+        if remote("volume", ConnectPayload(volume: v)) { return }
+        volume = v
+    }
+
+    func toggleMute() {
+        if remote("mute") { return }
+        isMuted.toggle()
+    }
+
+    func toggleShuffle() {
+        if remote("shuffle") { return }
+        isShuffle.toggle()
+    }
+
+    func cycleRepeat() {
+        if remote("repeat") { return }
+        repeatMode = switch repeatMode {
+        case .off: .all
+        case .all: .one
+        case .one: .off
+        }
+    }
+
     func seek(to seconds: Double) {
+        if remote("seek", ConnectPayload(positionSec: seconds)) { return }
         player?.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
         currentTime = seconds
         updateNowPlayingInfo()

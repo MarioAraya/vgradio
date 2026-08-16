@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(OfflineStore.self) var offline
     @Environment(LibraryStore.self) var library
     @Environment(ThemeStore.self) var themeStore
+    @Environment(ConnectService.self) var connect
     @State private var status: BackendStatus = .checking
     @State private var pendingDeleteAlbumID: String?
 
@@ -45,6 +46,34 @@ struct SettingsView: View {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 220)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .background(Color.vgHover)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
+                VStack(alignment: .leading, spacing: VGSpace.sm) {
+                    Text("DISPOSITIVO")
+                        .font(VGFont.label(10))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.vgTextMuted)
+
+                    @Bindable var connect = connect
+
+                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Nombre de este Mac")
+                                .font(VGFont.body())
+                                .foregroundStyle(Color.vgTextSec)
+                            Text("Con el que aparece en el selector de tus otras instancias.")
+                                .font(VGFont.caption(11))
+                                .foregroundStyle(Color.vgTextMuted)
+                        }
+                        Spacer()
+                        TextField("Mac", text: $connect.deviceName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220)
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 10)

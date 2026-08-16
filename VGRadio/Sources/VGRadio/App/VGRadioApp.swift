@@ -20,6 +20,7 @@ struct VGRadioApp: App {
     @State private var playlistsStore = PlaylistsStore()
     @State private var offline = OfflineStore()
     @State private var themeStore = ThemeStore()
+    @State private var connect = ConnectService()
 
     var body: some Scene {
         WindowGroup {
@@ -32,12 +33,17 @@ struct VGRadioApp: App {
                 .environment(playlistsStore)
                 .environment(offline)
                 .environment(themeStore)
+                .environment(connect)
                 .frame(minWidth: 900, minHeight: 600)
                 .onAppear {
                     player.hiddenTracks = hidden
                     player.offline = offline
                     offline.startMonitoring()
                     themeStore.apply()
+                }
+                .task(id: auth.isLoggedIn) {
+                    // Connect is per account: a logged-out app registers no device.
+                    if auth.isLoggedIn { connect.start(player: player) } else { connect.stop() }
                 }
         }
         .windowStyle(.hiddenTitleBar)
