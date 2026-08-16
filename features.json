@@ -116,7 +116,7 @@
           "id": "theme-switcher",
           "title": "Tema claro verde conmutable (light/dark/auto) en Settings",
           "status": "done",
-          "evidence": "6ef170b, web app.css + macOS DesignSystem/ThemeStore; sin verificacion visual"
+          "evidence": "6ef170b, web app.css + macOS DesignSystem/ThemeStore; verificado visualmente 2026-08-09 (modo auto sin probar)"
         }
       ]
     },
@@ -164,6 +164,12 @@
           "title": "Drag & drop de tracks/albumes a playlists",
           "status": "done",
           "evidence": "e6ddaf2, PlaylistDragItem.swift + web/src/lib/dnd.ts; sin confirmar en runtime"
+        },
+        {
+          "id": "connect",
+          "title": "VGRadio Connect: control remoto entre instancias (SSE + hub)",
+          "status": "partial",
+          "evidence": "PLAN.md (4 fases). Fase 0 refactors previos + Fase 1 backend (60e99c6, hub + SSE + playback_state) + Fase 2 web (6cae7a9, picker + modo remoto). Falta Fase 3 macOS y Fase 4 pulido; sin verificar con dos instancias reales"
         }
       ]
     }
