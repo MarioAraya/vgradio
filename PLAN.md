@@ -4,7 +4,8 @@
 > misma cuenta se ven entre sí, muestran qué está sonando y pueden controlar / robar la
 > reproducción de la instancia activa.
 >
-> Estado: diseño. No implementado. Pensado para ejecutarse en una sesión aparte.
+> Estado: fases 0-3 implementadas (rama `refactor/connect-fase-0`). Queda la verificación
+> con dos instancias reales. Ver §6 para el detalle por fase.
 
 ---
 
