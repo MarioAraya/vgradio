@@ -296,6 +296,9 @@ tracks distintos. Alternativa (migrar hidden al backend por usuario) queda fuera
 
 Cada fase es entregable y verificable por separado.
 
+> **Estado (2026-08-17):** fases 0-3 implementadas y en la rama `refactor/connect-fase-0`.
+> Lo único que queda es la verificación con dos instancias reales corriendo a la vez.
+
 ### Fase 0 — Refactors previos de bajo riesgo
 
 Tres cambios que se justifican solos (arreglan bugs que existen hoy) y además quitan de
@@ -334,34 +337,37 @@ Los updates de alta frecuencia (`timeupdate` en web, `addPeriodicTimeObserver` e
 Orden: R1 → R3 → R2.
 
 ### Fase 1 — Backend hub (sin clientes)
-- [ ] `backend/internal/connect/` : `hub.go`, `types.go`, `hub_test.go`
-- [ ] `backend/internal/api/connect.go` : los 7 handlers
-- [ ] Registrar rutas en `router.go`, inyectar hub en `main.go`
-- [ ] **Arreglar `WriteTimeout`** en `main.go` (bloqueante para todo lo demás)
-- [ ] Tabla `playback_state` + persistencia debounced en `store/`
-- [ ] Verificación: `curl -N --cookie "sid=..." localhost:8080/connect/events` recibe `hello`,
+- [x] `backend/internal/connect/` : `hub.go`, `types.go`, `hub_test.go`
+- [x] `backend/internal/api/connect.go` : los 7 handlers
+- [x] Registrar rutas en `router.go`, inyectar hub en `main.go`
+- [x] **Arreglar `WriteTimeout`** en `main.go` (bloqueante para todo lo demás)
+- [x] Tabla `playback_state` + persistencia debounced en `store/`
+- [x] Verificación: `curl -N --cookie "sid=..." localhost:8080/connect/events` recibe `hello`,
       sigue vivo >2 min, y un `POST /connect/state` desde otra terminal aparece en el stream.
 
 ### Fase 2 — Web
-- [ ] `lib/connect.ts` + `lib/stores/connect.ts`
-- [ ] Guards de modo remoto en `stores/player.ts`
-- [ ] Device picker en `PlayerBar` + banner "Sonando en X"
-- [ ] Nombre de device editable en `/settings`
-- [ ] Verificación: dos pestañas, una controla a la otra; cerrar la activa libera el rol en <45s.
+- [x] `lib/connect.ts` + `lib/stores/connect.ts`
+- [x] Guards de modo remoto en `stores/player.ts`
+- [x] Device picker en `PlayerBar` + banner "Sonando en X"
+- [x] Nombre de device editable en `/settings`
+- [ ] **Pendiente** — verificación con dos pestañas reales: una controla a la otra; cerrar la
+      activa libera el rol en <45s. Cubierto por tests unitarios, no por uso real.
 
 ### Fase 3 — macOS
-- [ ] `ConnectService.swift` (SSE por `URLSession.bytes`)
-- [ ] Guards remotos + apagado de Now Playing en `PlayerService.swift`
-- [ ] `DevicePickerView` en `PlayerBarView`
-- [ ] Verificación: web controla la app nativa y viceversa; media keys del Mac controlan
+- [x] `ConnectService.swift` (SSE por `URLSession.bytes`)
+- [x] Guards remotos + apagado de Now Playing en `PlayerService.swift`
+- [x] `DevicePickerView` en `PlayerBarView`
+- [ ] **Pendiente** — verificación real: web controla la app nativa y viceversa; media keys del Mac controlan
       la web cuando el Mac es espectador.
 
 ### Fase 4 — Pulido
-- [ ] `transfer` con handoff de posición (arranca donde iba, ±1s)
-- [ ] Reconexión con backoff + `Last-Event-ID`
-- [ ] Restaurar estado persistido al primer device que se conecta tras reinicio del backend
-- [ ] Iconos por tipo de device, "este dispositivo" marcado
-- [ ] Actualizar `docs/API.md` con la sección `/connect` y `CURRENT.md`
+- [x] `transfer` con handoff de posición (arranca donde iba, ±1s)
+- [x] Reconexión con backoff exponencial con techo (30s) en ambos clientes
+- [ ] `Last-Event-ID` — no implementado: al reconectar, el `hello` trae el snapshot
+      completo, así que sólo haría falta si se agregan eventos que no sean de estado
+- [x] Restaurar estado persistido al primer device que se conecta tras reinicio del backend
+- [x] Iconos por tipo de device, "este dispositivo" marcado
+- [x] Actualizar `docs/API.md` con la sección `/connect` y `CURRENT.md`
 
 ---
 
