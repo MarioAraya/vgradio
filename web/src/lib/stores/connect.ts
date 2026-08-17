@@ -3,7 +3,7 @@ import { api } from '$lib/api';
 import type { Album, ConnectDevice, ConnectState } from '$lib/types';
 import {
   player, playerNext, playerPrev, onPlayerStateChange, setRemoteSink,
-  stopLocalPlayback, type PlayerState,
+  stopLocalPlayback, type PlayerState, type QueueItem,
 } from './player';
 import { addToast } from './toasts';
 
@@ -148,7 +148,11 @@ function onEvent(name: string, raw: string) {
       activeDeviceId.set(data.activeDeviceId ?? '');
       remoteState.set(data.state ?? null);
       retick(data.state);
-      if (data.activeDeviceId && data.activeDeviceId !== deviceId) stopLocalPlayback();
+      if (data.activeDeviceId && data.activeDeviceId !== deviceId) {
+        stopLocalPlayback();
+      } else if (data.activeDeviceId === deviceId) {
+        adoptPlayback(data.state, data.play !== false);
+      }
       break;
     case 'command':
       runCommand(data.type, data.payload);
@@ -182,6 +186,27 @@ function runCommand(type: string, payload: any) {
   } finally {
     if (restore) installSink();
   }
+}
+
+/** Continues here what the previous device was playing: same queue, same track,
+ * same position. Without this, "play here" would only move the crown and leave
+ * the music stopped. */
+async function adoptPlayback(state: ConnectState | null, play: boolean) {
+  const entries = state?.queue ?? [];
+  if (!state || entries.length === 0) return;
+
+  await hydrate(state);
+
+  const items: QueueItem[] = [];
+  for (const e of entries) {
+    const album = albumCache.get(e.albumId);
+    const track = album?.tracks.find(t => t.id === e.trackId);
+    if (album && track) items.push({ track, album: toSummary(album), covers: album.covers });
+  }
+  if (!items.length) return;
+
+  const index = Math.min(Math.max(0, state.queueIndex), items.length - 1);
+  player.adopt(items, index, state.positionSec, play);
 }
 
 async function playContext(payload: any) {

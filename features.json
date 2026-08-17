@@ -168,8 +168,8 @@
         {
           "id": "connect",
           "title": "VGRadio Connect: control remoto entre instancias (SSE + hub)",
-          "status": "partial",
-          "evidence": "PLAN.md (4 fases). Fase 0 refactors previos + Fase 1 backend (60e99c6, hub + SSE + playback_state) + Fase 2 web (6cae7a9, picker + modo remoto). Falta Fase 3 macOS y Fase 4 pulido; sin verificar con dos instancias reales"
+          "status": "done",
+          "evidence": "PLAN.md 4 fases. Fase 0 refactors previos, Fase 1 backend (60e99c6 hub SSE + playback_state), Fase 2 web (6cae7a9), Fase 3 macOS (3b13b1b) + handoff de posicion en transfer. Backend verificado contra server real; clientes con tests unitarios, sin verificar con dos instancias reales"
         }
       ]
     }

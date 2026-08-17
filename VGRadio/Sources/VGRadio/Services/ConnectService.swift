@@ -192,6 +192,7 @@ final class ConnectService {
             activeDeviceID = t.activeDeviceId
             remoteState = t.state
             syncRemoteFlag()
+            if t.activeDeviceId == deviceID { adoptPlayback(t.state, play: t.play) }
         case "command":
             guard let cmd = try? dec.decode(ConnectCommand.self, from: data) else { return }
             run(cmd)
@@ -282,6 +283,33 @@ final class ConnectService {
                 player.moveInQueue(from: IndexSet(integer: f), to: t)
             }
         default: break
+        }
+    }
+
+    /// Continues here what the previous device was playing: same queue, same
+    /// track, same position. Without this, "play here" would only move the crown
+    /// and leave the music stopped.
+    private func adoptPlayback(_ state: ConnectState, play: Bool) {
+        guard let player, let entries = state.queue, !entries.isEmpty else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            var items: [QueueItem] = []
+            for entry in entries {
+                let album: Album
+                if let cached = self.albumCache[entry.albumId] {
+                    album = cached
+                } else if let fetched = try? await APIClient.shared.album(entry.albumId) {
+                    self.albumCache[entry.albumId] = fetched
+                    album = fetched
+                } else {
+                    continue
+                }
+                guard let track = album.tracks.first(where: { $0.id == entry.trackId }) else { continue }
+                items.append(QueueItem(track: track, album: album.summary, covers: album.covers))
+            }
+            guard !items.isEmpty else { return }
+            player.adopt(items: items, index: state.queueIndex,
+                         positionSec: state.positionSec, play: play)
         }
     }
 

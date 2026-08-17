@@ -91,3 +91,26 @@ describe('remote sink', () => {
     expect(get(player).isShuffle).toBe(!before);
   });
 });
+
+describe('adopt', () => {
+  // "Reproducir acá" must continue the music, not just move the active role.
+  it('takes over a queue at the previous position, paused when asked', () => {
+    const items = [
+      { track: track('trk_1', 1), album, covers: [] },
+      { track: track('trk_2', 2), album, covers: [] },
+    ];
+    player.adopt(items, 1, 42, false);
+
+    const s = get(player);
+    expect(s.queue).toHaveLength(2);
+    expect(s.queueIndex).toBe(1);
+    expect(s.queue[s.queueIndex].track.id).toBe('trk_2');
+    expect(s.currentTime).toBe(42);
+  });
+
+  it('ignores an empty queue', () => {
+    const before = get(player).queue.length;
+    player.adopt([], 0, 0, true);
+    expect(get(player).queue).toHaveLength(before);
+  });
+});

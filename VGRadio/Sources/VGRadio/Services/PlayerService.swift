@@ -102,6 +102,22 @@ final class PlayerService {
         load(item: queue[queueIndex])
     }
 
+    /// Takes over a queue from another device: same tracks, same position.
+    /// Deliberately unguarded — by the time this runs, this app is already the
+    /// active device.
+    func adopt(items: [QueueItem], index: Int, positionSec: Double, play: Bool) {
+        guard !items.isEmpty else { return }
+        queue = items
+        queueIndex = min(max(0, index), items.count - 1)
+        load(item: queue[queueIndex])
+        if positionSec > 0 { seek(to: positionSec) }
+        if !play {
+            player?.pause()
+            isPlaying = false
+            updateNowPlayingInfo()
+        }
+    }
+
     func togglePlay() {
         if remote("toggle") { return }
         guard let player else { return }

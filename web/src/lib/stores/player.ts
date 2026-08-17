@@ -93,6 +93,12 @@ function getAudio(): HTMLAudioElement {
       update(s => ({ ...s, currentTime: audio!.currentTime }));
     });
     audio.addEventListener('loadedmetadata', () => {
+      // A handoff asks to start mid-track, but seeking before metadata is in is
+      // silently dropped, so the position is applied here instead.
+      if (pendingSeek !== null) {
+        audio!.currentTime = pendingSeek;
+        pendingSeek = null;
+      }
       commit(s => ({ ...s, duration: audio!.duration || s.duration }));
     });
     audio.addEventListener('ended', () => next());
@@ -182,6 +188,7 @@ function updateMediaSessionState(playing: boolean) {
   navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
 }
 
+let pendingSeek: number | null = null;
 let mediaSessionReady = false;
 const fallbackAttempted = new Set<string>(); // trackIds where direct-URL fallback was tried
 
@@ -219,6 +226,22 @@ export const player = {
         currentCoverIndex: prevAlbumId === album.id ? s.currentCoverIndex : 0,
       };
       return loadTrack(next);
+    });
+  },
+
+  /** Takes over a queue from another device: same tracks, same position. Runs
+   * unguarded on purpose — by the time this is called, this client is already
+   * the active device. */
+  adopt(items: QueueItem[], index: number, positionSec: number, play: boolean) {
+    if (!items.length) return;
+    pendingSeek = positionSec > 0 ? positionSec : null;
+    commit(s => {
+      const next: PlayerState = {
+        ...s, queue: items, queueIndex: index, queuedEnd: index, currentCoverIndex: 0,
+      };
+      const loaded = loadTrack(next);
+      if (!play) getAudio().pause();
+      return { ...loaded, currentTime: positionSec };
     });
   },
 

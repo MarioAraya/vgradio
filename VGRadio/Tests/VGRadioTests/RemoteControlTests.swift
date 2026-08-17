@@ -97,6 +97,44 @@ final class RemoteControlTests: XCTestCase {
         XCTAssertFalse(a.isRemote, "no active device means nothing is remote")
     }
 
+    /// "Reproducir acá" must continue the music, not just move the active role.
+    func testAdoptContinuesTheQueueAtThePreviousPosition() {
+        let p = PlayerService()
+        let album = AlbumSummary(id: "alb_1", title: "Metroid Prime", platform: "GC",
+                                 year: 2002, albumType: "Gamerip", trackCount: 2,
+                                 totalDurationSec: 200, coverUrls: [])
+        let items = [
+            QueueItem(track: Track(id: "trk_1", index: 1, name: "One", durationSec: 100,
+                                   sizeBytes: 0, streamUrl: "/tracks/trk_1/stream",
+                                   downloadUrl: "/tracks/trk_1/download"),
+                      album: album, covers: []),
+            QueueItem(track: Track(id: "trk_2", index: 2, name: "Two", durationSec: 100,
+                                   sizeBytes: 0, streamUrl: "/tracks/trk_2/stream",
+                                   downloadUrl: "/tracks/trk_2/download"),
+                      album: album, covers: []),
+        ]
+
+        p.adopt(items: items, index: 1, positionSec: 42, play: false)
+
+        XCTAssertEqual(p.queue.count, 2)
+        XCTAssertEqual(p.queueIndex, 1)
+        XCTAssertEqual(p.currentTrack?.id, "trk_2")
+        XCTAssertEqual(p.currentTime, 42, accuracy: 0.01)
+        XCTAssertFalse(p.isPlaying, "play:false must hand over paused")
+    }
+
+    func testAdoptClampsAnOutOfRangeIndex() {
+        let p = PlayerService()
+        let album = AlbumSummary(id: "alb_1", title: "A", platform: "", year: 0,
+                                 albumType: "", trackCount: 1, totalDurationSec: 0, coverUrls: [])
+        let items = [QueueItem(track: Track(id: "t", index: 1, name: "T", durationSec: 10,
+                                            sizeBytes: 0, streamUrl: "/tracks/t/stream",
+                                            downloadUrl: "/tracks/t/download"),
+                               album: album, covers: [])]
+        p.adopt(items: items, index: 99, positionSec: 0, play: false)
+        XCTAssertEqual(p.queueIndex, 0)
+    }
+
     func testRepeatModeWireValues() {
         XCTAssertEqual(RepeatMode.off.wireValue, "off")
         XCTAssertEqual(RepeatMode.all.wireValue, "all")
