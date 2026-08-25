@@ -153,16 +153,17 @@ final class ConnectService {
         isConnected = true
 
         var event = ""
-        var payload = ""
+        // `AsyncBytes.lines` does not reliably surface the blank line that
+        // terminates an SSE block, so a block is dispatched as soon as its
+        // `data:` line arrives instead of waiting for that separator.
         for try await line in bytes.lines {
             if Task.isCancelled || !running { return }
             if line.hasPrefix("event: ") {
                 event = String(line.dropFirst("event: ".count))
             } else if line.hasPrefix("data: ") {
-                payload = String(line.dropFirst("data: ".count))
-            } else if line.isEmpty {
+                let payload = String(line.dropFirst("data: ".count))
                 if !event.isEmpty { handle(event: event, json: payload) }
-                event = ""; payload = ""
+                event = ""
             }
             // ": ping" and any other comment line is ignored on purpose.
         }
