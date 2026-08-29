@@ -117,7 +117,7 @@ struct RemoteBannerView: View {
         }
         .foregroundStyle(Color.vgAccent)
         .padding(.horizontal, VGSpace.md)
-        .frame(height: 26)
+        .frame(height: VGLayout.remoteBannerHeight)
         .frame(maxWidth: .infinity)
         .background(Color.vgAccent.opacity(0.12))
         .overlay(alignment: .bottom) {

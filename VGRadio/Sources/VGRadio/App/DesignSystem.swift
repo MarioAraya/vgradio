@@ -91,6 +91,7 @@ enum VGSpace {
 enum VGLayout {
     static let sidebarWidth: CGFloat    = 180
     static let playerBarHeight: CGFloat = 56
+    static let remoteBannerHeight: CGFloat = 26
     static let albumCoverDetail: CGFloat = 220
     static let albumCoverPlayer: CGFloat = 44
     static let albumCoverGrid: CGFloat   = 120

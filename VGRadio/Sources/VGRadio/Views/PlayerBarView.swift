@@ -67,7 +67,7 @@ struct PlayerBarView: View {
                     }
             }
         }
-        .frame(height: VGLayout.playerBarHeight)
+        .frame(height: connect.isRemote ? VGLayout.playerBarHeight + VGLayout.remoteBannerHeight : VGLayout.playerBarHeight)
     }
 
     // MARK: – Prev | Play | Next | time

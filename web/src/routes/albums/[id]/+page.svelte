@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
@@ -51,10 +50,15 @@
 
   $: id = $page.params.id!;
 
-  onMount(async () => {
+  // SvelteKit reuses this component across /albums/A -> /albums/B navigations
+  // (same route, different param), so the fetch must re-run on `id` changes —
+  // onMount alone only fires once and left `album` stuck on the first album.
+  async function loadAlbum(albumId: string) {
+    loading = true;
+    error = '';
     try {
-      album = await api.album(id);
-      coverIdx = coverPrefs.get(id);
+      album = await api.album(albumId);
+      coverIdx = coverPrefs.get(albumId);
       const activeId = $player.queue[$player.queueIndex]?.track.id;
       if (activeId) {
         // wait one tick for DOM to render the track rows
@@ -65,7 +69,9 @@
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally { loading = false; }
-  });
+  }
+
+  $: loadAlbum(id);
 
 
   function toSummary(a: Album): AlbumSummary {
