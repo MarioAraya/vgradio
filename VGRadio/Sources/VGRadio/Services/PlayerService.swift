@@ -162,6 +162,13 @@ final class PlayerService {
         stateDidChange()
     }
 
+    func playAt(index: Int) {
+        guard queue.indices.contains(index) else { return }
+        if remote("playContext", ConnectPayload(albumId: queue[index].album.id, startTrackId: queue[index].track.id)) { return }
+        queueIndex = index
+        load(item: queue[index])
+    }
+
     func moveInQueue(from source: IndexSet, to destination: Int) {
         if let f = source.first, remote("queueMove", ConnectPayload(from: f, to: destination)) { return }
         queue.move(fromOffsets: source, toOffset: destination)

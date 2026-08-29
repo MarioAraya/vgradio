@@ -103,6 +103,10 @@ struct Track: Codable, Identifiable, Hashable {
     var downloadUrl: String
     var pageUrl: String = ""
     var downloaded: Bool = false
+    /// Real source album title, set when this track lives in a queue whose
+    /// `QueueItem.album` is a synthetic container (Liked Music, a playlist) —
+    /// not part of the API payload, so it's excluded from Codable.
+    var sourceAlbumTitle: String? = nil
 
     var durationFormatted: String {
         let m = durationSec / 60, s = durationSec % 60
@@ -110,7 +114,8 @@ struct Track: Codable, Identifiable, Hashable {
     }
 
     init(id: String, index: Int, name: String, durationSec: Int, sizeBytes: Int,
-         streamUrl: String, downloadUrl: String, pageUrl: String = "", downloaded: Bool = false) {
+         streamUrl: String, downloadUrl: String, pageUrl: String = "", downloaded: Bool = false,
+         sourceAlbumTitle: String? = nil) {
         self.id = id
         self.index = index
         self.name = name
@@ -120,6 +125,7 @@ struct Track: Codable, Identifiable, Hashable {
         self.downloadUrl = downloadUrl
         self.pageUrl = pageUrl
         self.downloaded = downloaded
+        self.sourceAlbumTitle = sourceAlbumTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -133,6 +139,7 @@ struct Track: Codable, Identifiable, Hashable {
         downloadUrl = try c.decode(String.self, forKey: .downloadUrl)
         pageUrl = try c.decodeIfPresent(String.self, forKey: .pageUrl) ?? ""
         downloaded = try c.decodeIfPresent(Bool.self, forKey: .downloaded) ?? false
+        sourceAlbumTitle = nil
     }
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -350,7 +357,7 @@ struct PlaylistTrack: Codable, Identifiable {
         Track(id: id, index: index, name: name, durationSec: durationSec,
               sizeBytes: 0, streamUrl: streamUrl,
               downloadUrl: streamUrl.replacingOccurrences(of: "/stream", with: "/download"),
-              downloaded: false)
+              downloaded: false, sourceAlbumTitle: albumTitle)
     }
 }
 

@@ -41,12 +41,12 @@ struct QueuePanel: View {
                         ForEach(player.queue.indices, id: \.self) { i in
                             QueueRow(
                                 track: player.queue[i].track,
-                                albumTitle: player.queue[i].album.title,
+                                playlistTitle: player.queue[i].album.title,
                                 index: i,
-                                isCurrent: i == player.queueIndex
-                            ) {
-                                player.removeFromQueue(at: i)
-                            }
+                                isCurrent: i == player.queueIndex,
+                                onPlay: { player.playAt(index: i) },
+                                onRemove: { player.removeFromQueue(at: i) }
+                            )
                             .id(i)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
@@ -75,11 +75,22 @@ struct QueuePanel: View {
 
 private struct QueueRow: View {
     let track: Track
-    let albumTitle: String?
+    let playlistTitle: String?
     let index: Int
     let isCurrent: Bool
+    let onPlay: () -> Void
     let onRemove: () -> Void
     @State private var isHovered = false
+
+    /// The playlist row shows the real source album next to the playlist
+    /// name (e.g. Liked Music mixes tracks from many albums); when the
+    /// container itself IS the album (a regular album queue), skip the
+    /// redundant "Title — Title" repeat.
+    private var subtitle: String? {
+        guard let playlistTitle else { return track.sourceAlbumTitle }
+        guard let albumTitle = track.sourceAlbumTitle, albumTitle != playlistTitle else { return playlistTitle }
+        return "\(playlistTitle) · \(albumTitle)"
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -101,8 +112,8 @@ private struct QueueRow: View {
                     .font(VGFont.body(13))
                     .foregroundStyle(isCurrent ? Color.vgAccent : Color.vgText)
                     .lineLimit(1)
-                if let albumTitle {
-                    Text(albumTitle)
+                if let subtitle {
+                    Text(subtitle)
                         .font(VGFont.caption(10))
                         .foregroundStyle(Color.vgTextMuted)
                         .lineLimit(1)
@@ -136,5 +147,7 @@ private struct QueueRow: View {
         .background(isCurrent ? Color.vgAccentBg : isHovered ? Color.vgHover : Color.clear)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovered)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { onPlay() }
     }
 }
