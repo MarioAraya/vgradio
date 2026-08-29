@@ -163,7 +163,16 @@ export const api = {
   connectDevices: () => get<ConnectDevice[]>('/connect/devices'),
   registerDevice: (device: { id: string; name: string; type: string }) =>
     post<ConnectDevice>('/connect/devices', device),
-  unregisterDevice: (id: string) => del<void>(`/connect/devices/${id}`),
+  unregisterDevice: (id: string) => {
+    // fired from pagehide — keepalive lets the request survive page teardown
+    // instead of aborting mid-flight (which surfaces as a spurious CORS error)
+    fetch(`${BASE()}/connect/devices/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      keepalive: true,
+    }).catch(() => {});
+    return Promise.resolve();
+  },
   publishState: (deviceId: string, state: Partial<ConnectState>) =>
     post<ConnectState>(`/connect/state?deviceId=${encodeURIComponent(deviceId)}`, state),
   sendCommand: (deviceId: string, type: string, payload?: unknown, targetDeviceId?: string) =>
