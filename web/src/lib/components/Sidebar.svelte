@@ -1,19 +1,39 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { currentUser } from '$lib/stores/auth';
-  import { playlists, loadPlaylists, addTrackToPlaylist } from '$lib/stores/playlists';
+  import { playlists, loadPlaylists, addTrackToPlaylist, deletePlaylist } from '$lib/stores/playlists';
   import PlaylistEditModal from '$lib/components/PlaylistEditModal.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import { addToast } from '$lib/stores/toasts';
   import { hasDragPayload, getDragPayload } from '$lib/dnd';
+  import type { PlaylistSummary } from '$lib/types';
 
   export let onAddURL: () => void = () => {};
 
   let editOpen = false;
+  let renameOpen = false;
+  let renamingPlaylist: PlaylistSummary | null = null;
   let collapsed = false;
   let dropTargetId: string | null = null;
+  let plCtxMenu: { x: number; y: number; pl: PlaylistSummary } | null = null;
+
+  function openPlaylistContextMenu(e: MouseEvent, pl: PlaylistSummary) {
+    e.preventDefault();
+    plCtxMenu = { x: e.clientX, y: e.clientY, pl };
+  }
+
+  async function deletePlaylistConfirm(pl: PlaylistSummary) {
+    if (!confirm(`Delete "${pl.name}"? This can't be undone.`)) return;
+    try {
+      await deletePlaylist(pl.id);
+      if ($page.url.pathname === `/playlists/${pl.id}`) goto('/');
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : 'Error', 'error');
+    }
+  }
 
   function onDragOver(e: DragEvent, playlistId: string) {
     if (!hasDragPayload(e)) return;
@@ -119,7 +139,8 @@
           class:drop-target={dropTargetId === pl.id}
           on:dragover={(e) => onDragOver(e, pl.id)}
           on:dragleave={() => onDragLeave(pl.id)}
-          on:drop={(e) => onDrop(e, pl.id, pl.name)}>
+          on:drop={(e) => onDrop(e, pl.id, pl.name)}
+          on:contextmenu={(e) => openPlaylistContextMenu(e, pl)}>
           <span class="icon">♪</span>
           <div class="pl-info">
             <span class="pl-name">{pl.name}</span>
@@ -152,6 +173,18 @@
 
 <PlaylistEditModal bind:open={editOpen} playlist={null}
   on:done={e => goto(`/playlists/${e.detail.id}`)} />
+
+<PlaylistEditModal bind:open={renameOpen} playlist={renamingPlaylist}
+  on:done={() => renamingPlaylist = null}
+  on:close={() => renamingPlaylist = null} />
+
+{#if plCtxMenu}
+  <ContextMenu x={plCtxMenu.x} y={plCtxMenu.y} onClose={() => plCtxMenu = null}>
+    <button on:click={() => { renamingPlaylist = plCtxMenu!.pl; renameOpen = true; plCtxMenu = null; }}>✏ Rename…</button>
+    <div class="divider"></div>
+    <button on:click={() => { deletePlaylistConfirm(plCtxMenu!.pl); plCtxMenu = null; }}>🗑 Delete Playlist</button>
+  </ContextMenu>
+{/if}
 
 <style>
   .sidebar {

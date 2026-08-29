@@ -11,6 +11,8 @@ struct SidebarView: View {
     @State private var showLogin = false
     @State private var showNewPlaylist = false
     @State private var dropTargetPlaylistId: String?
+    @State private var renamingPlaylist: PlaylistSummary?
+    @State private var deletingPlaylist: PlaylistSummary?
 
     private func resolveTrackIds(_ item: PlaylistDragItem) async -> [String] {
         if let albumId = item.albumId {
@@ -104,6 +106,28 @@ struct SidebarView: View {
                 }
             }
         }
+        .sheet(item: $renamingPlaylist) { pl in
+            PlaylistEditSheet(name: pl.name, description: pl.description, isPublic: pl.isPublic) { name, desc, pub in
+                Task { try? await playlists.update(id: pl.id, name: name, description: desc, isPublic: pub) }
+            }
+        }
+        .alert("Delete \"\(deletingPlaylist?.name ?? "")\"?", isPresented: Binding(
+            get: { deletingPlaylist != nil },
+            set: { if !$0 { deletingPlaylist = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { deletingPlaylist = nil }
+            Button("Delete", role: .destructive) {
+                if let pl = deletingPlaylist {
+                    Task {
+                        try? await playlists.delete(id: pl.id)
+                        if selection == .playlist(id: pl.id) { selection = .library }
+                    }
+                }
+                deletingPlaylist = nil
+            }
+        } message: {
+            Text("This can't be undone.")
+        }
         .task {
             if auth.isLoggedIn { await playlists.load() }
         }
@@ -194,6 +218,15 @@ struct SidebarView: View {
                         }
                     }
                     return true
+                }
+                .contextMenu {
+                    Button { renamingPlaylist = pl } label: {
+                        Label("Rename…", systemImage: "pencil")
+                    }
+                    Divider()
+                    Button(role: .destructive) { deletingPlaylist = pl } label: {
+                        Label("Delete Playlist", systemImage: "trash")
+                    }
                 }
             }
 
