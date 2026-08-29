@@ -3,14 +3,17 @@
   import { currentUser, authLoading } from '$lib/stores/auth';
   import { player } from '$lib/stores/player';
   import { addToast } from '$lib/stores/toasts';
-  import { setTrackFavorited } from '$lib/stores/trackFavorites';
   import { fmtTime } from '$lib/utils';
   import CoverImage from '$lib/components/CoverImage.svelte';
   import { goto } from '$app/navigation';
   import type { FavoriteTrack } from '$lib/types';
+  import AddToPlaylistModal from '$lib/components/AddToPlaylistModal.svelte';
 
   let tracks: FavoriteTrack[] = [];
   let favLoading = false;
+  let addModalOpen = false;
+  let addModalTrackIds: string[] = [];
+  let addModalDefaultName = '';
 
   $: loading = $authLoading || favLoading;
   $: needsLogin = !$authLoading && !$currentUser;
@@ -53,12 +56,10 @@
     } catch { addToast('Error loading track', 'error'); }
   }
 
-  async function unfavorite(t: FavoriteTrack) {
-    try {
-      await api.toggleTrackFavorite(t.id);
-      setTrackFavorited(t.id, false);
-      tracks = tracks.filter(tr => tr.id !== t.id);
-    } catch { addToast('Error', 'error'); }
+  function starClick(t: FavoriteTrack) {
+    addModalTrackIds = [t.id];
+    addModalDefaultName = t.name;
+    addModalOpen = true;
   }
 
   $: grouped = (() => {
@@ -135,7 +136,7 @@
               <div class="track-row">
                 <button class="track-name" on:click={() => playFrom(track)}>{track.name}</button>
                 <span class="track-dur">{fmtTime(track.durationSec)}</span>
-                <button class="unfav" title="Quitar de favoritos" on:click={() => unfavorite(track)}>★</button>
+                <button class="unfav" title="Agregar a playlist" on:click={() => starClick(track)}>★</button>
               </div>
             {/each}
           </div>
@@ -144,6 +145,8 @@
     {/if}
   {/if}
 </div>
+
+<AddToPlaylistModal bind:open={addModalOpen} trackIds={addModalTrackIds} defaultNewPlaylistName={addModalDefaultName} />
 
 <style>
   .page { padding: var(--sp-md); max-width: 860px; }

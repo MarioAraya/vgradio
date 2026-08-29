@@ -35,9 +35,11 @@
   let lightboxIndex = 0;
   let addToPlaylistTrackIds: string[] = [];
   let addToPlaylistOpen = false;
+  let addToPlaylistDefaultName = '';
 
-  function openAddToPlaylist(trackIds: string[]) {
+  function openAddToPlaylist(trackIds: string[], defaultName = '') {
     addToPlaylistTrackIds = trackIds;
+    addToPlaylistDefaultName = defaultName;
     addToPlaylistOpen = true;
   }
 
@@ -217,6 +219,10 @@
   }
 
   function toggleTrackFav(track: import('$lib/types').Track) {
+    if ($favoritedTrackIDs.has(track.id)) {
+      openAddToPlaylist([track.id], track.name);
+      return;
+    }
     requireAuth(() => doToggleTrackFav(track));
   }
 </script>
@@ -390,7 +396,7 @@
   {/if}
 </div>
 
-<AddToPlaylistModal bind:open={addToPlaylistOpen} trackIds={addToPlaylistTrackIds} />
+<AddToPlaylistModal bind:open={addToPlaylistOpen} trackIds={addToPlaylistTrackIds} defaultNewPlaylistName={addToPlaylistDefaultName} />
 
 {#if albumCtxMenu && album}
   <ContextMenu x={albumCtxMenu.x} y={albumCtxMenu.y} onClose={() => albumCtxMenu = null}>
@@ -411,7 +417,7 @@
       <button on:click={() => { openAddToPlaylist([track.id]); ctxMenu = null; }}>+ Add to Playlist…</button>
     {/if}
     <div class="divider"></div>
-    <button on:click={() => { toggleTrackFav(track); ctxMenu = null; }}>
+    <button on:click={() => { requireAuth(() => doToggleTrackFav(track)); ctxMenu = null; }}>
       {isFav ? '★ Remove from Favorites' : '☆ Add to Favorites'}
     </button>
     <button on:click={() => { hidden.toggle(track.id); ctxMenu = null; }}>

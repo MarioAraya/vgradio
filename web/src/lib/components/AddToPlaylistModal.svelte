@@ -6,6 +6,11 @@
 
   export let open = false;
   export let trackIds: string[] = [];
+  // Prefilled name for the one-click "New Playlist" action — the clicked
+  // track's title, so a fresh playlist made from a single track starts
+  // named after it. Cover comes for free: the API derives a playlist's
+  // cover from its tracks' albums.
+  export let defaultNewPlaylistName = '';
 
   const dispatch = createEventDispatcher<{ close: void }>();
 
@@ -36,11 +41,11 @@
     }
   }
 
-  async function createAndAdd() {
-    if (!newName.trim()) return;
+  async function createAndAdd(name: string) {
+    if (!name.trim()) return;
     creating = true;
     try {
-      const pl = await createPlaylist(newName.trim());
+      const pl = await createPlaylist(name.trim());
       await Promise.all(trackIds.map(id => addTrackToPlaylist(pl.id, id)));
       addToast(`Added to "${pl.name}"`);
       close();
@@ -61,6 +66,11 @@
     <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
       <h2>Add to playlist</h2>
 
+      <button class="new-playlist-btn" on:click={() => createAndAdd(defaultNewPlaylistName || 'New Playlist')} disabled={creating}>
+        <span class="plus-badge">+</span>
+        <span>New Playlist</span>
+      </button>
+
       {#if myLists.length > 0}
         <ul class="list">
           {#each myLists as pl}
@@ -77,9 +87,9 @@
       {/if}
 
       <div class="new-row">
-        <input bind:value={newName} placeholder="New playlist name…" maxlength="100"
-          on:keydown={e => e.key === 'Enter' && createAndAdd()} />
-        <button class="create-btn" on:click={createAndAdd} disabled={creating || !newName.trim()}>
+        <input bind:value={newName} placeholder="Or type a custom name…" maxlength="100"
+          on:keydown={e => e.key === 'Enter' && createAndAdd(newName)} />
+        <button class="create-btn" on:click={() => createAndAdd(newName)} disabled={creating || !newName.trim()}>
           {creating ? '…' : '+'}
         </button>
       </div>
@@ -106,6 +116,23 @@
     display: flex; flex-direction: column; gap: 16px;
   }
   h2 { font-size: 16px; font-weight: 700; }
+  .new-playlist-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--r-md);
+    font-size: 13px;
+    color: var(--text);
+    text-align: left;
+  }
+  .new-playlist-btn:hover { background: var(--surface-hi); }
+  .new-playlist-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .plus-badge {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--muted);
+    font-size: 12px; font-weight: 700;
+  }
   .list { list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
   .list li button {
     width: 100%; display: flex; justify-content: space-between; align-items: center;

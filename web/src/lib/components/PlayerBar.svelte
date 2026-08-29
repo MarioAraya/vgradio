@@ -8,11 +8,15 @@
   import { favoritedTrackIDs, setTrackFavorited } from '$lib/stores/trackFavorites';
   import { hidden } from '$lib/stores/hidden';
   import DevicePicker from './DevicePicker.svelte';
+  import AddToPlaylistModal from './AddToPlaylistModal.svelte';
   import {
     isRemote, remoteView, remotePosition, activeDevice, deviceId, transferTo,
   } from '$lib/stores/connect';
 
   let volumeHovered = false;
+  let addModalOpen = false;
+  let addModalTrackIds: string[] = [];
+  let addModalDefaultName = '';
   let scrubDragging = false;
   let scrubEl: HTMLElement;
   let fsScrubEl: HTMLElement;
@@ -65,6 +69,12 @@
   }
 
   function toggleTrackFav() {
+    if (track && isFav) {
+      addModalTrackIds = [track.id];
+      addModalDefaultName = track.name;
+      addModalOpen = true;
+      return;
+    }
     requireAuth(doToggleTrackFav);
   }
   $: fraction = duration > 0 ? curTime / duration : 0;
@@ -291,6 +301,8 @@
     </div>
   </div>
 {/if}
+
+<AddToPlaylistModal bind:open={addModalOpen} trackIds={addModalTrackIds} defaultNewPlaylistName={addModalDefaultName} />
 
 <style>
   /* ── Player Bar ── */

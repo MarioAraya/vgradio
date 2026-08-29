@@ -2,11 +2,20 @@ import SwiftUI
 
 // MARK: - Liked Music (auto-playlist backed by FavoritesStore)
 
+private enum LikedViewMode: String {
+    case tracks, albums
+}
+
 struct LikedMusicView: View {
     @Environment(FavoritesStore.self) var favorites
     @Environment(PlayerService.self) var player
+    @Environment(LibraryStore.self) var library
     @Environment(OfflineStore.self) var offline
     @State private var isDownloadingAll = false
+    @State private var addToPlaylistTrackIds: [String] = []
+    @State private var showAddToPlaylist = false
+    @AppStorage("vgradio.likedViewMode") private var viewMode = LikedViewMode.tracks
+    private let albumColumns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: VGSpace.md)]
 
     var body: some View {
         ScrollView {
@@ -66,6 +75,16 @@ struct LikedMusicView: View {
                         }
                     }
                     Spacer()
+
+                    if !favorites.grouped.isEmpty {
+                        Picker("", selection: $viewMode) {
+                            Image(systemName: "music.note.list").tag(LikedViewMode.tracks)
+                            Image(systemName: "square.grid.2x2").tag(LikedViewMode.albums)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 90)
+                    }
                 }
                 .padding(.top, VGSpace.md)
                 .padding(.horizontal, VGSpace.xl)
@@ -78,9 +97,19 @@ struct LikedMusicView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 40)
-                } else {
+                } else if viewMode == .tracks {
                     ForEach(favorites.grouped, id: \.albumTitle) { group in
-                        FavoriteGroupView(group: group)
+                        FavoriteGroupView(group: group, onPlay: { play(from: $0) }, onAddToPlaylist: { trackId in
+                            addToPlaylistTrackIds = [trackId]
+                            showAddToPlaylist = true
+                        })
+                    }
+                    .padding(.horizontal, VGSpace.xl)
+                } else {
+                    LazyVGrid(columns: albumColumns, spacing: VGSpace.md) {
+                        ForEach(favorites.grouped, id: \.albumTitle) { group in
+                            LikedAlbumCard(group: group, onPlayAlbum: { playAlbum(group) })
+                        }
                     }
                     .padding(.horizontal, VGSpace.xl)
                 }
@@ -88,17 +117,46 @@ struct LikedMusicView: View {
             .padding(.bottom, VGSpace.xl)
         }
         .background(Color.vgBg)
+        .sheet(isPresented: $showAddToPlaylist) {
+            if !addToPlaylistTrackIds.isEmpty {
+                AddToPlaylistSheet(trackIds: addToPlaylistTrackIds)
+            }
+        }
     }
 
     private func playAll() {
-        let tracks = favorites.favorites.enumerated().map { i, f in
+        guard let first = favorites.favorites.first else { return }
+        play(from: first)
+    }
+
+    private func play(from track: FavoriteTrack) {
+        // Build the queue in the same album-grouped order the list view shows
+        // (favorites.grouped), not favorites.favorites' raw order — otherwise
+        // the queue can disagree with what's on screen and reorder tracks.
+        let flatTracks = favorites.grouped.flatMap { $0.tracks }
+        let tracks = flatTracks.enumerated().map { i, f in
             Track(id: f.id, index: i + 1, name: f.name, durationSec: f.durationSec,
                   sizeBytes: 0, streamUrl: "/tracks/\(f.id)/stream",
-                  downloadUrl: "/tracks/\(f.id)/download", downloaded: true)
+                  downloadUrl: "/tracks/\(f.id)/download", downloaded: true,
+                  sourceAlbumTitle: f.albumTitle)
         }
-        guard let first = tracks.first else { return }
+        guard let t = tracks.first(where: { $0.id == track.id }) else { return }
         let album = AlbumSummary(id: "__liked__", title: "Liked Music", platform: "", year: 0,
                                   albumType: "", trackCount: tracks.count, totalDurationSec: 0, coverUrls: [])
+        player.play(track: t, in: album, queue: tracks)
+    }
+
+    private func playAlbum(_ group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])) {
+        let tracks = group.tracks.enumerated().map { i, f in
+            Track(id: f.id, index: i + 1, name: f.name, durationSec: f.durationSec,
+                  sizeBytes: 0, streamUrl: "/tracks/\(f.id)/stream",
+                  downloadUrl: "/tracks/\(f.id)/download", downloaded: true,
+                  sourceAlbumTitle: f.albumTitle)
+        }
+        guard let first = tracks.first else { return }
+        let album = AlbumSummary(id: group.albumId, title: group.albumTitle, platform: group.platform,
+                                  year: group.year, albumType: "", trackCount: tracks.count,
+                                  totalDurationSec: 0, coverUrls: group.coverUrl.isEmpty ? [] : [group.coverUrl])
         player.play(track: first, in: album, queue: tracks)
     }
 
@@ -132,6 +190,8 @@ struct PlaylistDetailView: View {
     @State private var showEdit = false
     @State private var hoveredTrackId: String?
     @State private var isDownloadingAll = false
+    @State private var addToPlaylistTrackIds: [String] = []
+    @State private var showAddToPlaylist = false
 
     var body: some View {
         ScrollView {
@@ -148,7 +208,12 @@ struct PlaylistDetailView: View {
             .padding(.bottom, VGSpace.xl)
         }
         .background(Color.vgBg)
-        .task { await load() }
+        .task(id: playlistId) { await load() }
+        .sheet(isPresented: $showAddToPlaylist) {
+            if !addToPlaylistTrackIds.isEmpty {
+                AddToPlaylistSheet(trackIds: addToPlaylistTrackIds)
+            }
+        }
         .sheet(isPresented: $showEdit) {
             if let pl = detail {
                 PlaylistEditSheet(
@@ -285,6 +350,10 @@ struct PlaylistDetailView: View {
                             try? await store.removeTrack(playlistId: pl.id, trackId: track.id)
                             await load()
                         }
+                    },
+                    onAddToPlaylist: {
+                        addToPlaylistTrackIds = [track.id]
+                        showAddToPlaylist = true
                     }
                 )
                 .onHover { hoveredTrackId = $0 ? track.id : nil }
@@ -359,6 +428,17 @@ private struct PlaylistTrackRow: View {
     let isPlaying: Bool
     let onPlay: () -> Void
     let onRemove: () -> Void
+    var onAddToPlaylist: (() -> Void)? = nil
+    @Environment(PlayerService.self) var player
+    @Environment(FavoritesStore.self) var favorites
+
+    private var isFav: Bool { favorites.isFavorite(track.id) }
+
+    private var albumSummary: AlbumSummary {
+        AlbumSummary(id: track.albumId, title: track.albumTitle, platform: track.platform,
+                     year: track.year, albumType: "", trackCount: 0, totalDurationSec: 0,
+                     coverUrls: track.coverUrl.map { [$0] } ?? [])
+    }
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -417,6 +497,29 @@ private struct PlaylistTrackRow: View {
         .frame(height: VGLayout.trackRowHeight)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onPlay() }
+        .contextMenu {
+            Button { onPlay() } label: {
+                Label("Play", systemImage: "play.fill")
+            }
+            Button { player.playNext(track.asTrack(index: position), album: albumSummary) } label: {
+                Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+            if let addFn = onAddToPlaylist {
+                Button { addFn() } label: {
+                    Label("Add to Playlist…", systemImage: "music.note.list")
+                }
+            }
+            Button { favorites.toggle(track.asTrack(index: position), album: albumSummary) } label: {
+                Label(isFav ? "Remove from Favorites" : "Add to Favorites",
+                      systemImage: isFav ? "hand.thumbsup.fill" : "hand.thumbsup")
+            }
+            if isOwner {
+                Divider()
+                Button(role: .destructive) { onRemove() } label: {
+                    Label("Remove from Playlist", systemImage: "trash")
+                }
+            }
+        }
 
         Divider().overlay(Color.vgSeparator)
     }
@@ -553,6 +656,11 @@ struct AddToPlaylistSheet: View {
     @Environment(PlaylistsStore.self) var store
     @Environment(AuthStore.self) var auth
     let trackIds: [String]
+    /// Prefilled name for the one-click "New Playlist" action — the clicked
+    /// track's title, so a fresh playlist made from a single track starts
+    /// named after it (its cover comes for free: the API derives a
+    /// playlist's cover from its tracks' albums).
+    var defaultNewPlaylistName: String? = nil
     var onAdded: (() -> Void)? = nil
 
     @State private var newName = ""
@@ -565,13 +673,29 @@ struct AddToPlaylistSheet: View {
                 .font(VGFont.heading())
                 .foregroundStyle(Color.vgText)
 
+            Button {
+                Task { await createAndAdd(name: defaultNewPlaylistName ?? "New Playlist") }
+            } label: {
+                HStack {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 20, height: 20)
+                        .background(Color.vgHoverMd)
+                        .clipShape(Circle())
+                    Text("New Playlist").font(VGFont.body())
+                    Spacer()
+                }
+                .foregroundStyle(Color.vgText)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+            }
+            .buttonStyle(.plain)
+            .disabled(adding)
+
             let myLists = auth.currentUser.map { store.myPlaylists(userId: $0.id) } ?? []
 
-            if myLists.isEmpty {
-                Text("No playlists yet.")
-                    .font(VGFont.body())
-                    .foregroundStyle(Color.vgTextSec)
-            } else {
+            if !myLists.isEmpty {
+                Divider().overlay(Color.vgSeparator)
                 VStack(spacing: 2) {
                     ForEach(myLists) { pl in
                         Button {
@@ -595,11 +719,11 @@ struct AddToPlaylistSheet: View {
             Divider().overlay(Color.vgSeparator)
 
             HStack(spacing: 8) {
-                TextField("New playlist name…", text: $newName)
+                TextField("Or type a custom name…", text: $newName)
                     .textFieldStyle(.roundedBorder)
                     .font(VGFont.body())
                 Button("+") {
-                    Task { await createAndAdd() }
+                    Task { await createAndAdd(name: newName.trimmingCharacters(in: .whitespaces)) }
                 }
                 .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || adding)
                 .foregroundStyle(Color.vgAccent)
@@ -637,8 +761,7 @@ struct AddToPlaylistSheet: View {
         adding = false
     }
 
-    private func createAndAdd() async {
-        let name = newName.trimmingCharacters(in: .whitespaces)
+    private func createAndAdd(name: String) async {
         guard !name.isEmpty else { return }
         adding = true
         do {
@@ -658,9 +781,76 @@ struct AddToPlaylistSheet: View {
 
 // MARK: - FavoriteGroupView (reused from FavoritesView)
 
+private struct LikedAlbumCard: View {
+    let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
+    let onPlayAlbum: () -> Void
+    @Environment(LibraryStore.self) var library
+    @State private var isHovered = false
+
+    private func openAlbum() {
+        library.pendingNavigation = AlbumSummary(
+            id: group.albumId, title: group.albumTitle, platform: group.platform, year: group.year,
+            albumType: "", trackCount: group.tracks.count, totalDurationSec: 0,
+            coverUrls: group.coverUrl.isEmpty ? [] : [group.coverUrl]
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VGSpace.sm) {
+            ZStack(alignment: .bottomTrailing) {
+                AsyncCoverImage(url: AlbumCoverView.resolveURL(group.coverUrl), size: 160)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: openAlbum)
+
+                if isHovered {
+                    Button(action: onPlayAlbum) {
+                        Circle()
+                            .fill(Color.vgAccent)
+                            .frame(width: 40, height: 40)
+                            .overlay(
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.white)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(VGSpace.sm)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.spring(duration: 0.2), value: isHovered)
+
+            Text(group.albumTitle)
+                .font(VGFont.body())
+                .fontWeight(.medium)
+                .foregroundStyle(Color.vgText)
+                .lineLimit(2)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: openAlbum)
+
+            HStack(spacing: 4) {
+                PlatformPill(platform: group.platform.trimmingCharacters(in: .whitespaces))
+                Text("·").foregroundStyle(Color.vgTextMuted)
+                Text(String(group.year)).font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
+                Text("·").foregroundStyle(Color.vgTextMuted)
+                Text("\(group.tracks.count) liked").font(VGFont.caption()).foregroundStyle(Color.vgTextMuted)
+            }
+        }
+        .padding(VGSpace.sm)
+        .background(isHovered ? Color.vgSurfaceHi : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.15), value: isHovered)
+    }
+}
+
 private struct FavoriteGroupView: View {
     let group: (albumId: String, albumTitle: String, platform: String, year: Int, coverUrl: String, tracks: [FavoriteTrack])
+    let onPlay: (FavoriteTrack) -> Void
+    let onAddToPlaylist: (String) -> Void
     @Environment(LibraryStore.self) var library
+    @Environment(PlayerService.self) var player
 
     private func openAlbum() {
         library.pendingNavigation = AlbumSummary(
@@ -703,7 +893,7 @@ private struct FavoriteGroupView: View {
                 Divider().overlay(Color.vgSeparator)
 
                 ForEach(group.tracks) { track in
-                    LikedTrackRow(track: track)
+                    LikedTrackRow(track: track, onPlay: { onPlay(track) }, onAddToPlaylist: { onAddToPlaylist(track.id) })
                 }
             }
             .background(Color.vgSurface)
@@ -714,18 +904,44 @@ private struct FavoriteGroupView: View {
 
 private struct LikedTrackRow: View {
     let track: FavoriteTrack
+    let onPlay: () -> Void
+    var onAddToPlaylist: (() -> Void)? = nil
     @Environment(FavoritesStore.self) var favorites
+    @Environment(PlayerService.self) var player
     @State private var isHovered = false
+
+    private var isPlaying: Bool { player.currentTrack?.id == track.id }
+
+    private var asTrack: Track {
+        Track(id: track.id, index: 0, name: track.name,
+             durationSec: track.durationSec, sizeBytes: 0,
+             streamUrl: "", downloadUrl: "", downloaded: true,
+             sourceAlbumTitle: track.albumTitle)
+    }
+
+    private var albumSummary: AlbumSummary {
+        AlbumSummary(id: track.albumId, title: track.albumTitle,
+                     platform: track.platform, year: track.year,
+                     albumType: "", trackCount: 0, totalDurationSec: 0, coverUrls: [])
+    }
 
     var body: some View {
         HStack {
-            Text(String(format: "%02d", 0))
-                .font(VGFont.mono())
-                .foregroundStyle(Color.vgTextMuted)
-                .frame(width: 32, alignment: .trailing)
+            Group {
+                if isPlaying {
+                    Image(systemName: "waveform").foregroundStyle(Color.vgAccent).font(.system(size: 12))
+                } else if isHovered {
+                    Image(systemName: "play.fill").foregroundStyle(Color.vgText).font(.system(size: 11))
+                } else {
+                    Text(String(format: "%02d", 0))
+                        .font(VGFont.mono())
+                        .foregroundStyle(Color.vgTextMuted)
+                }
+            }
+            .frame(width: 32, alignment: .trailing)
             Text(track.name)
                 .font(VGFont.body())
-                .foregroundStyle(Color.vgText)
+                .foregroundStyle(isPlaying ? Color.vgAccent : Color.vgText)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(track.durationFormatted)
@@ -735,20 +951,31 @@ private struct LikedTrackRow: View {
             Image(systemName: "star.fill")
                 .foregroundStyle(Color.vgStar)
                 .frame(width: 28, alignment: .center)
-                .onTapGesture {
-                    let dummy = Track(id: track.id, index: 0, name: track.name,
-                                     durationSec: track.durationSec, sizeBytes: 0,
-                                     streamUrl: "", downloadUrl: "", downloaded: true)
-                    let dummyAlbum = AlbumSummary(id: track.albumId, title: track.albumTitle,
-                                                   platform: track.platform, year: track.year,
-                                                   albumType: "", trackCount: 0, totalDurationSec: 0, coverUrls: [])
-                    favorites.toggle(dummy, album: dummyAlbum)
-                }
+                .onTapGesture { favorites.toggle(asTrack, album: albumSummary) }
         }
         .padding(.horizontal, VGSpace.md)
         .padding(.vertical, 10)
         .background(isHovered ? Color.vgSurfaceHi : Color.clear)
         .onHover { isHovered = $0 }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { onPlay() }
+        .contextMenu {
+            Button { onPlay() } label: {
+                Label("Play", systemImage: "play.fill")
+            }
+            Button { player.playNext(asTrack, album: albumSummary) } label: {
+                Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward")
+            }
+            if let onAddToPlaylist {
+                Button { onAddToPlaylist() } label: {
+                    Label("Add to Playlist…", systemImage: "music.note.list")
+                }
+            }
+            Divider()
+            Button(role: .destructive) { favorites.toggle(asTrack, album: albumSummary) } label: {
+                Label("Remove from Favorites", systemImage: "hand.thumbsup.slash")
+            }
+        }
 
         Divider().overlay(Color.vgSeparator).padding(.horizontal, VGSpace.md)
     }

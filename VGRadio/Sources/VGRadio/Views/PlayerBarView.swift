@@ -7,6 +7,9 @@ struct PlayerBarView: View {
     @Environment(HiddenTracksStore.self) var hidden
     @Environment(ConnectService.self) var connect
     @State private var isVolumeHovered = false
+    @State private var showAddToPlaylist = false
+    @State private var addToPlaylistTrackIds: [String] = []
+    @State private var addToPlaylistDefaultName: String?
 
     // While another device owns playback the bar is a remote control, so what it
     // draws comes from the hub's state instead of the local AVPlayer.
@@ -68,6 +71,11 @@ struct PlayerBarView: View {
             }
         }
         .frame(height: connect.isRemote ? VGLayout.playerBarHeight + VGLayout.remoteBannerHeight : VGLayout.playerBarHeight)
+        .sheet(isPresented: $showAddToPlaylist) {
+            if !addToPlaylistTrackIds.isEmpty {
+                AddToPlaylistSheet(trackIds: addToPlaylistTrackIds, defaultNewPlaylistName: addToPlaylistDefaultName)
+            }
+        }
     }
 
     // MARK: – Prev | Play | Next | time
@@ -152,7 +160,13 @@ struct PlayerBarView: View {
             if let track = barTrack, let album = barAlbum {
                 HStack(spacing: 0) {
                     Button {
-                        favorites.toggle(track, album: album)
+                        if favorites.isFavorite(track.id) {
+                            addToPlaylistTrackIds = [track.id]
+                            addToPlaylistDefaultName = track.name
+                            showAddToPlaylist = true
+                        } else {
+                            favorites.toggle(track, album: album)
+                        }
                     } label: {
                         Image(systemName: favorites.isFavorite(track.id) ? "star.fill" : "star")
                             .font(.system(size: 16))

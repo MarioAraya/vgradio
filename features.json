@@ -132,8 +132,8 @@
         {
           "id": "playlists",
           "title": "Playlists propias (CRUD)",
-          "status": "spec",
-          "evidence": "SPEC.md roadmap"
+          "status": "done",
+          "evidence": "CRUD completo en ambos clientes: crear, rename y delete desde el context menu del sidebar (SidebarView.swift / Sidebar.svelte), add-to-playlist desde la estrella en tracks ya favoritos. Commits 7f700a5, y este mismo commit"
         },
         {
           "id": "playlists-share",
